@@ -222,6 +222,20 @@ h2{font-family:var(--display);font-weight:800;font-size:clamp(40px,9vw,64px);lin
 .cta{background:var(--optic);color:#0b1322;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:.12em;text-transform:uppercase;border:0;border-radius:6px;padding:14px 18px;cursor:pointer;transition:transform .12s,box-shadow .2s}
 .cta:hover{box-shadow:0 0 30px rgba(217,242,62,.35)}
 .cta:active{transform:scale(.98)}
+.onrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.oncol{min-width:0;border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:10px;align-content:start;background:rgba(255,255,255,.03)}
+.oncol h3{margin:0;font-family:var(--display);font-size:22px;letter-spacing:.06em;text-transform:uppercase}
+.oncol p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
+.onjoin{display:flex;gap:8px}
+.onjoin .cta{flex:none}
+.cta:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
+.onjoin input{flex:1 1 0;width:0;min-width:0;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:6px;color:var(--chalk);font-family:var(--display);font-weight:800;font-size:26px;letter-spacing:.3em;text-align:center;text-transform:uppercase;padding:8px}
+.onjoin input:focus{outline:2px solid var(--optic);outline-offset:1px}
+.onwait{display:grid;justify-items:center;gap:12px;text-align:center}
+.onwait p{margin:0;color:var(--muted)}
+.onwait .btns{justify-content:center}
+.oncode{font-family:var(--display);font-weight:800;font-size:clamp(54px,12vw,84px);letter-spacing:.24em;color:var(--optic);line-height:1;padding-left:.24em}
+#onStatus a{color:var(--optic)}
 .ghost{background:transparent;border:1px solid var(--line);border-radius:6px;padding:12px 16px;font-family:var(--display);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:16px;cursor:pointer}
 .ghost:hover{border-color:var(--chalk)}
 .btns{display:flex;gap:10px;flex-wrap:wrap}
@@ -437,7 +451,7 @@ kbd.wide{min-width:52px}
         <div class="opt"><span>Mega-perfect slow-mo</span><div class="seg" data-k="slowmo"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
         <div class="opt"><span>Ball size <b class="ballPct"></b></span><input type="range" class="ballSize" min="0" max="100" step="1" aria-label="Ball size"></div>
       </div>
-      <div class="btns"><button class="cta" id="play">Play match</button><button class="ghost" id="practice">Practice court</button><button class="ghost" id="toTut">Tutorial</button><button class="ghost next" id="toEpics">Tennis Epics</button><button class="ghost next" id="toDoubles">Doubles</button><button class="ghost rpbtn" id="toRallies">Saved rallies</button></div>
+      <div class="btns"><button class="cta" id="play">Play match</button><button class="ghost" id="practice">Practice court</button><button class="ghost" id="toTut">Tutorial</button><button class="ghost next" id="toEpics">Tennis Epics</button><button class="ghost next" id="toDoubles">Doubles</button><button class="ghost next" id="toOnline">Online 1v1</button><button class="ghost rpbtn" id="toRallies">Saved rallies</button></div>
       <p class="howto" id="howto"><kbd>WASD</kbd> move · <kbd>arrows</kbd> aim · hold <kbd>Space</kbd> topspin or <kbd>Shift</kbd> slice near the ball (it sets you up), let go on the yellow · <kbd>Q</kbd> flat · <kbd>E</kbd> lob · <kbd>R</kbd> drop · <kbd>C</kbd> camera</p>
       <p class="fine">Fan-made playing styles inspired by each player's technique. Not affiliated with any player.</p>
     </footer>
@@ -495,6 +509,20 @@ kbd.wide{min-width:52px}
       <div class="opt"><span>Court</span><div class="seg" data-k="surface"><button data-v="0">Hard</button><button data-v="1">Indoor</button><button data-v="2">Clay</button><button data-v="3">Grass</button></div></div>
     </div>
     <div class="btns"><button class="cta" id="dPlay">Play doubles</button><button class="ghost" id="doublesBack">← Back</button></div>
+  </div>
+</div>
+
+<div class="ov" id="online" hidden>
+  <div class="slate menu">
+    <div class="mtop"><h1>Online <em>1v1</em></h1><div class="kicker">Play a friend on their own device</div></div>
+    <p class="lede" id="onStatus">Host a match and send your friend the code, or type the code your friend sent you.</p>
+    <div class="onrow" id="onPick">
+      <div class="oncol"><h3>Host a match</h3><p>You get a 4-letter code to send your friend. Your match length and court are used.</p><button class="cta" id="onCreate">Create match</button></div>
+      <div class="oncol"><h3>Join a match</h3><p>Type the code your friend sent you.</p><div class="onjoin"><input id="onCode" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Match code"><button class="cta" id="onJoin">Join</button></div></div>
+    </div>
+    <div class="onwait" id="onWait" hidden><div class="oncode" id="onCodeBig">----</div><p id="onWaitTxt">Waiting for your friend to join…</p><div class="btns"><button class="ghost" id="onCopy">Copy invite</button><button class="ghost" id="onCancel">Cancel</button></div></div>
+    <p class="fine">You play as <b id="onYou"></b> (pick your player on the main menu). No account needed: anyone with the game's link and your code can join.</p>
+    <div class="btns"><button class="ghost" id="onBack">← Back</button></div>
   </div>
 </div>
 
@@ -694,7 +722,7 @@ function createSim(H, cfg) {
     deadT: 0, after: null, score: null, stats: null, longest: 0,
     rally: { lastHitter: -1, lastAth: -1, isServe: false, boxSign: 1, shots: 0, lastHitT: 0, touched: false },
     srvAth: 0, taker: [0, 1], takerT: 0,
-    timers: [], input: { x: 0, z: 0 }, aim: { x: 0, z: 0 }, sprint: false,
+    timers: [], input: { x: 0, z: 0 }, aim: { x: 0, z: 0 }, input2: { x: 0, z: 0 }, aim2: { x: 0, z: 0 }, hold: null, netHold: 0.34, sprint: false,
   };
 
   function later(sec, fn) { S.timers.push({ t: S.t + sec, fn }); }
@@ -1008,7 +1036,9 @@ function createSim(H, cfg) {
     dpo: { name: 'Last stand', desc: 'A 140 forehand at 35% stamina or below.' },
     pete: { name: 'Pistol serve', desc: 'Serving to save a break, set or match point: the serve jumps to 122.' },
   };
-  const isMe = h => h.idx === 0;
+  // online 1v1 (cfg.net): both players are people - the far one plays from a friend's device
+  const isMe = h => h.idx === 0 || (!!cfg.net && h.idx === 1);
+  const remote = h => h.idx === 1 && !!cfg.net;
   // the rating a stroke actually plays at, after the player's ability
   function statFor(h, kind) {
     let v = h.prof[kind]; if (!isMe(h)) return v;
@@ -1018,26 +1048,26 @@ function createSim(H, cfg) {
     if (key === 'alc' && kind === 'fh') v = 93 + 47 * clamp(st, 0, 1);
     if (key === 'dpo' && kind === 'fh' && st <= 0.35) v = Math.max(v, 140);
     if (key === 'zve' && kind === 'serve' && S.faults === 0) v += 7;
-    if (key === 'pete' && kind === 'serve' && S.pressure && S.pressure.w === 1 && S.srvAth === 0) v += 12;
+    if (key === 'pete' && kind === 'serve' && S.pressure && S.pressure.w === 1 - h.team && S.srvAth === h.idx) v += 12;
     if (key === 'waw' && S.pressure) v += kind === 'bh' ? 10 : kind === 'fh' ? 8 : kind === 'serve' ? 6 : 0;
     return v;
   }
   function abilityActive(h) {
     const key = h.prof.key, st = h.stamina;
     if (!isMe(h)) return false;
-    return key === 'fed' ? st <= 0.5 : key === 'sin' ? st <= 0.4 : key === 'dpo' ? st <= 0.35 : key === 'waw' ? !!S.pressure : key === 'pete' ? !!(S.pressure && S.pressure.w === 1 && S.srvAth === 0) : key === 'alc' ? st > 0.6 : key === 'rafa' ? true : (key === 'nole' || key === 'kyr') ? !!h.megaArmed : false;
+    return key === 'fed' ? st <= 0.5 : key === 'sin' ? st <= 0.4 : key === 'dpo' ? st <= 0.35 : key === 'waw' ? !!S.pressure : key === 'pete' ? !!(S.pressure && S.pressure.w === 1 - h.team && S.srvAth === h.idx) : key === 'alc' ? st > 0.6 : key === 'rafa' ? true : (key === 'nole' || key === 'kyr') ? !!h.megaArmed : false;
   }
   // abilities that switch on at a stamina threshold announce themselves
   function abilityTick(h) {
     if (!isMe(h)) return;
     const key = h.prof.key;
     if ((key === 'nole' || key === 'kyr')) {
-      if (!h.megaArmed && !h.megaSpent && h.stamina <= 0.3) { h.megaArmed = true; H.toast(`${P[0].prof.short} · ${ABILITY[key].name}: next ${key === 'nole' ? 'backhand' : 'forehand'} is MEGA PERFECT`); }
+      if (!h.megaArmed && !h.megaSpent && h.stamina <= 0.3) { h.megaArmed = true; H.toast(`${h.prof.short} · ${ABILITY[key].name}: next ${key === 'nole' ? 'backhand' : 'forehand'} is MEGA PERFECT`); }
       if (h.megaSpent && h.stamina > 0.5) h.megaSpent = false;
     }
     const on = abilityActive(h) && key !== 'rafa' && key !== 'alc' && key !== 'nole' && key !== 'kyr';
-    if (key === 'waw' && on && !h.abilOn) { H.toast(`${P[0].prof.short} · Big-point Stan: +10 backhand on the big point`); h.abilOn = on; return; }
-    if (on && !h.abilOn && ABILITY[key]) H.toast(`${P[0].prof.short} · ${ABILITY[key].name}: ${ABILITY[key].desc.replace(/\.$/, '')}`);
+    if (key === 'waw' && on && !h.abilOn) { H.toast(`${h.prof.short} · Big-point Stan: +10 backhand on the big point`); h.abilOn = on; return; }
+    if (on && !h.abilOn && ABILITY[key]) H.toast(`${h.prof.short} · ${ABILITY[key].name}: ${ABILITY[key].desc.replace(/\.$/, '')}`);
     h.abilOn = on;
   }
 
@@ -1238,6 +1268,7 @@ function createSim(H, cfg) {
   }
   function tossStart(h) {
     S.tossStart = S.t; // (the CPU's toss too: its serve motion is timed from here)
+    S.srvHeld = false; // (online: the toss waits for a friend's release at most once)
     S.phase = 'toss'; S.tossT = 0;
     // toss from the left hand, drifting up over the hitting shoulder
     ball.x = h.pos.x - h.right * h.hand * 0.24; ball.y = h.prof.tossY || TOSS_Y; ball.z = h.pos.z + h.fwd * 0.26;
@@ -1536,7 +1567,7 @@ function createSim(H, cfg) {
     }
     let act = null;
     if (h.pending) act = { type: h.pending.type, power: h.pending.power, aim: h.pending.aim, e: (S.t - h.pending.t) - SWING_DELAY };
-    else if (h.charging) { const ps = playerShot(S.t); act = { type: ps.type, power: ps.power, aim: ps.aim, e: -0.15 }; }
+    else if (h.charging) { const ps = playerShot(S.t, h.idx); act = { type: ps.type, power: ps.power, aim: ps.aim, e: -0.15 }; }
     if (!act) return;
     if (!ok) { if (h.pending) { whiff(h); S.rally.touched = true; } return; }
     doTweener(h, act.type, act.power, act.aim, act.e);
@@ -1554,7 +1585,7 @@ function createSim(H, cfg) {
     if (info.serve) { st.fast = Math.max(st.fast, info.kmh); S.lastServeKmh = info.kmh; }
     if (info.perfect) st.perfect++;
     if (info.q === 'ultra') st.ultra = (st.ultra || 0) + 1;
-    if (info.q === 'mega') { st.mega = (st.mega || 0) + 1; if (h.idx === 0 && cfg.slowmo !== 0) S.slowT = 0.16; } // a brief slow-motion beat (can be switched off)
+    if (info.q === 'mega') { st.mega = (st.mega || 0) + 1; if (isMe(h) && cfg.slowmo !== 0) S.slowT = 0.16; } // a brief slow-motion beat (can be switched off)
     h.pending = null; h.charging = false; h.awaitPress = false;
     const a = h.anim;
     a.prep = false;
@@ -1903,25 +1934,26 @@ function createSim(H, cfg) {
   function whiff(h) {
     h.pending = null; h.charging = false;
     const a = h.anim; a.active = true; a.prep = false; a.fwd = false; a.boostTo = 0; a.cap = 1; a.rate = 2.3; if (a.s < 0.2) a.s = 0.2;
-    if (!h.ai) H.miss();
+    if (!h.ai) H.miss(h.idx);
   }
   function powerAt(h, t) { return clamp(0.2 + (t - h.chStart) / 0.7 * 0.8, 0.2, 1); }
-  function aimNow() { return { lx: clamp(S.aim.x, -1, 1), d: clamp(-S.aim.z, -1, 1) }; }
+  const inpOf = i => i === 1 && cfg.net ? S.input2 : S.input, aimOf = i => i === 1 && cfg.net ? S.aim2 : S.aim;
+  function aimNow(i = 0) { const A = aimOf(i); return { lx: clamp(A.x, -1, 1), d: clamp(-A.z, -1, 1) }; }
   const AIM_D = { top: 0.2, flat: 0.35, slice: 0.15, lob: 0.3, drop: 0, smash: 0.3 };
   // Two shot buttons. Space: topspin (up = flat drive, down = lob). Shift: slice (down = drop shot).
-  function resolveType(holdT) {
-    const d = -S.aim.z;
-    if (P[0].chKey === 'slice') return d < -0.5 ? 'drop' : 'slice';
-    if (P[0].chKey === 'lob') return 'lob';
-    if (P[0].chKey === 'flat') return 'flat';
-    if (P[0].chKey === 'drop') return 'drop';
+  function resolveType(holdT, i = 0) {
+    const d = -aimOf(i).z, k = P[i].chKey;
+    if (k === 'slice') return d < -0.5 ? 'drop' : 'slice';
+    if (k === 'lob') return 'lob';
+    if (k === 'flat') return 'flat';
+    if (k === 'drop') return 'drop';
     if (d > 0.5) return 'flat';
     if (d < -0.5) return 'lob';
     return 'top';
   }
-  function playerShot(t) {
-    const p = P[0], holdT = t - p.chStart, type = resolveType(holdT);
-    return { type, power: powerAt(p, t), aim: { lx: clamp(S.aim.x, -1, 1), d: AIM_D[type] } };
+  function playerShot(t, i = 0) {
+    const p = P[i], holdT = t - p.chStart, type = resolveType(holdT, i);
+    return { type, power: powerAt(p, t), aim: { lx: clamp(aimOf(i).x, -1, 1), d: AIM_D[type] } };
   }
 
   const canReach = (h, x, y) => { const d = Math.abs(x - h.pos.x), lunge = ball.bounces === 0 && Math.abs(h.pos.z) < 8 && y > 0.25 && y < 2.2; return y > 0.04 && ((d <= (lunge ? 2.15 : 1.8) && y <= 2.45) || (d <= 1.3 && y <= 3.05)); };
@@ -1936,9 +1968,12 @@ function createSim(H, cfg) {
       doStrike(h, c.type, c.power, c.aim, c.e);
       return;
     }
+    // a friend playing online: their release is still on its way over the network - the ball waits at the racket
+    // (a fraction of a second) and the swing is judged against the moment it got there
+    if (remote(h) && !h.pending && h.charging && !S.hold) { S.hold = { idx: h.idx, t: S.t, until: S.t + S.netHold }; return; }
     let act = null;
     if (h.pending) act = { type: h.pending.type, power: h.pending.power, aim: h.pending.aim, e: (S.t - h.pending.t) - SWING_DELAY };
-    else if (h.charging) { const ps = playerShot(S.t); act = { type: ps.type, power: ps.power, aim: ps.aim, e: -0.15 }; }
+    else if (h.charging) { const ps = playerShot(S.t, h.idx); act = { type: ps.type, power: ps.power, aim: ps.aim, e: -0.15 }; }
     if (!act) return;
     if (!reach) {
       // a committed swing misses; a held charge waits for the ball to come back into range
@@ -2086,16 +2121,16 @@ function createSim(H, cfg) {
   }
 
   const ASSIST_R = 1.4; // how close to the hitting spot you must be before holding a shot button helps
-  function updatePlayer(dt) {
-    const p = P[0], inp = S.input;
-    if (S.phase === 'serveReady' && S.srvAth === 0) {
+  function updatePlayer(dt, i = 0) {
+    const p = P[i], inp = inpOf(i);
+    if (S.phase === 'serveReady' && S.srvAth === i) {
       const deuce = isDeuce();
       const lo = deuce ? 0.25 : -4.0, hi = deuce ? 4.0 : -0.25;
       p.vel.x = p.vel.z = 0;
-      p.pos.x = clamp(p.pos.x + inp.x * 3.2 * dt, lo, hi);
+      p.pos.x = p.right * clamp(p.pos.x * p.right + inp.x * 3.2 * dt, lo, hi); // (as the server sees the court)
       return;
     }
-    if (S.phase === 'toss' && S.srvAth === 0) { p.vel.x = p.vel.z = 0; return; }
+    if (S.phase === 'toss' && S.srvAth === i) { p.vel.x = p.vel.z = 0; return; }
     const max = RUN_BASE * 1.095 * (1 + 0.07 * rk(statFor(p, 'speed'))) * legs(p.stamina);
     const inc = incomingTo(p);
     const ohLocked = p.plan && p.plan.spot && p.plan.spot.overhead && p.plan.spot.t - (S.t - p.planT) < 0.4;
@@ -2113,7 +2148,7 @@ function createSim(H, cfg) {
       if (p.set) { if (dSpot > 0.05) moveToward(p, p.plan.x, p.plan.z, moveSpeed(p) * 0.6, dt, 30); else steer(p, 0, 0, dt, 30); }
       else moveToward(p, p.plan.x, p.plan.z, moveSpeed(p), dt, 22);
     }
-    else steer(p, inp.x * max, inp.z * max, dt, S.phase === 'dead' ? 12 : 24);
+    else steer(p, inp.x * max * p.right, -inp.z * max * p.fwd, dt, S.phase === 'dead' ? 12 : 24); // (the stick is as the player sees the court)
     if (p.pending && !inc && S.t - p.pending.t > 0.6) p.pending = null;
   }
   // doubles formation: each player covers a half (left or right) at the net or at the back, shading toward the ball
@@ -2221,12 +2256,33 @@ function createSim(H, cfg) {
   }
 
   const EV = [];
+  // the ball waiting for a remote player's release: let go when it arrives (see shotUp) or after S.netHold
+  function holdTick() {
+    const hd = S.hold, h = P[hd.idx];
+    if ((hd.serve ? S.phase !== 'toss' : S.phase !== 'rally') || !cfg.net) { S.hold = null; return; }
+    if (hd.serve) { if (S.t >= hd.until || (!h.charging && !h.awaitPress)) S.hold = null; return; }
+    if (h.pending) { resolveHold(); return; }
+    if (S.t >= hd.until || !h.charging) resolveHold();
+  }
+  function resolveHold() {
+    const hd = S.hold; S.hold = null; if (!hd) return;
+    const h = P[hd.idx];
+    let act = null;
+    if (h.pending) act = { type: h.pending.type, power: h.pending.power, aim: h.pending.aim, e: (hd.t - h.pending.t) - SWING_DELAY };
+    else if (h.charging) { const ps = playerShot(hd.t, h.idx); act = { type: ps.type, power: ps.power, aim: ps.aim, e: -0.15 }; }
+    if (!act) return;
+    if (!canReach(h, ball.x, ball.y)) { if (h.pending) { whiff(h); S.rally.touched = true; } return; }
+    doStrike(h, act.type, act.power, act.aim, act.e);
+  }
   function physics(dt) {
     const n = Math.max(1, Math.ceil(dt / (1 / 240))), h = dt / n;
     for (let i = 0; i < n; i++) {
       S.t += h;
       if (S.phase === 'serveReady') { holdBall(); continue; }
       if (S.phase === 'feedWait') { machineBall(); P[0].prevF = null; continue; }
+      if (S.hold) { holdTick(); if (S.hold) continue; }
+      // online: a friend's serve waits at the top of the toss until their release arrives
+      if (S.phase === 'toss' && cfg.net && S.srvAth === 1 && !S.hold && !S.srvHeld && (P[1].charging || P[1].awaitPress) && S.tossT > tossIdeal(P[1]) - 0.01 && S.tossT < tossIdeal(P[1]) + 0.2 && ball.vy < 0) { S.hold = { idx: 1, t: S.t, until: S.t + S.netHold, serve: true }; S.srvHeld = true; continue; }
       EV.length = 0; stepBall(ball, h, EV);
       for (const e of EV) onEvent(e);
       if (S.phase === 'toss') {
@@ -2255,7 +2311,7 @@ function createSim(H, cfg) {
     // impact lands with weight (too short to touch anyone's timing)
     if (S.hitStop > 0) { S.hitStop -= Math.min(rdt, 0.05); S.timeScale = Math.min(S.timeScale, 0.08); }
     const dt = Math.min(rdt, 0.05) * S.timeScale;
-    updatePlayer(dt);
+    updatePlayer(dt, 0); if (cfg.net) updatePlayer(dt, 1);
     retake();
     updateAI(dt);
     if (S.phase === 'rally') for (const a of P) {
@@ -2285,41 +2341,45 @@ function createSim(H, cfg) {
     return S.t + clamp((ms - S.frameNow) / 1000, 0, 0.1) * S.timeScale;
   }
   function canAct() { return S.phase === 'rally' || S.phase === 'serveReady' || S.phase === 'toss' || S.phase === 'feedWait'; }
-  function shotDown(ms, key) {
+  // i: which player (1 = the friend online); tAbs: when they pressed, on this match's clock (sent with the press)
+  const keyOf = key => key === 'slice' || key === 'lob' || key === 'flat' || key === 'drop' ? key : 'main';
+  function shotDown(ms, key, i = 0, tAbs) {
     if (!canAct()) return;
-    const p = P[0], t = simTimeAt(ms);
-    if (S.phase === 'serveReady' && S.srvAth === 0) {
-      p.chKey = key === 'slice' || key === 'lob' || key === 'flat' || key === 'drop' ? key : 'main';
-      tossStart(p); p.charging = true; p.chStart = t; S.tossStart = t; return;
+    const p = P[i], t = tAbs !== undefined ? clamp(tAbs, S.t - 1, S.t) : simTimeAt(ms);
+    if (S.phase === 'serveReady' && S.srvAth === i) {
+      p.chKey = keyOf(key);
+      tossStart(p); p.charging = true; p.chStart = t; S.tossStart = tAbs !== undefined ? S.t : t; return;
     }
-    if (S.phase === 'toss' && S.srvAth === 0) {
-      if (p.awaitPress) serveRelease(t);
+    if (S.phase === 'toss' && S.srvAth === i) {
+      if (p.awaitPress) serveRelease(tAbs !== undefined ? clamp(tAbs, S.tossStart, S.t) : t, i);
       return;
     }
     if (p.charging || p.pending) return;
-    p.charging = true; p.chStart = t; p.chKey = key === 'slice' || key === 'lob' || key === 'flat' || key === 'drop' ? key : 'main';
+    p.charging = true; p.chStart = t; p.chKey = keyOf(key);
   }
-  function shotUp(ms, key) {
-    const p = P[0];
+  function shotUp(ms, key, i = 0, tAbs) {
+    const p = P[i];
     if (!p.charging) return;
     if (key && key !== p.chKey) return; // releasing a different shot button does nothing
-    const t = simTimeAt(ms);
-    if (S.phase === 'toss' && S.srvAth === 0) {
+    const t = tAbs !== undefined ? clamp(tAbs, Math.max(S.t - 0.6, p.chStart), S.t) : simTimeAt(ms);
+    if (S.phase === 'toss' && S.srvAth === i) {
       if (t - S.tossStart < 0.15) { p.awaitPress = true; p.charging = false; return; }
-      serveRelease(t); return;
+      serveRelease(t, i); return;
     }
     p.charging = false;
     if (S.phase !== 'rally' && S.phase !== 'serveReady' && S.phase !== 'toss' && S.phase !== 'feedWait') return;
-    p.pending = Object.assign({ t }, playerShot(t));
+    p.pending = Object.assign({ t }, playerShot(t, i));
     H.released(p.pending);
+    if (S.hold && S.hold.idx === i && !S.hold.serve) resolveHold();
   }
-  function serveType() { return P[0].chKey === 'slice' || P[0].chKey === 'drop' ? 'slice' : P[0].chKey === 'lob' || (P[0].chKey !== 'flat' && -S.aim.z < -0.5) ? 'top' : 'flat'; }
-  function serveRelease(t) {
-    const p = P[0];
+  function serveType(i = 0) { const k = P[i].chKey; return k === 'slice' || k === 'drop' ? 'slice' : k === 'lob' || (k !== 'flat' && -aimOf(i).z < -0.5) ? 'top' : 'flat'; }
+  function serveRelease(t, i = 0) {
+    const p = P[i];
+    if (S.hold && S.hold.serve) S.hold = null;
     const tt = Math.max(0, t - S.tossStart);
     const power = clamp(0.2 + tt / (tossIdeal(p) * 0.98) * 0.8, 0.2, 1);
     p.charging = false; p.awaitPress = false;
-    doServe(p, serveType(), power, aimNow().lx, tt - tossIdeal(p));
+    doServe(p, serveType(i), power, aimNow(i).lx, tt - tossIdeal(p));
     for (const a of P) a.prevF = null;
   }
   // Live timing cue: where the release would land on the meter right now.
@@ -2358,10 +2418,13 @@ function createSim(H, cfg) {
     // two players or four
     P.length = 0; for (const a of (DBL() ? P4 : P4.slice(0, 2))) P.push(a);
     P[0].prof = PROFILES[cfg.player] || PROFILES.fed; P[0].hand = P[0].prof.hand;
+    P[1].ai = !cfg.net; S.hold = null; S.input2.x = S.input2.z = S.aim2.x = S.aim2.z = 0;
     // the CPU's own ratings scale with difficulty
     { const r = [80, 89, 100, 110][cfg.diff] || 88; P[1].prof = Object.assign({}, PROFILES.cpu, { serve: r, fh: r, bh: r, net: r - 2, speed: 88, slice: r, drop: r - 2 }); }
     // an epic: the CPU IS the real opponent (their ratings, hand and style); the difficulty still sets how sharp it plays
     if (cfg.opp && PROFILES[cfg.opp]) { const o = PROFILES[cfg.opp], t = [-12, -5, 0, 8][cfg.diff] || 0; P[1].prof = Object.assign({}, o); for (const k of ['serve', 'fh', 'bh', 'net', 'slice', 'drop']) P[1].prof[k] = o[k] + t; }
+    // online: the friend's own custom ratings, if they built a custom player
+    if (cfg.net && cfg.oppCus) for (const k of ['serve', 'fh', 'bh', 'net', 'speed', 'slice', 'drop']) { const v = +cfg.oppCus[k]; if (isFinite(v)) P[1].prof[k] = clamp(Math.round(v), 0, 250); }
     aiCache = null;
     P[1].hand = P[1].prof.hand || 1;
     NAME[0] = P[0].prof.short; NAME[1] = cfg.opp && PROFILES[cfg.opp] ? PROFILES[cfg.opp].short : 'CPU';
@@ -2383,6 +2446,9 @@ function createSim(H, cfg) {
     _dbg: { computePlan, doStrike, doServe, afterStrike, onEvent },
     newMatch, setDrill, MACHINE, DRILLS, update, shotDown, shotUp, chargeInfo, timeToCrossExact, aimPreview, predict, timeToCross, incomingTo, teamInc,
     setInput(x, z, ax, az) { S.input.x = x; S.input.z = z; S.aim.x = ax === undefined ? x : ax; S.aim.z = az === undefined ? z : az; },
+    setInput2(x, z, ax, az) { S.input2.x = x; S.input2.z = z; S.aim2.x = ax; S.aim2.z = az; },
+    setNetHold(sec) { S.netHold = clamp(sec, 0.2, 0.55); },
+    runMax(i) { const p = P[i]; return RUN_BASE * 1.095 * (1 + 0.07 * rk(statFor(p, 'speed'))) * legs(p.stamina); },
   };
 }
 /*SIM-END*/
@@ -2620,10 +2686,10 @@ const H = {
     fx.hitFlash(sim.ball, pfx && info.perfect, idx, info.smash, pfx && info.ultra, pfx && info.mega, info.kmh, info.volley, info.type);
     showReadout(info, idx);
     if (idx === 0) showQuality(info);
-    // feel: your strikes get a hit-stop (longer for pace and for a smash) and, on a phone, a short buzz
+    // feel: on a phone, a short buzz on your strikes
     if (idx === 0) {
       const pace = Math.max(0, Math.min(1, ((info.kmh || 80) - 70) / 90));
-      if (!reducedMotion) sim.S.hitStop = 0.026 + 0.03 * pace + (info.smash ? 0.022 : 0) + (({ perfect: 0.01, ultra: 0.018, mega: 0.026 })[info.q] || 0); // (good timing lands heavier)
+      // (no hit-stop: the brief freeze on contact read as the game lagging, so play never slows on a strike)
       if (isTouch && navigator.vibrate) { try { navigator.vibrate(Math.round(9 + 16 * pace + (info.smash ? 10 : 0))); } catch (e) {} }
     }
     // the crowd leans in as a rally goes on, and marks the long ones
@@ -2651,7 +2717,7 @@ const H = {
   },
   quality: info => showQuality(info),
   released() {},
-  miss() { toast('Out of reach'); AU.whoosh(sim.P[0].pos.x); },
+  miss(i) { if (i) return; toast('Out of reach'); AU.whoosh(sim.P[0].pos.x); },
   // practice court
   feed(yaw) { machine.aim = yaw; machine.kick = 1; AU.hit(0.3, false, 0, true, 'slice'); },
   practice(kind, sub, pr) {
@@ -6965,9 +7031,9 @@ const joy = { x: 0, z: 0, id: null };
 let spaceHeld = false, sliceHeld = false, lobHeld = false, flatHeld = false, dropHeld = false;
 const SLICEKEYS = { ShiftLeft: 1, ShiftRight: 1 }, LOBKEYS = { KeyE: 1 }, FLATKEYS = { KeyQ: 1, KeyF: 1 }, DROPKEYS = { KeyR: 1 };
 const playing = () => sim && ['serveReady', 'toss', 'rally', 'dead', 'feedWait'].includes(sim.S.phase);
-const overlayOpen = () => !$('menu').hidden || !$('pause').hidden || !$('end').hidden || !$('epics').hidden || !$('doubles').hidden || !$('rallies').hidden;
-function pressHit(ts, key) { AU.init(); if (RP.active) return; if (playing()) sim.shotDown(ts, key); }
-function releaseHit(ts, key) { if (sim) sim.shotUp(ts, key); }
+const overlayOpen = () => !$('menu').hidden || !$('pause').hidden || !$('end').hidden || !$('epics').hidden || !$('doubles').hidden || !$('rallies').hidden || !$('online').hidden;
+function pressHit(ts, key) { AU.init(); if (RP.active) return; if (playing()) { if (NET.live && NET.role === 'guest') netGuestDown(key); else sim.shotDown(ts, key); } }
+function releaseHit(ts, key) { if (!sim) return; if (NET.live && NET.role === 'guest') netGuestUp(key); else sim.shotUp(ts, key); }
 window.addEventListener('keydown', e => {
   if (RP.active) return; // (a replay has its own keys)
   if (e.code === 'KeyV' && !e.repeat && sim && sim.S.score && !cfg.practice && $('menu').hidden && $('rallies').hidden) { const l = rpLast(); if (l && !l.savedId) { rlSave(l); toast('Rally saved'); } else if (l) toast('Already saved'); return; }
@@ -7451,6 +7517,10 @@ function applyMode() {
 }
 function pauseGame() {
   if (!playing()) return;
+  if (NET.live) { // online the match keeps going: this is just the menu
+    clearInput(); ['restart', 'pLast', 'pReplay', 'pHl'].forEach(id => $(id).hidden = true); $('quit').textContent = 'Leave match';
+    document.querySelector('#pause h2').textContent = 'Online match'; $('pause').hidden = false; $('touch').hidden = true; setTimeout(() => $('resume').focus(), 0); return;
+  }
   sim.S.prevPhase = sim.S.phase; sim.S.phase = 'paused'; rpButtons();
   clearInput();
   sim.P[0].charging = false;
@@ -7458,12 +7528,15 @@ function pauseGame() {
   setTimeout(() => $('resume').focus(), 0);
 }
 function resumeGame() {
+  if (NET.live) { $('pause').hidden = true; $('touch').hidden = !isTouch; clearInput(); blurActive(); return; }
   if (sim.S.phase !== 'paused') return;
   sim.S.phase = sim.S.prevPhase; $('pause').hidden = true; $('touch').hidden = !isTouch; lastT = performance.now();
   clearInput(); blurActive();
 }
 function toMenu() {
   if (RP.active) rpStop();
+  if (NET.role || NET.live || cfg.net) netLeave();
+  $('online').hidden = true; cfg.oppCus = null;
   if (epicMode && !$('end').hidden) { showEpics(); return; }
   if (doublesMode && !$('end').hidden) { showDoubles(); return; }
   tutStop();
@@ -7481,10 +7554,10 @@ if (!settings.sound) { settings.sound = 1; toggleSound(); }
 $('play').addEventListener('click', startMatch, L);
 $('practice').addEventListener('click', startPractice, L);
 $('drills').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || tutOn()) return; blurActive(); sim.setDrill(b.dataset.d); AU.ui(); }, L);
-$('rematch').addEventListener('click', startMatch, L);
+$('rematch').addEventListener('click', e => { if (cfg.net) { if (NET.role === 'host') netRematch(); } else startMatch(e); }, L);
 $('restart').addEventListener('click', startMatch, L);
 $('resume').addEventListener('click', resumeGame, L);
-$('quit').addEventListener('click', () => { if (!cfg.practice && !TUT.on && sim.S.score && !sim.S.score.matchOver && hlStart('quit')) return; toMenu(); }, L);
+$('quit').addEventListener('click', () => { if (NET.live) { toMenu(); return; } if (!cfg.practice && !TUT.on && sim.S.score && !sim.S.score.matchOver && hlStart('quit')) return; toMenu(); }, L);
 $('toMenu').addEventListener('click', toMenu, L);
 $('btnPause').addEventListener('click', () => { blurActive(); if (playing()) pauseGame(); }, L);
 $('btnSound').addEventListener('click', () => { blurActive(); toggleSound(); }, L);
@@ -7521,6 +7594,12 @@ function showEnd(w) {
     if (won) markEpic(epicKey(epicMode), cfg.diff);
     $('rematch').textContent = won ? 'Play again' : 'Try again'; $('toMenu').textContent = 'Tennis Epics';
   } else { ee.hidden = true; $('rematch').textContent = 'Rematch'; $('toMenu').textContent = doublesMode ? 'Doubles' : 'Main menu'; }
+  $('rematch').disabled = false;
+  if (cfg.net) {
+    $('endKicker').textContent = 'Online match report';
+    if (NET.role === 'guest') { $('rematch').textContent = 'Host can start a rematch'; $('rematch').disabled = true; }
+    $('toMenu').textContent = 'Leave';
+  }
   $('statTable').querySelector('tbody').innerHTML = rows.map(r => `<tr><td>${r[1]}</td><td>${r[0]}</td><td>${r[2]}</td></tr>`).join('')
     + `<tr><td colspan="3">Longest rally · ${sim.S.longest} shots</td></tr>`;
   clearInput();
@@ -7528,9 +7607,470 @@ function showEnd(w) {
     $('hud').hidden = true; $('touch').hidden = true; $('end').hidden = false; rpButtons();
     AU.applause(w === 0 ? 1.2 : 0.5);
     if (sim.S.phase === 'end' && !RP.active && hlStart('end')) return;
-    $('rematch').focus();
+    if ($('rematch').disabled) $('toMenu').focus(); else $('rematch').focus();
   }, 1600);
 }
+
+/* ---------------- online 1v1 ---------------- */
+// Two people, each on their own device. One HOSTS: their game runs the match. The friend's game sends its controls
+// (stick, aim, and every press and release stamped with the moment on the match clock the friend was looking at) and
+// shows what the host's game sends back about 30 times a second - mirrored, so both people play from the near end.
+// The two games talk directly (WebRTC, through PeerJS; its free public server only introduces them). Each side keeps
+// one small "this is my current state" object and sends the whole of it every time, so a lost or late message is
+// simply replaced by the next one.
+const NET_V = 2, NET_KEYS = { main: 1, slice: 1, flat: 1, lob: 1, drop: 1 };
+const NET_SITE = 'https://saayanpaulomi4-eng.github.io/night-session/';
+window.__nightNet = () => ({ role: NET.role, live: NET.live, mid: NET.mid, started: NET.startedMid, ok: NET.R && NET.R.ok, err: NET.R && NET.R.err, remote: NET.R && NET.R.remote ? Object.keys(NET.R.remote).join(',') + '|go=' + NET.R.remote.go : null, rn: NET.R && NET.R.rn, sn: NET.R && NET.R.sn, buf: NET.buf.length, delay: Math.round(NET.delay), rtt: Math.round(NET.rtt), hold: window.__nightSession && window.__nightSession.S.netHold }); // (for testing)
+const NET_PEERJS = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
+const NET_TEST = (() => { try { const m = /[?&]nettest(?:=(\d+))?/.exec(location.search); return m ? { lat: +(m[1] || 0) } : null; } catch (e) { return null; } })();
+const NET = { lib: null, libP: null, R: null, role: null, code: '', live: false, mid: null, timer: null, keep: null,
+  snapK: 0, evSeq: 0, evq: [], sendT: 0, lastSeq: 0, gpk: 'fed', gcus: null, frameNow: 0,
+  buf: [], lastK: -1, offs: [], off: null, delay: 90, evDone: 0, evPend: [], seq: 0, acts: [], inT: 0, startedMid: null, scKey: '', lastRx: 0, lostShown: false,
+  echo: 0, lastEc: 0, rtt: 150, pred: { ox: 0, oz: 0, vx: 0, vz: 0, px: 0, pz: 0 } };
+// where online play can run: the game's own website (or a local test). Inside claude.ai the page can't open
+// connections to other people's devices, so there it points to the website instead.
+const netHere = () => { if (NET_TEST) return true; try { const h = location.hostname; return !!h && !/claude\.ai$|claudeusercontent\.com$|anthropic\.com$/.test(h) && location.protocol !== 'file:'; } catch (e) { return false; } };
+function netLoadLib() {
+  if (NET_TEST) return Promise.resolve(true);
+  const have = () => window.Peer || (window.peerjs && window.peerjs.Peer);
+  if (have()) return Promise.resolve(true);
+  if (NET.libP) return NET.libP;
+  NET.libP = new Promise(res => {
+    let i = 0;
+    const next = () => {
+      if (i >= NET_PEERJS.length) { NET.libP = null; res(false); return; }
+      const s = document.createElement('script'); s.src = NET_PEERJS[i++]; s.async = true; s.crossOrigin = 'anonymous';
+      s.onload = () => res(!!have()); s.onerror = () => { s.remove(); next(); };
+      document.head.appendChild(s);
+    };
+    next();
+  });
+  return NET.libP;
+}
+
+// ---- the link: a tiny "room" with one other person in it ----
+// R.presence(part) merges into what we tell the friend and sends it; R.peers() is the friend (once they're here)
+// with the last state they sent; R.onPeers(cb) hears every update ({ left: [...] } when they've gone).
+function netRoom(code, role) {
+  const R = { lastOut: 0, pres: {}, remote: null, rn: 0, sn: 0, cb: null, onClose: null, closed: false, ok: false, lastIn: 0, err: null, link: null,
+    presence(part) { Object.assign(R.pres, part); R.flush(); return Promise.resolve(); },
+    flush() { if (R.ok && R.link && !R.closed) { R.lastOut = performance.now(); try { R.link.send({ n: ++R.sn, p: R.pres }); } catch (e) {} } },
+    peers() { return R.remote ? [{ peer: 'friend', presence: R.remote, sameTab: false }] : []; },
+    onPeers(cb, onClose) { R.cb = cb; R.onClose = onClose; return () => { R.cb = null; }; },
+    rx(d) {
+      if (R.closed || !d || typeof d !== 'object') return;
+      if (d.full) { R.fail('full'); return; }
+      if (!(d.n > R.rn) || !d.p || typeof d.p !== 'object') return; // (late or repeated)
+      R.rn = d.n; R.remote = d.p; R.lastIn = performance.now();
+      if (R.cb) R.cb({ left: [] });
+    },
+    gone() { if (R.closed || !R.remote) return; const was = R.remote; R.remote = null; R.ok = false; if (R.cb) R.cb({ left: [{ peer: 'friend', presence: was }] }); },
+    fail(why) { if (R.closed) return; R.err = why; if (R.onFail) R.onFail(why); },
+    leave() { R.closed = true; R.ok = false; try { if (R.link) R.link.close(); } catch (e) {} return Promise.resolve(); },
+  };
+  R.link = NET_TEST ? netTestLink(code, role, R) : netPeerLink(code, role, R);
+  return R;
+}
+// the real thing: PeerJS (WebRTC data channel; unordered, so one slow packet never holds up the next)
+function netPeerLink(code, role, R) {
+  const Peer = window.Peer || (window.peerjs && window.peerjs.Peer);
+  const id = 'night-session-tennis-' + code.toLowerCase();
+  let peer = null, conn = null;
+  const attach = c => {
+    conn = c;
+    c.on('open', () => { if (R.closed) { try { c.close(); } catch (e) {} return; } R.ok = true; R.lastIn = performance.now(); R.flush(); });
+    c.on('data', d => R.rx(d));
+    c.on('close', () => R.gone());
+    c.on('error', () => {});
+  };
+  try {
+    if (role === 'host') {
+      peer = new Peer(id, { debug: 1 });
+      peer.on('connection', c => {
+        if (conn && R.remote) { c.on('open', () => { try { c.send({ full: 1 }); } catch (e) {} setTimeout(() => { try { c.close(); } catch (e) {} }, 400); }); return; }
+        if (conn) { try { conn.close(); } catch (e) {} }
+        attach(c);
+      });
+      // (the code stays registered while we wait; once the friend is connected the server isn't needed)
+      peer.on('disconnected', () => { if (!R.closed && !R.remote) { try { peer.reconnect(); } catch (e) {} } });
+    } else {
+      peer = new Peer({ debug: 1 });
+      peer.on('open', () => { if (R.closed) return; attach(peer.connect(id, { serialization: 'json', reliable: false })); });
+    }
+    peer.on('error', e => {
+      const t = e && e.type;
+      if (t === 'unavailable-id') R.fail('taken');
+      else if (t === 'peer-unavailable') R.fail('nomatch');
+      else if (!R.ok) R.fail(t === 'browser-incompatible' ? 'browser' : 'net');
+    });
+  } catch (e) { setTimeout(() => R.fail('net'), 0); }
+  return { send: d => { if (conn && conn.open) conn.send(d); }, close: () => { try { if (conn) conn.close(); } catch (e) {} try { if (peer) peer.destroy(); } catch (e) {} } };
+}
+// a local stand-in for testing (two tabs of the same browser): BroadcastChannel, with optional one-way delay ?nettest=ms
+function netTestLink(code, role, R) {
+  const ch = new BroadcastChannel('night-session-net-' + code), me = Math.random().toString(36).slice(2), lat = NET_TEST.lat;
+  let other = null;
+  const post = m => { const go = () => { try { ch.postMessage(m); } catch (e) {} }; if (lat) setTimeout(go, lat * (0.8 + Math.random() * 0.4)); else go(); };
+  ch.onmessage = ev => {
+    const m = ev.data; if (!m || m.from === me || R.closed) return;
+    if (m.k === 'hello' && role === 'host') { if (other && other !== m.from) { post({ k: 'd', from: me, to: m.from, d: { full: 1 } }); return; } other = m.from; R.ok = true; R.lastIn = performance.now(); post({ k: 'welcome', from: me, to: other }); R.flush(); return; }
+    if (m.k === 'welcome' && role === 'guest' && m.to === me) { other = m.from; R.ok = true; R.lastIn = performance.now(); R.flush(); return; }
+    if (m.k === 'bye' && m.from === other) { R.gone(); return; }
+    if (m.k === 'd' && m.to === me && (!other || m.from === other)) R.rx(m.d);
+  };
+  if (role === 'guest') { let tries = 0; const ask = () => { if (R.closed || other) return; if (++tries > 6) { R.fail('nomatch'); return; } post({ k: 'hello', from: me }); setTimeout(ask, 500); }; setTimeout(ask, 50); }
+  return { send: d => { if (other) post({ k: 'd', from: me, to: other, d }); }, close: () => { try { ch.postMessage({ k: 'bye', from: me }); ch.close(); } catch (e) {} } };
+}
+
+const netCodeOk = c => /^[A-HJ-NP-Z2-9]{4}$/.test(c);
+function netGenCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 4; i++) c += A[Math.floor(Math.random() * A.length)]; return c; }
+function netStatus(msg) {
+  const el = $('onStatus'); if (!el) return;
+  el.hidden = false;
+  if (msg) { el.textContent = msg; return; }
+  if (!netHere()) el.innerHTML = `Online matches run on the game’s website. Open <a href="${NET_SITE}" target="_blank" rel="noopener">${NET_SITE.replace('https://', '')}</a> on both devices, then host or join there.`;
+  else el.textContent = 'Host a match and send your friend the code, or type the code your friend sent you.';
+  const ok = netHere(); $('onCreate').disabled = !ok; $('onJoin').disabled = !ok;
+}
+function showOnline() {
+  ['menu', 'end', 'pause', 'epics', 'doubles', 'rallies'].forEach(id => $(id).hidden = true);
+  $('online').hidden = false; $('onPick').hidden = false; $('onWait').hidden = true; netStatus();
+  $('onYou').textContent = (sim.PROFILES[settings.player] || sim.PROFILES.fed).name;
+  setTimeout(() => (netHere() ? $('onCreate') : $('onBack')).focus({ preventScroll: true }), 0);
+}
+const netInvite = () => (NET_TEST ? location.origin + location.pathname + '?nettest=' + NET_TEST.lat + '&' : NET_SITE + '?') + 'code=' + NET.code;
+function netPeerOf() { return NET.R ? NET.R.peers()[0] || null : null; }
+async function netOpen(code, role) {
+  netLeave();
+  NET.role = role; NET.code = code; NET.live = false; NET.mid = null; NET.startedMid = null;
+  $('onPick').hidden = true; $('onWait').hidden = false; $('onCodeBig').textContent = code; $('onStatus').hidden = true; $('onCodeBig').hidden = role !== 'host';
+  $('onWaitTxt').textContent = role === 'host' ? 'Connecting…' : `Joining match ${code}…`;
+  const okLib = await netLoadLib();
+  if (NET.role !== role || NET.code !== code) return;
+  if (!okLib) { netBack('Couldn’t load the online part of the game. Check your internet connection and try again.'); return; }
+  const R = netRoom(code, role);
+  NET.R = R;
+  R.onFail = why => {
+    if (NET.R !== R) return;
+    if (why === 'taken' && role === 'host') { netOpen(netGenCode(), 'host'); return; } // (that code is in use: pick another)
+    const msg = { nomatch: `No match found with code ${code}. Check the code with your friend (they need to keep the game open on the code screen) and try again.`,
+      full: 'That match already has two players.', browser: 'This browser can’t play online. Try Chrome, Edge, Safari or Firefox.',
+      net: 'Couldn’t reach the online service. Check your internet connection and try again.' }[why] || 'Something went wrong connecting. Try again.';
+    netBack(msg);
+  };
+  const base = { role, v: NET_V, pk: settings.player, cus: settings.player === 'cus' ? settings.custom : null };
+  if (role === 'host') Object.assign(base, { len: settings.len, sf: settings.surface, go: null, s: null });
+  else Object.assign(base, { g: null });
+  R.presence(base);
+  R.onPeers(netPeers);
+  if (role === 'host') setTimeout(() => { if (NET.R === R && !R.err && !R.remote) $('onWaitTxt').textContent = 'Send your friend this code and the game’s link. Waiting for them to join…'; }, NET_TEST ? 50 : 1500);
+  else NET.timer = setTimeout(() => { if (NET.R === R && !R.remote && !R.err) $('onWaitTxt').textContent = 'Still connecting… (some school or work networks block online games)'; }, 9000);
+  // keep telling the friend we're here (every quarter second), and notice if they go quiet
+  clearInterval(NET.keep);
+  let lastTick = performance.now();
+  NET.keep = setInterval(() => {
+    if (NET.R !== R) return;
+    // (if this page itself was frozen - building the players at the start of a match on a slow phone, say - the
+    // friend's messages are still queued: don't count that time as them going quiet)
+    const nowT = performance.now(); if (nowT - lastTick > 1000) R.lastIn = Math.max(R.lastIn, nowT - 1000); lastTick = nowT;
+    if (performance.now() - R.lastOut > 240) R.flush(); // (also while this tab is in the background)
+    if (R.remote && performance.now() - R.lastIn > (NET.live ? 8000 : 6000)) R.gone();
+  }, 250);
+}
+function netBack(msg) { netLeave(); if ($('online').hidden) return; $('onPick').hidden = false; $('onWait').hidden = true; netStatus(msg); }
+function netLeave() {
+  clearTimeout(NET.timer); clearInterval(NET.keep); NET.keep = null;
+  if (NET.R) { const R = NET.R; NET.R = null; R.leave(); }
+  NET.live = false; NET.role = null; NET.mid = null; NET.startedMid = null; NET.buf.length = 0; NET.evPend.length = 0; NET.acts.length = 0;
+  cfg.net = false;
+  ['restart'].forEach(id => $(id).hidden = false); $('quit').textContent = 'Main menu';
+}
+function netPeers(ch) {
+  if (!NET.R) return;
+  if (ch.left.length) { netPeerLeft(); return; }
+  const f = netPeerOf(); if (!f) return;
+  const pr = f.presence || {};
+  if (pr.v !== NET_V) { $('onWaitTxt').textContent = 'Your friend’s game is a different version. Both of you reload the page and try again.'; return; }
+  if (NET.role === 'host' && !NET.live && !NET.mid && pr.role === 'guest' && !NET.timer) {
+    NET.gpk = sim.PROFILES[pr.pk] && pr.pk !== 'cpu' ? pr.pk : 'fed'; NET.gcus = NET.gpk === 'cus' && pr.cus && typeof pr.cus === 'object' ? pr.cus : null;
+    $('onWaitTxt').textContent = `${sim.PROFILES[NET.gpk].name} joined! Starting…`;
+    NET.timer = setTimeout(() => { NET.timer = null; if (NET.role === 'host' && netPeerOf() && !NET.live) startNetMatch(); }, 1200);
+  }
+  if (NET.role === 'guest' && pr.role === 'host') {
+    if (!NET.live && !pr.go) $('onWaitTxt').textContent = 'Found the match! Starting…';
+    if (pr.go && pr.go !== NET.startedMid) startNetMatch();
+  }
+}
+function netPeerLeft() {
+  const inMatch = NET.live || !$('end').hidden || !!RP.active;
+  netLeave();
+  if (inMatch || $('online').hidden) {
+    callout('FRIEND LEFT', 'The online match is over', 'alert', 1800);
+    setTimeout(() => { if (!NET.live && !NET.role) toMenu(); }, 1900);
+  } else { $('onPick').hidden = false; $('onWait').hidden = true; netStatus('Your friend left. Host or join again.'); }
+}
+// both games start the same match: the host's match length and court, each person's own player
+function startNetMatch() {
+  if (RP.active) rpStop();
+  rpReset();
+  practiceMode = false; epicMode = null; doublesMode = false; TUT.on = false; $('tut').hidden = true;
+  AU.init();
+  const host = NET.role === 'host', hc = host ? null : (netPeerOf() || {}).presence || {};
+  cfg.practice = false; cfg.net = true; cfg.doubles = false; cfg.diff = 2; cfg.assist = 1; cfg.slowmo = settings.slowmo;
+  cfg.player = settings.player;
+  cfg.opp = host ? NET.gpk : (sim.PROFILES[hc.pk] && hc.pk !== 'cpu' ? hc.pk : 'fed');
+  cfg.oppCus = host ? NET.gcus : (cfg.opp === 'cus' && hc.cus && typeof hc.cus === 'object' ? hc.cus : null);
+  cfg.len = host ? settings.len : ([0, 1, 2].includes(hc.len) ? hc.len : 0);
+  cfg.surface = host ? settings.surface : ([0, 1, 2, 3].includes(hc.sf) ? hc.sf : 0);
+  applySurface(cfg.surface); applyVenue('default');
+  setPlayerModel(cfg.player); setOppModel(cfg.opp); setDoublesView(null);
+  ['menu', 'pause', 'end', 'epics', 'doubles', 'online', 'rallies'].forEach(id => $(id).hidden = true);
+  $('hud').hidden = false; $('touch').hidden = !isTouch; $('fade').classList.remove('on');
+  clearInput(); blurActive(); hintCount = 0;
+  sim.newMatch();
+  NET.live = true; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.lostShown = false;
+  for (const h of sim.P) { h.charging = false; h.pending = null; }
+  if (host) {
+    NET.mid = Math.random().toString(36).slice(2, 10);
+    const g = (netPeerOf() || {}).presence; const gg = g && g.g; NET.lastSeq = gg && Array.isArray(gg.a) && gg.a.length ? +gg.a[gg.a.length - 1][0] || 0 : 0;
+    NET.R.presence({ go: NET.mid, s: null });
+  } else { NET.startedMid = hc.go; NET.evDone = 0; NET.acts.length = 0; }
+  $('youName').textContent = sim.NAME[0]; $('cpuName').textContent = sim.NAME[1];
+  applyMode();
+  $('restart').hidden = true; $('quit').textContent = 'Leave match';
+  callout('ONLINE', `${sim.P[0].prof.name} vs ${sim.P[1].prof.name}`, 'good', 1500);
+}
+function netRematch() { if (NET.role === 'host' && NET.R && netPeerOf()) startNetMatch(); }
+
+// ---- host: what the sim tells the renderer is copied for the friend ----
+const netE = e => ({ x: e.x, z: e.z, n: e.n, impact: e.impact, vx: e.vx, vz: e.vz });
+const NET_FWD = {
+  strike: (i, f) => [i, f], bounce: (e, live) => [netE(e), !!live], mark: e => [netE(e)], sfx: (n, x) => [n, x], toast: m => [String(m)],
+  call: (m, s, t, ms) => [m, s, t, ms], pointEnd: (w, r, sub, res, sh) => [w, r, sub, res ? { kind: res.kind } : null, sh], miss: i => [i], end: w => [w],
+  fadeOut: () => [], fadeIn: () => [], serveReady: s => [s],
+};
+for (const k in NET_FWD) {
+  const f = H[k];
+  H[k] = function (...a) { if (NET.live && NET.role === 'host') { NET.evq.push([++NET.evSeq, Math.round(NET.frameNow || performance.now()), k, NET_FWD[k](...a)]); if (NET.evq.length > 24) NET.evq.shift(); } return f.apply(H, a); };
+}
+const netR3 = v => Math.round(v * 1000) / 1000;
+function netRound(o, d = 0) {
+  if (typeof o === 'number') return isFinite(o) ? netR3(o) : 0;
+  if (d > 6) return null;
+  if (Array.isArray(o)) return o.map(v => netRound(v, d + 1));
+  if (o && typeof o === 'object') { const r = {}; for (const k in o) { const v = o[k]; if (v !== undefined && typeof v !== 'function') r[k] = netRound(v, d + 1); } return r; }
+  return o;
+}
+function netPl(h) {
+  return [h.pos.x, h.pos.z, h.vel.x, h.vel.z, h.hop || 0, h.cheer || 0, h.slump || 0, h.cheerKind === 'small' ? 1 : 0, h.chKey || 'main', h.stamina,
+    h.anim, h.plan && h.plan.spot ? h.plan.spot : 0, h.plan && h.plan.leave ? 1 : 0, h.megaArmed ? 1 : 0, h.charging ? 1 : 0, h.abilOn ? 1 : 0, h.assist || 0];
+}
+function netSnap(now) {
+  const S = sim.S, b = sim.ball, sc = S.score;
+  const cut = now - 1600; while (NET.evq.length && NET.evq[0][1] < cut) NET.evq.shift();
+  const s = netRound({ k: ++NET.snapK, w: Math.round(now), t: S.t, ph: S.phase === 'paused' ? S.prevPhase : S.phase, sv: S.server, sa: S.srvAth, f: S.faults,
+    lh: S.rally.lastHitter, is: S.rally.isServe ? 1 : 0, sh: S.rally.shots, bx: S.rally.boxSign, ts: S.tossStart || 0, sc2: S.timeScale,
+    b: [b.x, b.y, b.z, b.vx, b.vy, b.vz, b.bounces, b.spin || 0, b.rolling ? 1 : 0, b.g, b.mag || 0, b.ax || 0, b.ev, b.fh, b.kd || 1],
+    p: [netPl(sim.P[0]), netPl(sim.P[1])],
+    sc: sc ? [sc.pts, sc.games, sc.sets, sc.tb ? 1 : 0, sc.tbp, sc.history, sc.gameServer, sc.matchOver ? 1 : 0, sc.winner] : null,
+    pr: S.pressure ? [S.pressure.w, S.pressure.label, S.pressure.lv || 0] : null, lg: S.longest, st: S.stats, mid: NET.mid, ec: NET.echo, ev: NET.evq });
+  // (a data channel message is safest under 16 KB: shed the oldest effects first if a frame is ever that big)
+  while (s.ev.length && JSON.stringify(s).length > 12000) s.ev.shift();
+  return s;
+}
+function netHostPre(now) {
+  NET.frameNow = now;
+  const gp = netPeerOf(), g = gp && gp.presence && gp.presence.g;
+  if (!g || typeof g !== 'object' || g.mid !== NET.mid) { sim.setInput2(0, 0, 0, 0); return; }
+  const num = (v, lo, hi) => typeof v === 'number' && isFinite(v) ? Math.max(lo, Math.min(hi, v)) : 0;
+  sim.setInput2(num(g.x, -1, 1), num(g.z, -1, 1), num(g.ax, -1, 1), num(g.az, -1, 1)); NET.echo = num(g.tm, 0, 1e12);
+  // how long the ball may wait at the friend's racket: what their view and their reply cost (with a little spare)
+  sim.setNetHold((num(g.rt, 0, 600) + num(g.dl, 0, 300)) / 1000 + 0.07);
+  if (Array.isArray(g.a)) for (const a of g.a) {
+    if (!Array.isArray(a)) continue;
+    const seq = +a[0]; if (!(seq > NET.lastSeq)) continue; NET.lastSeq = seq;
+    const key = NET_KEYS[a[2]] ? a[2] : undefined, t = num(a[3], -1e9, 1e9);
+    if (sim.S.phase === 'paused' || sim.S.phase === 'end') continue;
+    if (a[1] === 'd') sim.shotDown(undefined, key || 'main', 1, t);
+    else if (a[1] === 'u') sim.shotUp(undefined, key, 1, t);
+  }
+}
+function netHostPost(now) {
+  if (!NET.R || now - NET.sendT < 32) return;
+  NET.sendT = now;
+  NET.R.presence({ s: netSnap(now) });
+}
+
+// ---- guest: show the host's match, mirrored so we play from the near end ----
+const netMirE = e => ({ x: -e.x, z: -e.z, n: e.n, impact: e.impact, vx: -e.vx, vz: -e.vz });
+function netGuestRx(now) {
+  const hp = netPeerOf(); if (!hp) return;
+  const pr = hp.presence || {};
+  if (pr.go && pr.go !== NET.startedMid && NET.role === 'guest') { startNetMatch(); return; }
+  const s = pr.s;
+  if (!s || typeof s !== 'object' || s.mid !== NET.startedMid || s.k === NET.lastK || !Array.isArray(s.p) || !Array.isArray(s.b)) return;
+  NET.lastK = s.k; NET.lastRx = now; NET.lostShown = false;
+  if (s.ec && s.ec !== NET.lastEc) { NET.lastEc = s.ec; const r = now - s.ec; if (r > 0 && r < 3000) NET.rtt += (r - NET.rtt) * (r < NET.rtt ? 0.3 : 0.08); }
+  // clock: the host's frame time minus ours; the largest recent value is the least-delayed delivery
+  const v = s.w - now; NET.offs.push([v, now]); while (NET.offs.length && NET.offs[0][1] < now - 4000) NET.offs.shift();
+  let mx = -Infinity; for (const o of NET.offs) mx = Math.max(mx, o[0]);
+  NET.off = NET.off === null ? mx : (mx > NET.off ? mx : NET.off + (mx - NET.off) * 0.02);
+  const ex = NET.offs.map(o => NET.off - o[0]).sort((a, b) => a - b), p90 = ex[Math.floor(ex.length * 0.9)] || 0;
+  NET.delay += (Math.max(45, Math.min(240, p90 + 40)) - NET.delay) * 0.05;
+  if (!NET.buf.length || s.w > NET.buf[NET.buf.length - 1].w) NET.buf.push(s);
+  while (NET.buf.length > 40) NET.buf.shift();
+  if (Array.isArray(s.ev)) for (const e of s.ev) if (Array.isArray(e) && e[0] > NET.evDone && !NET.evPend.some(q => q[0] === e[0])) NET.evPend.push(e);
+  NET.evPend.sort((a, b) => a[0] - b[0]);
+}
+function netLerpAnim(A, B, a) {
+  const o = Object.assign({}, A);
+  if (B && A.kind === B.kind && A.active && B.active && B.s >= A.s) o.s = A.s + (B.s - A.s) * a;
+  return o;
+}
+function netApplyPl(h, f, g, a, own) {
+  const L = (x, y) => x + (y - x) * a;
+  h.pos.x = -L(f[0], g[0]); h.pos.z = -L(f[1], g[1]); h.vel.x = -f[2]; h.vel.z = -f[3];
+  h.hop = L(f[4], g[4]); h.cheer = f[5]; h.slump = f[6]; h.cheerKind = f[7] ? 'small' : 'big'; h.stamina = f[9];
+  if (!own || !h.charging) h.chKey = f[8];
+  const an = netLerpAnim(f[10] || {}, g[10], a), A = h.anim;
+  for (const k in A) if (!(k in an)) A[k] = undefined;
+  Object.assign(A, an); A.cp = an.cp ? { x: -an.cp.x, y: an.cp.y, z: -an.cp.z } : undefined;
+  const sp = f[11];
+  h.plan = sp ? { spot: Object.assign({}, sp, { x: -sp.x, z: -sp.z, vx: sp.vx !== undefined ? -sp.vx : undefined, vz: sp.vz !== undefined ? -sp.vz : undefined }), leave: !!f[12] } : null;
+  if (h.plan && h.plan.spot) { h.plan.x = h.plan.spot.x; h.plan.z = h.plan.spot.z; }
+  h.megaArmed = !!f[13]; h.abilOn = !!f[15]; h.assist = f[16] || 0;
+  if (!own) h.charging = !!f[14];
+}
+function netApply(s0, s1, a) {
+  const S = sim.S, b = sim.ball, B0 = s0.b, B1 = s1.b, L = (x, y) => x + (y - x) * a;
+  S.phase = s0.ph; S.server = 1 - s0.sv; S.srvAth = 1 - (s0.sa === undefined ? s0.sv : s0.sa); S.faults = s0.f;
+  S.rally.lastHitter = s0.lh < 0 ? -1 : 1 - s0.lh; S.rally.isServe = !!s0.is; S.rally.shots = s0.sh; S.rally.boxSign = -s0.bx;
+  S.tossStart = s0.ts; S.timeScale = s0.sc2 || 1; S.t = L(s0.t, s1.t);
+  const jump = Math.hypot(B1[0] - B0[0], B1[2] - B0[2]) > 3; // (a new point: don't slide the ball across)
+  const k = jump ? 0 : a;
+  b.x = -(B0[0] + (B1[0] - B0[0]) * k); b.y = B0[1] + (B1[1] - B0[1]) * k; b.z = -(B0[2] + (B1[2] - B0[2]) * k);
+  b.vx = -B0[3]; b.vy = B0[4]; b.vz = -B0[5]; b.bounces = B0[6]; b.spin = B0[7]; b.rolling = !!B0[8]; b.g = B0[9]; b.mag = B0[10]; b.ax = -B0[11]; b.ev = B0[12]; b.fh = B0[13]; b.kd = B0[14];
+  netApplyPl(sim.P[0], s0.p[1], s1.p[1], a, true);
+  netApplyPl(sim.P[1], s0.p[0], s1.p[0], a, false);
+  if (s0.sc) {
+    const [pts, games, sets, tb, tbp, hist, gs, over, win] = s0.sc, sw = x => [x[1], x[0]];
+    const key = JSON.stringify(s0.sc) + (s0.pr ? s0.pr[0] + s0.pr[1] : '') + s0.ph + s0.sv;
+    S.score = { pts: sw(pts), games: sw(games), sets: sw(sets), tb: !!tb, tbp: sw(tbp), history: hist.map(sw), gameServer: 1 - gs, srvN: 0, matchOver: !!over, winner: win < 0 ? win : 1 - win };
+    S.pressure = s0.pr ? { w: 1 - s0.pr[0], label: String(s0.pr[1]), lv: +s0.pr[2] || 0 } : null;
+    S.longest = s0.lg || 0;
+    if (Array.isArray(s0.st) && s0.st.length === 2) S.stats = [s0.st[1], s0.st[0]];
+    if (key !== NET.scKey) { NET.scKey = key; renderBoard(); }
+  }
+}
+// your own player moves the instant you push the stick: the picture of you runs ahead of the host's (delayed) copy by
+// what the network costs, and settles back onto it whenever you are swinging, so the strike lines up with the ball
+function netPredict(dt) {
+  const S = sim.S, p = sim.P[0], I = S.input, N = NET.pred;
+  const ax = p.pos.x, az = p.pos.z, avx = p.vel.x, avz = p.vel.z;
+  if (Math.hypot(ax - N.px, az - N.pz) > 2.5) { N.ox = N.oz = 0; N.vx = avx; N.vz = avz; } // a new point: start from the host's copy
+  N.px = ax; N.pz = az;
+  let use = false, tvx = 0, tvz = 0;
+  const swinging = p.charging || p.pending || (p.anim.active && !p.anim.prep) || p.assist;
+  if ((S.phase === 'rally' || S.phase === 'dead') && !swinging) { const m = sim.runMax(0); tvx = I.x * m; tvz = I.z * m; use = true; }
+  else if (S.phase === 'serveReady' && S.srvAth === 0) { tvx = I.x * 3.2; use = true; }
+  if (use) {
+    const acc = (S.phase === 'dead' ? 12 : 24) * dt, dx = tvx - N.vx, dz = tvz - N.vz, m = Math.hypot(dx, dz);
+    if (m > acc) { N.vx += dx / m * acc; N.vz += dz / m * acc; } else { N.vx = tvx; N.vz = tvz; }
+  } else { N.vx = avx; N.vz = avz; }
+  const lt = Math.min(0.45, (NET.rtt + NET.delay) / 1000), k = 1 - Math.exp(-dt / 0.3);
+  N.ox += (N.vx - avx) * dt; N.oz += (N.vz - avz) * dt;
+  N.ox += ((use ? avx * lt : 0) - N.ox) * k; N.oz += ((use ? avz * lt : 0) - N.oz) * k;
+  const om = Math.hypot(N.ox, N.oz); if (om > 1.6) { N.ox *= 1.6 / om; N.oz *= 1.6 / om; }
+  p.pos.x = Math.max(-9.5, Math.min(9.5, ax + N.ox)); p.pos.z = Math.max(0.75, Math.min(19.5, az + N.oz));
+  if (use) { p.vel.x = N.vx; p.vel.z = N.vz; }
+}
+function netGuestEvent(e) {
+  const [, , name, a] = e; if (!Array.isArray(a)) return;
+  const P0 = sim.P[0];
+  switch (name) {
+    case 'strike': { const j = 1 - a[0]; if (j === 0) { P0.pending = null; P0.charging = false; } H.strike(j, a[1] && typeof a[1] === 'object' ? a[1] : {}); break; }
+    case 'bounce': if (a[0]) H.bounce(netMirE(a[0]), a[1]); break;
+    case 'mark': if (a[0]) H.mark(netMirE(a[0])); break;
+    case 'sfx': H.sfx(String(a[0]), -(+a[1] || 0)); break;
+    case 'toast': toast(String(a[0])); break;
+    case 'call': { let t = a[2]; if (t === 'alert') t = ''; else if (t === '' && /FAULT/.test(String(a[0]))) t = 'alert'; callout(String(a[0]), a[1] == null ? '' : String(a[1]), t, a[3]); break; }
+    case 'pointEnd': H.pointEnd(1 - a[0], String(a[1]), a[2] == null ? '' : String(a[2]), a[3] && typeof a[3] === 'object' ? a[3] : null, +a[4] || 0); break;
+    case 'miss': if (1 - a[0] === 0) H.miss(0); break;
+    case 'end': H.end(1 - a[0]); break;
+    case 'fadeOut': H.fadeOut(); break;
+    case 'fadeIn': H.fadeIn(); break;
+    case 'serveReady': H.serveReady(1 - a[0]); break;
+  }
+}
+function netGuestTick(rdt, now) {
+  netGuestRx(now);
+  if (!NET.live) return;
+  const buf = NET.buf;
+  if (buf.length && NET.off !== null) {
+    const target = now + NET.off - NET.delay;
+    let i = 0; while (i < buf.length - 1 && buf[i + 1].w <= target) i++;
+    const s0 = buf[i], s1 = buf[Math.min(buf.length - 1, i + 1)];
+    const a = s1 === s0 ? 0 : Math.max(0, Math.min(1, (target - s0.w) / Math.max(1, s1.w - s0.w)));
+    if (i > 2) buf.splice(0, i - 2);
+    netApply(s0, s1, a);
+    netPredict(Math.min(0.05, rdt));
+    while (NET.evPend.length && NET.evPend[0][1] <= target) { const e = NET.evPend.shift(); NET.evDone = Math.max(NET.evDone, e[0]); try { netGuestEvent(e); } catch (err) { console.error(err); } }
+  }
+  const P0 = sim.P[0];
+  if (P0.pending && sim.S.t - P0.pending.t > 0.8) P0.pending = null;
+  if (P0.charging && sim.S.phase !== 'rally' && sim.S.phase !== 'serveReady' && sim.S.phase !== 'toss') P0.charging = false;
+  if (now - NET.lastRx > 2500 && !NET.lostShown && NET.live) { NET.lostShown = true; toast('Connection to your friend is slow…'); }
+  netGuestSend(now);
+}
+function netGuestSend(now, force) {
+  if (!NET.R || (!force && now - NET.inT < 32)) return;
+  NET.inT = now;
+  const I = sim.S.input, A = sim.S.aim;
+  NET.R.presence({ g: { mid: NET.startedMid, x: netR3(I.x), z: netR3(I.z), ax: netR3(A.x), az: netR3(A.z), a: NET.acts, tm: Math.round(now), rt: Math.round(NET.rtt), dl: Math.round(NET.delay) } });
+}
+function netAct(kind, key, t) {
+  NET.acts.push([++NET.seq, kind, key || null, Math.round(t * 10000) / 10000]);
+  if (NET.acts.length > 8) NET.acts.shift();
+  netGuestSend(performance.now(), true); // (send now)
+}
+const netKeyOf = key => NET_KEYS[key] ? key : 'main';
+function netGuestDown(key) {
+  const S = sim.S, p = sim.P[0], k = netKeyOf(key), t = S.t;
+  if (S.phase === 'serveReady' && S.srvAth === 0) { p.chKey = k; p.charging = true; p.chStart = t; }
+  else if (S.phase === 'toss' && S.srvAth === 0) { /* the host decides (a second press after an early release) */ }
+  else if (S.phase === 'rally') { if (p.charging || p.pending) return; p.charging = true; p.chStart = t; p.chKey = k; }
+  else return;
+  netAct('d', k, t);
+}
+function netGuestUp(key) {
+  const S = sim.S, p = sim.P[0], t = S.t, k = key ? netKeyOf(key) : null;
+  if (k && p.charging && k !== p.chKey) return; // (releasing a different shot button does nothing)
+  if (S.phase === 'rally' && p.charging) {
+    p.charging = false;
+    const pw = Math.max(0.2, Math.min(1, 0.2 + (t - p.chStart) / 0.7 * 0.8)), d = -S.aim.z;
+    const type = p.chKey === 'slice' ? (d < -0.5 ? 'drop' : 'slice') : p.chKey === 'main' ? (d > 0.5 ? 'flat' : d < -0.5 ? 'lob' : 'top') : p.chKey;
+    p.pending = { t, type, power: pw, aim: { lx: S.aim.x, d: 0.2 } };
+  } else p.charging = false;
+  netAct('u', k, t);
+}
+$('toOnline').addEventListener('click', () => { AU.ui(); showOnline(); }, L);
+$('onBack').addEventListener('click', () => { AU.ui(); netLeave(); $('online').hidden = true; $('menu').hidden = false; setTimeout(() => $('toOnline').focus({ preventScroll: true }), 0); }, L);
+$('onCreate').addEventListener('click', () => { AU.ui(); if (netHere()) netOpen(netGenCode(), 'host'); }, L);
+const netJoinNow = () => { const c = $('onCode').value.trim().toUpperCase(); if (!netCodeOk(c)) { netStatus('Codes are 4 letters or numbers, like K7QF.'); return; } AU.ui(); if (netHere()) netOpen(c, 'guest'); };
+$('onJoin').addEventListener('click', netJoinNow, L);
+$('onCode').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') netJoinNow(); }, L);
+$('onCode').addEventListener('keyup', e => e.stopPropagation(), L);
+$('onCode').addEventListener('input', e => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); if (v !== e.target.value) e.target.value = v; }, L);
+$('onCancel').addEventListener('click', () => { AU.ui(); netLeave(); showOnline(); }, L);
+$('onCopy').addEventListener('click', () => {
+  AU.ui();
+  const txt = `Play tennis with me in Night Session! Open ${netInvite()} and press Join (code ${NET.code})`;
+  const done = () => { $('onCopy').textContent = 'Copied!'; setTimeout(() => { $('onCopy').textContent = 'Copy invite'; }, 1600); };
+  try { if (navigator.share && isTouch) { navigator.share({ text: txt }).catch(() => {}); return; } } catch (e) {}
+  try { navigator.clipboard.writeText(txt).then(done, () => {}); } catch (e) {}
+}, L);
+// a link with ?code=XXXX opens straight onto the join screen with the code filled in
+{ try { const m = /[?&]code=([A-Za-z0-9]{4})\b/.exec(location.search); if (m && netHere()) setTimeout(() => { if (!$('menu').hidden) { showOnline(); $('onCode').value = m[1].toUpperCase(); setTimeout(() => $('onJoin').focus({ preventScroll: true }), 30); } }, 300); } catch (e) {} }
 
 /* ---------------- adaptive resolution: keep the frame rate smooth on slower devices ---------------- */
 let perfAcc = 0, perfN = 0, perfLevel = 0;
@@ -7987,8 +8527,9 @@ function frame(now) {
 function frameBody(now) {
   const rawDt = Math.max(0, (now - lastT) / 1000), rdt = Math.min(0.05, rawDt); lastT = now;
   adaptQuality(rawDt);
-  if (RP.active) rpTick(rdt);
-  else { readInput(); sim.update(rdt, now); rpRecord(rdt); if (TUT.on) tutTick(rdt); }
+  if (RP.active) { rpTick(rdt); if (NET.role === 'guest') netGuestRx(now); }
+  else if (NET.live && NET.role === 'guest') { readInput(); netGuestTick(rdt, now); rpRecord(rdt); }
+  else { readInput(); if (NET.live) netHostPre(now); sim.update(rdt, now); if (NET.live) netHostPost(now); rpRecord(rdt); if (TUT.on) tutTick(rdt); }
   if (AU.tensN > 0 && (RP.active || sim.S.phase !== 'rally')) AU.tension(0); // (paused, quit, replay: the murmur fades)
   const S = sim.S, b = sim.ball;
   const vdt = rdt * S.timeScale;
@@ -8196,6 +8737,7 @@ requestAnimationFrame(frame);
 setTimeout(() => $('play').focus({ preventScroll: true }), 50);
 window.__nightSessionTeardown = () => {
   alive = false; lifetime.abort();
+  try { netLeave(); } catch (e) {}
   try { if (AU.ctx) AU.ctx.close(); } catch (e) {}
   try { renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove(); } catch (e) {}
 };
@@ -8207,5 +8749,6 @@ window.__nightSessionTeardown = () => {
   catch (e) { nightSessionBoot(); }
 })();
 </script>
+
 
 </body></html>
