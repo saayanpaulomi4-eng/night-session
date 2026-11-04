@@ -6529,7 +6529,7 @@ const trailPos = new Float32Array(TRAIL_N * 2 * 3), trailCol = new Float32Array(
   trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 4));
 }
 const trailMesh = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-trailMesh.frustumCulled = false; scene.add(trailMesh);
+trailMesh.frustumCulled = false; trailMesh.visible = !LOW; scene.add(trailMesh); // (low and ultra low graphics: no streak behind the ball)
 // a wider, fainter glow ribbon around the core streak (additive), so a struck ball reads as a bright comet
 const glowGeo = new THREE.BufferGeometry(), glowPos = new Float32Array(TRAIL_N * 2 * 3), glowCol = new Float32Array(TRAIL_N * 2 * 4);
 glowGeo.setIndex(trailGeo.index); glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3)); glowGeo.setAttribute('color', new THREE.BufferAttribute(glowCol, 4));
@@ -8604,7 +8604,7 @@ function frameBody(now) {
   if (live) trailHeat = Math.max(0, trailHeat - vdt * (trailMode ? 0.45 : 0.9));
   const speed = Math.hypot(b.vx, b.vy, b.vz);
   const trailOn = S.phase !== 'serveReady' && S.phase !== 'menu';
-  updateTrail(trailOn ? Math.max(0, Math.min(1, (speed - 5) / 14)) * (0.55 + 0.45 * trailHeat * (trailMode ? 1 : 0.4)) : 0, trailMode === 1 && trailHeat > 0.15, speed);
+  if (!LOW) updateTrail(trailOn ? Math.max(0, Math.min(1, (speed - 5) / 14)) * (0.55 + 0.45 * trailHeat * (trailMode ? 1 : 0.4)) : 0, trailMode === 1 && trailHeat > 0.15, speed);
   if (landFlashT > 0) { landFlashT = Math.max(0, landFlashT - rdt); landFlash.material.opacity = Math.min(0.85, landFlashT * 2.5); const sc = 1 + (1.1 - landFlashT) * 0.4; landFlash.scale.set(sc, sc, 1); }
   else landFlash.material.opacity = 0;
   if (flashLife > 0) { flashLife = Math.max(0, flashLife - rdt * 7); flash.material.opacity = flashLife * 0.55; const s = 0.18 + (1 - flashLife) * 0.45; flash.scale.set(s, s, 1); }
