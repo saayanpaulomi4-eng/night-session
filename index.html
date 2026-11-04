@@ -222,7 +222,8 @@ h2{font-family:var(--display);font-weight:800;font-size:clamp(40px,9vw,64px);lin
 .cta{background:var(--optic);color:#0b1322;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:.12em;text-transform:uppercase;border:0;border-radius:6px;padding:14px 18px;cursor:pointer;transition:transform .12s,box-shadow .2s}
 .cta:hover{box-shadow:0 0 30px rgba(217,242,62,.35)}
 .cta:active{transform:scale(.98)}
-.onrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.onrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+#online .slate{width:min(860px,100%)}
 .oncol{min-width:0;border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:10px;align-content:start;background:rgba(255,255,255,.03)}
 .oncol h3{margin:0;font-family:var(--display);font-size:22px;letter-spacing:.06em;text-transform:uppercase}
 .oncol p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
@@ -515,13 +516,14 @@ kbd.wide{min-width:52px}
 <div class="ov" id="online" hidden>
   <div class="slate menu">
     <div class="mtop"><h1>Online <em>1v1</em></h1><div class="kicker">Play a friend on their own device</div></div>
-    <p class="lede" id="onStatus">Host a match and send your friend the code, or type the code your friend sent you.</p>
+    <p class="lede" id="onStatus">Host a match and send your friend the code, type the code your friend sent you, or find a random opponent.</p>
     <div class="onrow" id="onPick">
       <div class="oncol"><h3>Host a match</h3><p>You get a 4-letter code to send your friend. Your match length and court are used.</p><button class="cta" id="onCreate">Create match</button></div>
+      <div class="oncol"><h3>Random match</h3><p>Get paired with the next person who taps this. You each get a random player · quick match · random court.</p><button class="cta" id="onRandom">Find match</button></div>
       <div class="oncol"><h3>Join a match</h3><p>Type the code your friend sent you.</p><div class="onjoin"><input id="onCode" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Match code"><button class="cta" id="onJoin">Join</button></div></div>
     </div>
     <div class="onwait" id="onWait" hidden><div class="oncode" id="onCodeBig">----</div><p id="onWaitTxt">Waiting for your friend to join…</p><div class="btns"><button class="ghost" id="onCopy">Copy invite</button><button class="ghost" id="onCancel">Cancel</button></div></div>
-    <p class="fine">You play as <b id="onYou"></b> (pick your player on the main menu). No account needed: anyone with the game's link and your code can join.</p>
+    <p class="fine">You play as <b id="onYou"></b> (pick your player on the main menu; a random match picks for you). No account needed: anyone with the game's link and your code can join.</p>
     <div class="btns"><button class="ghost" id="onBack">← Back</button></div>
   </div>
 </div>
@@ -7535,7 +7537,7 @@ function resumeGame() {
 }
 function toMenu() {
   if (RP.active) rpStop();
-  if (NET.role || NET.live || cfg.net) netLeave();
+  NET.qGen++; if (NET.role || NET.live || cfg.net) netLeave();
   $('online').hidden = true; cfg.oppCus = null;
   if (epicMode && !$('end').hidden) { showEpics(); return; }
   if (doublesMode && !$('end').hidden) { showDoubles(); return; }
@@ -7623,7 +7625,7 @@ const NET_SITE = 'https://saayanpaulomi4-eng.github.io/night-session/';
 window.__nightNet = () => ({ role: NET.role, live: NET.live, mid: NET.mid, started: NET.startedMid, ok: NET.R && NET.R.ok, err: NET.R && NET.R.err, remote: NET.R && NET.R.remote ? Object.keys(NET.R.remote).join(',') + '|go=' + NET.R.remote.go : null, rn: NET.R && NET.R.rn, sn: NET.R && NET.R.sn, buf: NET.buf.length, delay: Math.round(NET.delay), rtt: Math.round(NET.rtt), hold: window.__nightSession && window.__nightSession.S.netHold }); // (for testing)
 const NET_PEERJS = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
 const NET_TEST = (() => { try { const m = /[?&]nettest(?:=(\d+))?/.exec(location.search); return m ? { lat: +(m[1] || 0) } : null; } catch (e) { return null; } })();
-const NET = { lib: null, libP: null, R: null, role: null, code: '', live: false, mid: null, timer: null, keep: null,
+const NET = { mode: 'code', slot: 0, qGen: 0, qTries: 0, lib: null, libP: null, R: null, role: null, code: '', live: false, mid: null, timer: null, keep: null,
   snapK: 0, evSeq: 0, evq: [], sendT: 0, lastSeq: 0, gpk: 'fed', gcus: null, frameNow: 0,
   buf: [], lastK: -1, offs: [], off: null, delay: 90, evDone: 0, evPend: [], seq: 0, acts: [], inT: 0, startedMid: null, scKey: '', lastRx: 0, lostShown: false,
   echo: 0, lastEc: 0, rtt: 150, pred: { ox: 0, oz: 0, vx: 0, vz: 0, px: 0, pz: 0 } };
@@ -7651,8 +7653,8 @@ function netLoadLib() {
 // ---- the link: a tiny "room" with one other person in it ----
 // R.presence(part) merges into what we tell the friend and sends it; R.peers() is the friend (once they're here)
 // with the last state they sent; R.onPeers(cb) hears every update ({ left: [...] } when they've gone).
-function netRoom(code, role) {
-  const R = { lastOut: 0, pres: {}, remote: null, rn: 0, sn: 0, cb: null, onClose: null, closed: false, ok: false, lastIn: 0, err: null, link: null,
+function netRoom(code, role, rnd) {
+  const R = { rnd: !!rnd, matched: false, lastOut: 0, pres: {}, remote: null, rn: 0, sn: 0, cb: null, onClose: null, closed: false, ok: false, lastIn: 0, err: null, link: null,
     presence(part) { Object.assign(R.pres, part); R.flush(); return Promise.resolve(); },
     flush() { if (R.ok && R.link && !R.closed) { R.lastOut = performance.now(); try { R.link.send({ n: ++R.sn, p: R.pres }); } catch (e) {} } },
     peers() { return R.remote ? [{ peer: 'friend', presence: R.remote, sameTab: false }] : []; },
@@ -7678,7 +7680,12 @@ function netPeerLink(code, role, R) {
   let peer = null, conn = null;
   const attach = c => {
     conn = c;
-    c.on('open', () => { if (R.closed) { try { c.close(); } catch (e) {} return; } R.ok = true; R.lastIn = performance.now(); R.flush(); });
+    c.on('open', () => {
+      if (R.closed) { try { c.close(); } catch (e) {} return; }
+      R.ok = true; R.lastIn = performance.now(); R.flush();
+      // connected: the server isn't needed any more, so give the code / queue spot back (the link stays up)
+      if (role === 'host' && !R.matched) { R.matched = true; setTimeout(() => { try { if (!R.closed) peer.disconnect(); } catch (e) {} }, 1500); }
+    });
     c.on('data', d => R.rx(d));
     c.on('close', () => R.gone());
     c.on('error', () => {});
@@ -7692,7 +7699,7 @@ function netPeerLink(code, role, R) {
         attach(c);
       });
       // (the code stays registered while we wait; once the friend is connected the server isn't needed)
-      peer.on('disconnected', () => { if (!R.closed && !R.remote) { try { peer.reconnect(); } catch (e) {} } });
+      peer.on('disconnected', () => { if (!R.closed && !R.remote && !R.matched) { try { peer.reconnect(); } catch (e) {} } });
     } else {
       peer = new Peer({ debug: 1 });
       peer.on('open', () => { if (R.closed) return; attach(peer.connect(id, { serialization: 'json', reliable: false })); });
@@ -7708,16 +7715,19 @@ function netPeerLink(code, role, R) {
 }
 // a local stand-in for testing (two tabs of the same browser): BroadcastChannel, with optional one-way delay ?nettest=ms
 function netTestLink(code, role, R) {
-  const ch = new BroadcastChannel('night-session-net-' + code), me = Math.random().toString(36).slice(2), lat = NET_TEST.lat;
+  const ch = new BroadcastChannel('night-session-net-' + code), me = Math.random().toString(36).slice(2), lat = NET_TEST.lat, t0 = performance.now();
   let other = null;
   const post = m => { const go = () => { try { ch.postMessage(m); } catch (e) {} }; if (lat) setTimeout(go, lat * (0.8 + Math.random() * 0.4)); else go(); };
   ch.onmessage = ev => {
     const m = ev.data; if (!m || m.from === me || R.closed) return;
-    if (m.k === 'hello' && role === 'host') { if (other && other !== m.from) { post({ k: 'd', from: me, to: m.from, d: { full: 1 } }); return; } other = m.from; R.ok = true; R.lastIn = performance.now(); post({ k: 'welcome', from: me, to: other }); R.flush(); return; }
+    if (m.k === 'claim' && role === 'host' && !other && m.from !== me) { if (performance.now() - t0 > 300 || me < m.from) post({ k: 'taken', from: me, to: m.from }); return; } // (like the real server: one claim wins)
+    if (m.k === 'taken' && m.to === me && role === 'host' && !other) { R.fail('taken'); return; }
+    if (m.k === 'hello' && role === 'host') { if (other && other !== m.from) { if (!R.rnd) post({ k: 'd', from: me, to: m.from, d: { full: 1 } }); return; } other = m.from; R.ok = true; R.lastIn = performance.now(); post({ k: 'welcome', from: me, to: other }); R.flush(); return; }
     if (m.k === 'welcome' && role === 'guest' && m.to === me) { other = m.from; R.ok = true; R.lastIn = performance.now(); R.flush(); return; }
     if (m.k === 'bye' && m.from === other) { R.gone(); return; }
     if (m.k === 'd' && m.to === me && (!other || m.from === other)) R.rx(m.d);
   };
+  if (role === 'host') post({ k: 'claim', from: me });
   if (role === 'guest') { let tries = 0; const ask = () => { if (R.closed || other) return; if (++tries > 6) { R.fail('nomatch'); return; } post({ k: 'hello', from: me }); setTimeout(ask, 500); }; setTimeout(ask, 50); }
   return { send: d => { if (other) post({ k: 'd', from: me, to: other, d }); }, close: () => { try { ch.postMessage({ k: 'bye', from: me }); ch.close(); } catch (e) {} } };
 }
@@ -7729,8 +7739,8 @@ function netStatus(msg) {
   el.hidden = false;
   if (msg) { el.textContent = msg; return; }
   if (!netHere()) el.innerHTML = `Online matches run on the game’s website. Open <a href="${NET_SITE}" target="_blank" rel="noopener">${NET_SITE.replace('https://', '')}</a> on both devices, then host or join there.`;
-  else el.textContent = 'Host a match and send your friend the code, or type the code your friend sent you.';
-  const ok = netHere(); $('onCreate').disabled = !ok; $('onJoin').disabled = !ok;
+  else el.textContent = 'Host a match and send your friend the code, type the code your friend sent you, or find a random opponent.';
+  const ok = netHere(); $('onCreate').disabled = !ok; $('onJoin').disabled = !ok; $('onRandom').disabled = !ok;
 }
 function showOnline() {
   ['menu', 'end', 'pause', 'epics', 'doubles', 'rallies'].forEach(id => $(id).hidden = true);
@@ -7740,30 +7750,50 @@ function showOnline() {
 }
 const netInvite = () => (NET_TEST ? location.origin + location.pathname + '?nettest=' + NET_TEST.lat + '&' : NET_SITE + '?') + 'code=' + NET.code;
 function netPeerOf() { return NET.R ? NET.R.peers()[0] || null : null; }
-async function netOpen(code, role) {
+// Random match: a queue with a few "waiting spots" on the PeerJS server (night-session-tennis-qV-1, -2, -3). You try
+// to join whoever is waiting in spot 1; if nobody is, you wait there yourself. Once two people connect, the host
+// gives the spot back (so the next pair can use it). Spots 2 and 3 are only used if spot 1 is stuck (a waiting phone
+// that went to sleep, say); anyone waiting there looks back at spot 1 every 10 s.
+const NET_QSLOTS = 3, netSlot = k => `q${NET_V}-${k}`;
+function netFindRandom() { NET.qGen++; NET.qTries = 0; netOpen(netSlot(1), 'guest', 'random', 1); }
+async function netOpen(code, role, mode = 'code', slot = 0) {
   netLeave();
-  NET.role = role; NET.code = code; NET.live = false; NET.mid = null; NET.startedMid = null;
-  $('onPick').hidden = true; $('onWait').hidden = false; $('onCodeBig').textContent = code; $('onStatus').hidden = true; $('onCodeBig').hidden = role !== 'host';
-  $('onWaitTxt').textContent = role === 'host' ? 'Connecting…' : `Joining match ${code}…`;
+  NET.role = role; NET.code = code; NET.mode = mode; NET.slot = slot; NET.live = false; NET.mid = null; NET.startedMid = null;
+  const rnd = mode === 'random', gen = NET.qGen;
+  $('onPick').hidden = true; $('onWait').hidden = false; $('onCodeBig').textContent = code; $('onStatus').hidden = true; $('onCodeBig').hidden = rnd || role !== 'host'; $('onCopy').hidden = rnd;
+  $('onWaitTxt').textContent = rnd ? 'Looking for an opponent…' : role === 'host' ? 'Connecting…' : `Joining match ${code}…`;
   const okLib = await netLoadLib();
-  if (NET.role !== role || NET.code !== code) return;
+  if (NET.role !== role || NET.code !== code || NET.qGen !== gen) return;
   if (!okLib) { netBack('Couldn’t load the online part of the game. Check your internet connection and try again.'); return; }
-  const R = netRoom(code, role);
+  const R = netRoom(code, role, rnd);
   NET.R = R;
   R.onFail = why => {
     if (NET.R !== R) return;
+    if (rnd && why !== 'net' && why !== 'browser') {
+      // the queue: nobody waiting here -> wait here; someone grabbed the spot first -> join them; spot busy or stuck -> next spot
+      if (++NET.qTries > 60) { netBack('Couldn’t find an opponent right now. Try again in a little while.'); return; }
+      const next = why === 'nomatch' ? [slot, 'host'] : why === 'taken' ? [slot, 'guest'] : why === 'restart' ? [1, 'guest'] : [slot % NET_QSLOTS + 1, 'guest'];
+      netLeave(); NET.mode = 'random';
+      setTimeout(() => { if (NET.qGen === gen && !$('online').hidden && !NET.R) netOpen(netSlot(next[0]), next[1], 'random', next[0]); }, why === 'taken' ? 120 : 250 + Math.random() * 250);
+      return;
+    }
     if (why === 'taken' && role === 'host') { netOpen(netGenCode(), 'host'); return; } // (that code is in use: pick another)
     const msg = { nomatch: `No match found with code ${code}. Check the code with your friend (they need to keep the game open on the code screen) and try again.`,
       full: 'That match already has two players.', browser: 'This browser can’t play online. Try Chrome, Edge, Safari or Firefox.',
       net: 'Couldn’t reach the online service. Check your internet connection and try again.' }[why] || 'Something went wrong connecting. Try again.';
     netBack(msg);
   };
-  const base = { role, v: NET_V, pk: settings.player, cus: settings.player === 'cus' ? settings.custom : null };
+  const base = { role, v: NET_V, rnd: rnd ? 1 : 0, pk: settings.player, cus: settings.player === 'cus' ? settings.custom : null };
   if (role === 'host') Object.assign(base, { len: settings.len, sf: settings.surface, go: null, s: null });
   else Object.assign(base, { g: null });
   R.presence(base);
   R.onPeers(netPeers);
-  if (role === 'host') setTimeout(() => { if (NET.R === R && !R.err && !R.remote) $('onWaitTxt').textContent = 'Send your friend this code and the game’s link. Waiting for them to join…'; }, NET_TEST ? 50 : 1500);
+  if (rnd) {
+    if (role === 'host') setTimeout(() => { if (NET.R === R && !R.err && !R.remote) $('onWaitTxt').textContent = 'Waiting in the queue for an opponent… (keep this screen open)'; }, NET_TEST ? 50 : 1200);
+    // a guest that can't get through moves on; someone waiting in a spare spot looks back at spot 1 now and then
+    NET.qTimer = setTimeout(() => { if (NET.R === R && !R.ok && !R.err && role === 'guest') R.fail('slow'); else if (NET.R === R && role === 'host' && slot > 1 && !R.remote && !NET.live) R.fail('restart'); }, role === 'host' ? 10000 : 7000);
+  }
+  else if (role === 'host') setTimeout(() => { if (NET.R === R && !R.err && !R.remote) $('onWaitTxt').textContent = 'Send your friend this code and the game’s link. Waiting for them to join…'; }, NET_TEST ? 50 : 1500);
   else NET.timer = setTimeout(() => { if (NET.R === R && !R.remote && !R.err) $('onWaitTxt').textContent = 'Still connecting… (some school or work networks block online games)'; }, 9000);
   // keep telling the friend we're here (every quarter second), and notice if they go quiet
   clearInterval(NET.keep);
@@ -7774,12 +7804,14 @@ async function netOpen(code, role) {
     // friend's messages are still queued: don't count that time as them going quiet)
     const nowT = performance.now(); if (nowT - lastTick > 1000) R.lastIn = Math.max(R.lastIn, nowT - 1000); lastTick = nowT;
     if (performance.now() - R.lastOut > 240) R.flush(); // (also while this tab is in the background)
-    if (R.remote && performance.now() - R.lastIn > (NET.live ? 8000 : 6000)) R.gone();
+    // (generous: a slow phone can freeze for seconds building the players at the start of a match; a real goodbye
+    // arrives straight away as the link closing)
+    if (R.remote && performance.now() - R.lastIn > (NET.live ? 12000 : 20000)) R.gone();
   }, 250);
 }
 function netBack(msg) { netLeave(); if ($('online').hidden) return; $('onPick').hidden = false; $('onWait').hidden = true; netStatus(msg); }
 function netLeave() {
-  clearTimeout(NET.timer); clearInterval(NET.keep); NET.keep = null;
+  clearTimeout(NET.timer); NET.timer = null; clearTimeout(NET.qTimer); clearInterval(NET.keep); NET.keep = null;
   if (NET.R) { const R = NET.R; NET.R = null; R.leave(); }
   NET.live = false; NET.role = null; NET.mid = null; NET.startedMid = null; NET.buf.length = 0; NET.evPend.length = 0; NET.acts.length = 0;
   cfg.net = false;
@@ -7790,14 +7822,14 @@ function netPeers(ch) {
   if (ch.left.length) { netPeerLeft(); return; }
   const f = netPeerOf(); if (!f) return;
   const pr = f.presence || {};
-  if (pr.v !== NET_V) { $('onWaitTxt').textContent = 'Your friend’s game is a different version. Both of you reload the page and try again.'; return; }
+  if (pr.v !== NET_V || !!pr.rnd !== (NET.mode === 'random')) { $('onWaitTxt').textContent = 'Your friend’s game is a different version. Both of you reload the page and try again.'; return; }
   if (NET.role === 'host' && !NET.live && !NET.mid && pr.role === 'guest' && !NET.timer) {
     NET.gpk = sim.PROFILES[pr.pk] && pr.pk !== 'cpu' ? pr.pk : 'fed'; NET.gcus = NET.gpk === 'cus' && pr.cus && typeof pr.cus === 'object' ? pr.cus : null;
-    $('onWaitTxt').textContent = `${sim.PROFILES[NET.gpk].name} joined! Starting…`;
+    $('onWaitTxt').textContent = NET.mode === 'random' ? 'Opponent found! Starting…' : `${sim.PROFILES[NET.gpk].name} joined! Starting…`;
     NET.timer = setTimeout(() => { NET.timer = null; if (NET.role === 'host' && netPeerOf() && !NET.live) startNetMatch(); }, 1200);
   }
   if (NET.role === 'guest' && pr.role === 'host') {
-    if (!NET.live && !pr.go) $('onWaitTxt').textContent = 'Found the match! Starting…';
+    if (!NET.live && !pr.go) $('onWaitTxt').textContent = NET.mode === 'random' ? 'Opponent found! Starting…' : 'Found the match! Starting…';
     if (pr.go && pr.go !== NET.startedMid) startNetMatch();
   }
 }
@@ -7807,7 +7839,7 @@ function netPeerLeft() {
   if (inMatch || $('online').hidden) {
     callout('FRIEND LEFT', 'The online match is over', 'alert', 1800);
     setTimeout(() => { if (!NET.live && !NET.role) toMenu(); }, 1900);
-  } else { $('onPick').hidden = false; $('onWait').hidden = true; netStatus('Your friend left. Host or join again.'); }
+  } else { $('onPick').hidden = false; $('onWait').hidden = true; netStatus(NET.mode === 'random' ? 'Your opponent left before the match started. Tap Find match to queue again.' : 'Your friend left. Host or join again.'); }
 }
 // both games start the same match: the host's match length and court, each person's own player
 function startNetMatch() {
@@ -7822,6 +7854,15 @@ function startNetMatch() {
   cfg.oppCus = host ? NET.gcus : (cfg.opp === 'cus' && hc.cus && typeof hc.cus === 'object' ? hc.cus : null);
   cfg.len = host ? settings.len : ([0, 1, 2].includes(hc.len) ? hc.len : 0);
   cfg.surface = host ? settings.surface : ([0, 1, 2, 3].includes(hc.sf) ? hc.sf : 0);
+  // a random match: two different pros, a quick match, a random court - picked by the host and sent with "go"
+  let rp = null;
+  if (NET.mode === 'random') {
+    const POOL = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete'], ok = k => POOL.includes(k);
+    if (host) { const a = POOL[Math.floor(Math.random() * POOL.length)], rest = POOL.filter(k => k !== a); rp = [a, rest[Math.floor(Math.random() * rest.length)], Math.floor(Math.random() * 4)]; }
+    else rp = Array.isArray(hc.rp) && ok(hc.rp[0]) && ok(hc.rp[1]) ? hc.rp : ['fed', 'rafa', 0];
+    cfg.player = host ? rp[0] : rp[1]; cfg.opp = host ? rp[1] : rp[0]; cfg.oppCus = null;
+    cfg.len = 0; cfg.surface = [0, 1, 2, 3].includes(rp[2]) ? rp[2] : 0;
+  }
   applySurface(cfg.surface); applyVenue('default');
   setPlayerModel(cfg.player); setOppModel(cfg.opp); setDoublesView(null);
   ['menu', 'pause', 'end', 'epics', 'doubles', 'online', 'rallies'].forEach(id => $(id).hidden = true);
@@ -7833,12 +7874,12 @@ function startNetMatch() {
   if (host) {
     NET.mid = Math.random().toString(36).slice(2, 10);
     const g = (netPeerOf() || {}).presence; const gg = g && g.g; NET.lastSeq = gg && Array.isArray(gg.a) && gg.a.length ? +gg.a[gg.a.length - 1][0] || 0 : 0;
-    NET.R.presence({ go: NET.mid, s: null });
+    NET.R.presence({ go: NET.mid, rp, s: null });
   } else { NET.startedMid = hc.go; NET.evDone = 0; NET.acts.length = 0; }
   $('youName').textContent = sim.NAME[0]; $('cpuName').textContent = sim.NAME[1];
   applyMode();
   $('restart').hidden = true; $('quit').textContent = 'Leave match';
-  callout('ONLINE', `${sim.P[0].prof.name} vs ${sim.P[1].prof.name}`, 'good', 1500);
+  callout(NET.mode === 'random' ? 'RANDOM MATCH' : 'ONLINE', NET.mode === 'random' ? `You’re ${sim.P[0].prof.name} · vs ${sim.P[1].prof.name}` : `${sim.P[0].prof.name} vs ${sim.P[1].prof.name}`, 'good', NET.mode === 'random' ? 2200 : 1500);
 }
 function netRematch() { if (NET.role === 'host' && NET.R && netPeerOf()) startNetMatch(); }
 
@@ -8054,14 +8095,15 @@ function netGuestUp(key) {
   netAct('u', k, t);
 }
 $('toOnline').addEventListener('click', () => { AU.ui(); showOnline(); }, L);
-$('onBack').addEventListener('click', () => { AU.ui(); netLeave(); $('online').hidden = true; $('menu').hidden = false; setTimeout(() => $('toOnline').focus({ preventScroll: true }), 0); }, L);
+$('onBack').addEventListener('click', () => { AU.ui(); NET.qGen++; netLeave(); $('online').hidden = true; $('menu').hidden = false; setTimeout(() => $('toOnline').focus({ preventScroll: true }), 0); }, L);
 $('onCreate').addEventListener('click', () => { AU.ui(); if (netHere()) netOpen(netGenCode(), 'host'); }, L);
+$('onRandom').addEventListener('click', () => { AU.ui(); if (netHere()) netFindRandom(); }, L);
 const netJoinNow = () => { const c = $('onCode').value.trim().toUpperCase(); if (!netCodeOk(c)) { netStatus('Codes are 4 letters or numbers, like K7QF.'); return; } AU.ui(); if (netHere()) netOpen(c, 'guest'); };
 $('onJoin').addEventListener('click', netJoinNow, L);
 $('onCode').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') netJoinNow(); }, L);
 $('onCode').addEventListener('keyup', e => e.stopPropagation(), L);
 $('onCode').addEventListener('input', e => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4); if (v !== e.target.value) e.target.value = v; }, L);
-$('onCancel').addEventListener('click', () => { AU.ui(); netLeave(); showOnline(); }, L);
+$('onCancel').addEventListener('click', () => { AU.ui(); NET.qGen++; netLeave(); showOnline(); }, L);
 $('onCopy').addEventListener('click', () => {
   AU.ui();
   const txt = `Play tennis with me in Night Session! Open ${netInvite()} and press Join (code ${NET.code})`;
