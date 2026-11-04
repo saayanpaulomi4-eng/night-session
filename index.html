@@ -2479,7 +2479,7 @@ settings.custom = Object.assign({}, settings.custom || {});
 for (const k of CUS_KEYS) { const v = Math.round(+settings.custom[k]); settings.custom[k] = isFinite(v) ? Math.max(0, Math.min(250, v)) : 100; }
 settings.surface = Math.max(0, Math.min(3, +settings.surface || 0));
 settings.ball = isFinite(+settings.ball) && settings.ball !== null && settings.ball !== '' ? Math.max(0, Math.min(1, +settings.ball)) : 1; // ball size (0 = v100 size, 1 = largest)
-delete settings.pfx; settings.slowmo = settings.slowmo === 0 ? 0 : 1; // perfect / ultra / mega flashes and stings
+delete settings.pfx; settings.slowmo = 0; // mega-perfect slow-mo is off whenever the game loads (it can be switched on in the menu for that session)
 settings.diff = Math.max(0, Math.min(3, +settings.diff || 0)); settings.len = Math.max(0, Math.min(2, +settings.len || 0)); settings.epicLen = settings.epicLen === 1 ? 1 : 0;
 // doubles line-up: your partner and the two CPU players (real players only, all different)
 { const ok = k => ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete'].includes(k); if (!ok(settings.dPartner)) settings.dPartner = 'nole'; if (!ok(settings.dOpp1)) settings.dOpp1 = 'sin'; if (!ok(settings.dOpp2)) settings.dOpp2 = 'alc'; }
@@ -6420,7 +6420,7 @@ const BALL_R = 0.072; // the largest drawn size (the mesh is built at this radiu
 // Ball size setting (0-1): 0 is the v100 size (radius 0.05, never under ~3.4 px on screen), 1 the largest (0.072,
 // never under ~5.6 px). Everything drawn around the ball (trail, halo, shadow, spin) follows ballR.
 let ballR = BALL_R, ballMinPx = 5.6, ballHaloK = 5.2;
-function setBallSize(t) { t = Math.max(0, Math.min(1, +t)); if (!isFinite(t)) t = 1; ballR = 0.05 + 0.022 * t; ballMinPx = 3.4 + 2.2 * t; ballHaloK = 7 - 1.8 * t; }
+function setBallSize(t) { t = Math.max(0, Math.min(1, +t)); if (!isFinite(t)) t = 1; ballR = 0.035 + 0.037 * t; ballMinPx = 2.6 + 3.0 * t; ballHaloK = 7.6 - 2.4 * t; } // (0%: about 30% smaller than the v100 ball; 100%: unchanged)
 // felt: a soft sheen at the rim (the fuzzy silhouette of a real ball) on a matte, slightly self-lit optic yellow
 const ballMat = LOW ? new THREE.MeshStandardMaterial({ map: ballTex, bumpMap: ballBump, bumpScale: 0.0018, emissive: 0x1c2408, emissiveIntensity: 1, roughness: 1, metalness: 0 })
   : new THREE.MeshPhysicalMaterial({ map: ballTex, bumpMap: ballBump, bumpScale: 0.0018, emissive: 0x18200a, emissiveIntensity: 1, roughness: 0.92, metalness: 0, sheen: new THREE.Color(0xf4ffb8) });
@@ -6606,13 +6606,13 @@ function makeSwingTrail() {
   for (let i = 0; i < SW_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
   geo.setIndex(idx); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-  mesh.frustumCulled = false; mesh.visible = !ULTRA; scene.add(mesh);
+  mesh.frustumCulled = false; mesh.visible = !LOW; scene.add(mesh);
   return { geo, pos, col, samples: [], hot: false };
 }
 const swingTrails = [makeSwingTrail(), makeSwingTrail(), makeSwingTrail(), makeSwingTrail()];
 const swA = new THREE.Vector3(), swB = new THREE.Vector3();
 function updateSwingTrail(i, h, M, dt) {
-  if (ULTRA) return;
+  if (LOW) return; // (low and ultra low graphics: no swing trail on a strike)
   const T = swingTrails[i], a = h.anim;
   for (const sm of T.samples) sm.age += dt;
   while (T.samples.length && T.samples[T.samples.length - 1].age > 0.14) T.samples.pop();
