@@ -1343,7 +1343,8 @@ function createSim(H, cfg) {
   const dropG = dQ => G - 2 - 0.8 * dQ;
   function doStrike(h, type0, power, aim, e) {
     const b = ball;
-    const lat = (b.x - h.pos.x) * h.right * h.hand, side = lat >= -0.15 ? 1 : -1;
+    const lat = (b.x - h.pos.x) * h.right * h.hand, wSet = h.anim.active ? wingOf(h.anim.kind) : 0;
+    const side = wSet > 0 && lat > -0.75 ? 1 : wSet < 0 && lat < 0.45 ? -1 : lat >= -0.15 ? 1 : -1;
     const dist = Math.abs(b.x - h.pos.x);
     const volley = b.bounces === 0;
     const plannedOH = volley && h.plan && h.plan.spot && h.plan.spot.overhead && b.y > 1.6 && type0 !== 'lob' && type0 !== 'drop';
@@ -1741,7 +1742,10 @@ function createSim(H, cfg) {
       }
     }
     const lat = (spot.x - h.pos.x) * h.right * h.hand;
-    const fh = spot.overhead ? true : lat > -0.35;
+    // forehand or backhand: a ball near the middle keeps the side already chosen for it (a clear margin is needed to
+    // switch), so shuffling across the line of the ball doesn't flip the stroke back and forth
+    const prevFh = h.plan && h.plan.shot === S.rally.shots && h.plan.spot && !h.plan.spot.overhead ? h.plan.fh : undefined;
+    const fh = spot.overhead ? true : prevFh === true ? lat > -0.8 : prevFh === false ? lat > 0.1 : lat > -0.35;
     const x = clamp(spot.x - h.right * h.hand * (spot.overhead ? 0.35 : spot.volley ? (fh ? 0.85 : -0.65) : fh ? 1.0 : -0.7), -9.5, 9.5);
     const z = h.team === 0 ? clamp(spot.z - h.fwd * CF, 0.75, 19.5) : clamp(spot.z - h.fwd * CF, -19.5, -0.75);
     let out = false;
@@ -1754,7 +1758,7 @@ function createSim(H, cfg) {
         out = !c.in && c.by > 0.12;
       }
     }
-    return { x, z, spot, fh, fb: fb && fb.n === 1 ? fb : null, out, leave: false, readyAt: 0, netHit: pred.netHit };
+    return { x, z, spot, fh, shot: S.rally.shots, fb: fb && fb.n === 1 ? fb : null, out, leave: false, readyAt: 0, netHit: pred.netHit };
   }
   function planFor(o, pred) {
     pred = pred || predict(ball);
@@ -2197,6 +2201,9 @@ function createSim(H, cfg) {
     if (!h.ai && (h.chKey === 'slice' || h.chKey === 'drop')) return h.chKey === 'drop' ? (f ? 'dfh' : 'dbh') : (f ? 'sfh' : 'sbh');
     return f ? 'fh' : 'bh';
   }
+  // which wing a stroke is played on (1 forehand side, -1 backhand side, 0 neither)
+  const wingOf = k => k === 'fh' || k === 'sfh' || k === 'dfh' || k === 'vfh' ? 1 : k === 'bh' || k === 'sbh' || k === 'dbh' || k === 'vbh' ? -1 : 0;
+  const tcH0 = h => { const t = timeToCrossExact(h); return isFinite(t) ? t : Infinity; };
   function startPrep(a, k) { a.cp = undefined; a.fwd = false; a.boostTo = 0; a.active = true; a.prep = true; a.kind = k; a.s = 0; a.cap = k === 'oh' ? 0.25 : 0; a.rate = k === 'oh' ? 1.4 : 0; a.lat = undefined; }
   function updateAnims(dt) {
     for (const h of P) {
@@ -2212,18 +2219,24 @@ function createSim(H, cfg) {
         else if ((h.charging || h.pending) && inc && a.prep && a.kind === 'oh' && tcH < 0.22) { a.prep = false; a.fwd = true; a.fwdRate = 0; a.cap = 0.455; a.rate = 2.1; }
         else if (h.charging && S.phase !== 'toss' && !a.fwd && !(a.active && !a.prep && a.s > 0.2)) { // (a swing already under way finishes before the next takeback)
           const k = prepKind(h);
-          if (!a.prep || a.kind !== k || !a.active) startPrep(a, k);
+          if (!a.prep || !a.active || (a.kind !== k && !(inc && wingOf(a.kind) && wingOf(k) && wingOf(a.kind) !== wingOf(k) && tcH0(h) < 0.45))) startPrep(a, k);
         }
         else if (a.prep && !h.charging && !h.pending) { a.prep = false; a.cap = 1; a.rate = 2.2; } // swing through at nothing
       } else if (inc && h.plan && !h.plan.leave) {
         const tc = h.plan.spot && h.plan.spot.tweener ? tcFor(h) : timeToCross(h) < 1.2 ? timeToCrossExact(h) : Infinity;
         const k = prepKind(h);
-        if (tc < (k === 'oh' ? 0.9 : 0.55) && (!a.active || (a.prep && a.kind !== k))) startPrep(a, k);
+        if (tc < (k === 'oh' ? 0.9 : 0.55) && (!a.active || (a.prep && a.kind !== k && !(wingOf(a.kind) && wingOf(k) && wingOf(a.kind) !== wingOf(k) && tc < 0.4)))) startPrep(a, k);
         if (tc < (k === 'oh' ? 0.22 : 0.26) && a.prep) { a.prep = false; a.fwd = true; a.fwdRate = 0; a.cap = 0.455; a.rate = 2.1; }
       }
       // takeback keeps moving as the ball comes: in the last half second the racket starts into its loop
       // (instead of a frozen pose until the forward swing)
-      if (a.prep && a.active && inc && a.kind !== 'oh') { const tc = timeToCrossExact(h); if (isFinite(tc)) { const want = Math.max(0, Math.min(1, (0.6 - tc) / 0.4)) * 0.09; if (want > a.s) { a.s = Math.min(want, a.s + 0.6 * dt); a.cap = Math.max(a.cap, a.s); } } }
+      // groundstrokes: over the last ~0.5 s the racket travels on round the back of the loop (to about a third of the
+      // way to contact), eased in and out, so the takeback flows into the forward swing instead of a held pose
+      // followed by a sudden swing
+      if (a.prep && a.active && inc && a.kind !== 'oh') { const tc = timeToCrossExact(h); if (isFinite(tc)) {
+        const gs = a.kind === 'fh' || a.kind === 'bh', u = Math.max(0, Math.min(1, gs ? (0.75 - tc) / 0.5 : (0.6 - tc) / 0.4));
+        const want = gs ? u * u * (3 - 2 * u) * 0.15 : u * 0.09;
+        if (want > a.s) { a.s = Math.min(want, a.s + (gs ? 0.45 : 0.6) * dt); a.cap = Math.max(a.cap, a.s); } } }
       // forward swing: pace it so the racket reaches the contact pose exactly when the ball arrives
       if (a.fwd && a.active && inc) {
         const tc = tcFor(h);
@@ -4642,6 +4655,17 @@ function syncAthlete0(h, Mo, dt) {
     // fuller unit turn and a loaded outside leg in the set-up
     const setW = a.prep ? 1 : Math.max(0, 1 - s / 0.3);
     T.sy -= sgn * 0.2 * setW; T.hy -= sgn * 0.15 * setW; T.cr += 0.05 * setW;
+    // the coil keeps winding as the ball comes (shoulders turning further, knees loading, the back shoulder dipping)
+    // instead of a statue in the set position; it unwinds into the swing (the forward swing starts from it)
+    if (a.prep && sim.incomingTo(h)) {
+      const tcC = sim.timeToCrossExact(h), cu = isFinite(tcC) ? Math.max(0, Math.min(1, (0.75 - tcC) / 0.5)) : 0, coil = cu * cu * (3 - 2 * cu);
+      Mo.coil = coil;
+      T.sy -= sgn * 0.14 * coil; T.hy -= sgn * 0.06 * coil; T.cr += 0.035 * coil; T.tl += sgn * 0.04 * coil;
+    } else if (!a.prep && Mo.coil) {
+      // (released through the first part of the forward swing, not dropped in one frame)
+      const r = Mo.coil * Math.max(0, 1 - s / 0.32); T.sy -= sgn * 0.14 * r; T.hy -= sgn * 0.06 * r; T.cr += 0.035 * r; T.tl += sgn * 0.04 * r;
+      if (s > 0.32) Mo.coil = 0;
+    }
     if (!a.prep && s > 0.2 && s < 0.46) {
       // hips open first while the shoulders hold back (the stretch that powers the swing)
       const bump = Math.sin(Math.PI * Math.min(1, (s - 0.2) / 0.26));
@@ -4780,7 +4804,8 @@ function syncAthlete0(h, Mo, dt) {
     const sJump = swinging && !a.prep && Mo.lastS !== undefined && Mo.evKey === evKey && Math.abs(a.s - Mo.lastS) > Math.max(0.04, (a.rate || 0) * dt * 2.5);
     if (Mo.lastT && (evKey !== Mo.evKey || sJump)) {
       const toSwing = swinging && !a.prep, fromSwing = Mo.evKey && Mo.evKey[0] === 'S';
-      const dur = toSwing && a.kind === 'srv' && (!Mo.evKey || Mo.evKey[0] === 'I') ? 0.22 : toSwing && Mo.evKey && Mo.evKey[0] === 'P' ? 0.09 : toSwing ? 0.08 : fromSwing ? 0.1 : mood ? 0.25 : 0.14; // (the serve flows out of the stance at the line)
+      const prepSwap = !toSwing && evKey[0] === 'P' && Mo.evKey && Mo.evKey[0] === 'P'; // (a takeback switching wings: turn round, don't snap)
+      const dur = toSwing && a.kind === 'srv' && (!Mo.evKey || Mo.evKey[0] === 'I') ? 0.22 : toSwing && Mo.evKey && Mo.evKey[0] === 'P' ? 0.09 : toSwing ? 0.08 : fromSwing ? 0.16 : prepSwap ? 0.3 : mood ? 0.25 : 0.14; // (the serve flows out of the stance at the line)
       Mo.xf = { from: cloneSpec(Mo.lastT), t: 0, dur };
     }
     Mo.evKey = evKey; Mo.lastS = a.s;
@@ -6531,7 +6556,7 @@ const trailPos = new Float32Array(TRAIL_N * 2 * 3), trailCol = new Float32Array(
   trailGeo.setAttribute('color', new THREE.BufferAttribute(trailCol, 4));
 }
 const trailMesh = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-trailMesh.frustumCulled = false; trailMesh.visible = !LOW; scene.add(trailMesh); // (low and ultra low graphics: no streak behind the ball)
+trailMesh.frustumCulled = false; trailMesh.visible = false; scene.add(trailMesh); // (no streak behind the ball, at any graphics level)
 // a wider, fainter glow ribbon around the core streak (additive), so a struck ball reads as a bright comet
 const glowGeo = new THREE.BufferGeometry(), glowPos = new Float32Array(TRAIL_N * 2 * 3), glowCol = new Float32Array(TRAIL_N * 2 * 4);
 glowGeo.setIndex(trailGeo.index); glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3)); glowGeo.setAttribute('color', new THREE.BufferAttribute(glowCol, 4));
@@ -6608,13 +6633,13 @@ function makeSwingTrail() {
   for (let i = 0; i < SW_N - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
   geo.setIndex(idx); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 4));
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-  mesh.frustumCulled = false; mesh.visible = !LOW; scene.add(mesh);
+  mesh.frustumCulled = false; mesh.visible = false; scene.add(mesh);
   return { geo, pos, col, samples: [], hot: false };
 }
 const swingTrails = [makeSwingTrail(), makeSwingTrail(), makeSwingTrail(), makeSwingTrail()];
 const swA = new THREE.Vector3(), swB = new THREE.Vector3();
 function updateSwingTrail(i, h, M, dt) {
-  if (LOW) return; // (low and ultra low graphics: no swing trail on a strike)
+  return; // (no racket swing trail at any graphics level)
   const T = swingTrails[i], a = h.anim;
   for (const sm of T.samples) sm.age += dt;
   while (T.samples.length && T.samples[T.samples.length - 1].age > 0.14) T.samples.pop();
@@ -8646,7 +8671,7 @@ function frameBody(now) {
   if (live) trailHeat = Math.max(0, trailHeat - vdt * (trailMode ? 0.45 : 0.9));
   const speed = Math.hypot(b.vx, b.vy, b.vz);
   const trailOn = S.phase !== 'serveReady' && S.phase !== 'menu';
-  if (!LOW) updateTrail(trailOn ? Math.max(0, Math.min(1, (speed - 5) / 14)) * (0.55 + 0.45 * trailHeat * (trailMode ? 1 : 0.4)) : 0, trailMode === 1 && trailHeat > 0.15, speed);
+  if (false) updateTrail(trailOn ? Math.max(0, Math.min(1, (speed - 5) / 14)) * (0.55 + 0.45 * trailHeat * (trailMode ? 1 : 0.4)) : 0, trailMode === 1 && trailHeat > 0.15, speed);
   if (landFlashT > 0) { landFlashT = Math.max(0, landFlashT - rdt); landFlash.material.opacity = Math.min(0.85, landFlashT * 2.5); const sc = 1 + (1.1 - landFlashT) * 0.4; landFlash.scale.set(sc, sc, 1); }
   else landFlash.material.opacity = 0;
   if (flashLife > 0) { flashLife = Math.max(0, flashLife - rdt * 7); flash.material.opacity = flashLife * 0.55; const s = 0.18 + (1 - flashLife) * 0.45; flash.scale.set(s, s, 1); }
