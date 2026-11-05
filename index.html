@@ -7064,7 +7064,7 @@ function releaseHit(ts, key) { if (!sim) return; if (NET.live && NET.role === 'g
 window.addEventListener('keydown', e => {
   if (RP.active) return; // (a replay has its own keys)
   if (e.code === 'KeyV' && !e.repeat && sim && sim.S.score && !cfg.practice && $('menu').hidden && $('rallies').hidden) { const l = rpLast(); if (l && !l.savedId) { rlSave(l); toast('Rally saved'); } else if (l) toast('Already saved'); return; }
-  if (e.code === 'Escape') { e.preventDefault(); if (playing()) pauseGame(); else if (sim && sim.S.phase === 'paused') resumeGame(); return; }
+  if (e.code === 'Escape') { e.preventDefault(); if (NET.live && !$('pause').hidden) resumeGame(); else if (playing()) pauseGame(); else if (sim && sim.S.phase === 'paused') resumeGame(); return; }
   if (e.code === 'KeyC' && !overlayOpen() && !e.repeat) { toggleCamera(); return; }
   if (cfg.practice && !overlayOpen() && !e.repeat && !tutOn() && /^Digit[1-6]$/.test(e.code)) { sim.setDrill(sim.DRILLS[+e.code[5] - 1]); AU.ui(); return; }
   if (e.code === 'Space' || MOVEKEYS[e.code] || SLICEKEYS[e.code] || LOBKEYS[e.code] || FLATKEYS[e.code] || DROPKEYS[e.code]) {
@@ -7095,8 +7095,14 @@ window.addEventListener('keyup', e => {
   } else if (MOVEKEYS[e.code]) keys[e.code] = false;
 }, L);
 function clearInput() { for (const k in keys) keys[k] = false; if (spaceHeld || sliceHeld || lobHeld || flatHeld || dropHeld) { spaceHeld = sliceHeld = lobHeld = flatHeld = dropHeld = false; releaseHit(); } joy.x = joy.z = 0; }
-window.addEventListener('blur', () => { clearInput(); if (playing()) pauseGame(); }, L);
-document.addEventListener('visibilitychange', () => { if (document.hidden) { clearInput(); if (playing()) pauseGame(); } }, L);
+window.addEventListener('blur', () => { clearInput(); if (playing() && !(typeof NET !== 'undefined' && NET.live)) pauseGame(); }, L); // (online the match doesn't stop, so no pause menu)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { clearInput(); if (playing() && !(typeof NET !== 'undefined' && NET.live)) pauseGame(); }
+  if (typeof NET !== 'undefined' && NET.R) {
+    if (document.hidden && NET.live && NET.role === 'guest') { sim.setInput(0, 0); netGuestSend(performance.now(), true); }
+    NET.R.presence({ bg: document.hidden ? 1 : 0 });
+  }
+}, L);
 // WASD (or the touch stick) moves you; the arrow keys only aim (with no arrow held, the aim follows the stick)
 function readInput() {
   let x = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + joy.x;
@@ -7567,7 +7573,7 @@ function toMenu() {
   if (epicMode && !$('end').hidden) { showEpics(); return; }
   if (doublesMode && !$('end').hidden) { showDoubles(); return; }
   tutStop();
-  epicMode = null; doublesMode = false; cfg.doubles = false; cfg.opp = null; setDoublesView(null); applyVenue('default'); applySurface(settings.surface); setOppModel('cpu');
+  epicMode = null; doublesMode = false; cfg.doubles = false; cfg.opp = null; setDoublesView(null); applyVenue('default'); applySurface(settings.surface); setOppModel('cpu'); setPlayerModel(settings.player);
   sim.S.phase = 'menu';
   cfg.practice = false; machine.group.visible = false; models[1].root.visible = true; if (models.ump) models.ump.root.visible = true; if (models.staffMesh) models.staffMesh.visible = true; ['pause', 'end'].forEach(id => $(id).hidden = true);
   $('hud').hidden = true; $('touch').hidden = true; $('menu').hidden = false; $('fade').classList.remove('on');
@@ -7650,7 +7656,7 @@ const NET_SITE = 'https://saayanpaulomi4-eng.github.io/night-session/';
 window.__nightNet = () => ({ role: NET.role, live: NET.live, mid: NET.mid, started: NET.startedMid, ok: NET.R && NET.R.ok, err: NET.R && NET.R.err, remote: NET.R && NET.R.remote ? Object.keys(NET.R.remote).join(',') + '|go=' + NET.R.remote.go : null, rn: NET.R && NET.R.rn, sn: NET.R && NET.R.sn, buf: NET.buf.length, delay: Math.round(NET.delay), rtt: Math.round(NET.rtt), hold: window.__nightSession && window.__nightSession.S.netHold }); // (for testing)
 const NET_PEERJS = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
 const NET_TEST = (() => { try { const m = /[?&]nettest(?:=(\d+))?/.exec(location.search); return m ? { lat: +(m[1] || 0) } : null; } catch (e) { return null; } })();
-const NET = { mode: 'code', slot: 0, qGen: 0, qTries: 0, lib: null, libP: null, R: null, role: null, code: '', live: false, mid: null, timer: null, keep: null,
+const NET = { oppBg: false, mode: 'code', slot: 0, qGen: 0, qTries: 0, lib: null, libP: null, R: null, role: null, code: '', live: false, mid: null, timer: null, keep: null,
   snapK: 0, evSeq: 0, evq: [], sendT: 0, lastSeq: 0, gpk: 'fed', gcus: null, frameNow: 0,
   buf: [], lastK: -1, offs: [], off: null, delay: 90, evDone: 0, evPend: [], seq: 0, acts: [], inT: 0, startedMid: null, scKey: '', lastRx: 0, lostShown: false,
   echo: 0, lastEc: 0, rtt: 150, pred: { ox: 0, oz: 0, vx: 0, vz: 0, px: 0, pz: 0 } };
@@ -7819,7 +7825,10 @@ async function netOpen(code, role, mode = 'code', slot = 0) {
     NET.qTimer = setTimeout(() => { if (NET.R === R && !R.ok && !R.err && role === 'guest') R.fail('slow'); else if (NET.R === R && role === 'host' && slot > 1 && !R.remote && !NET.live) R.fail('restart'); }, role === 'host' ? 10000 : 7000);
   }
   else if (role === 'host') setTimeout(() => { if (NET.R === R && !R.err && !R.remote) $('onWaitTxt').textContent = 'Send your friend this code and the game’s link. Waiting for them to join…'; }, NET_TEST ? 50 : 1500);
-  else NET.timer = setTimeout(() => { if (NET.R === R && !R.remote && !R.err) $('onWaitTxt').textContent = 'Still connecting… (some school or work networks block online games)'; }, 9000);
+  else {
+    NET.timer = setTimeout(() => { if (NET.R === R && !R.remote && !R.err) $('onWaitTxt').textContent = 'Still connecting… (some school or work networks block online games)'; }, 9000);
+    NET.qTimer = setTimeout(() => { if (NET.R === R && !R.ok && !R.err) netBack('Couldn’t connect to your friend’s device. Some school, work or public Wi-Fi blocks online games: try mobile data or a home network, then try again.'); }, 20000);
+  }
   // keep telling the friend we're here (every quarter second), and notice if they go quiet
   clearInterval(NET.keep);
   let lastTick = performance.now();
@@ -7831,7 +7840,7 @@ async function netOpen(code, role, mode = 'code', slot = 0) {
     if (performance.now() - R.lastOut > 240) R.flush(); // (also while this tab is in the background)
     // (generous: a slow phone can freeze for seconds building the players at the start of a match; a real goodbye
     // arrives straight away as the link closing)
-    if (R.remote && performance.now() - R.lastIn > (NET.live ? 12000 : 20000)) R.gone();
+    if (R.remote && performance.now() - R.lastIn > (R.remote.ld ? 45000 : NET.live ? 12000 : 20000)) R.gone(); // (longer while they're loading the match)
   }, 250);
 }
 function netBack(msg) { netLeave(); if ($('online').hidden) return; $('onPick').hidden = false; $('onWait').hidden = true; netStatus(msg); }
@@ -7847,6 +7856,11 @@ function netPeers(ch) {
   if (ch.left.length) { netPeerLeft(); return; }
   const f = netPeerOf(); if (!f) return;
   const pr = f.presence || {};
+  if (NET.live && !!pr.bg !== !!NET.oppBg) {
+    NET.oppBg = !!pr.bg;
+    if (pr.bg) toast(NET.role === 'host' ? 'Your opponent switched away from the game' : 'Your opponent switched away: the match waits for them');
+    else toast('Your opponent is back');
+  }
   if (pr.v !== NET_V || !!pr.rnd !== (NET.mode === 'random')) { $('onWaitTxt').textContent = 'Your friend’s game is a different version. Both of you reload the page and try again.'; return; }
   if (NET.role === 'host' && !NET.live && !NET.mid && pr.role === 'guest' && !NET.timer) {
     NET.gpk = sim.PROFILES[pr.pk] && pr.pk !== 'cpu' ? pr.pk : 'fed'; NET.gcus = NET.gpk === 'cus' && pr.cus && typeof pr.cus === 'object' ? pr.cus : null;
@@ -7859,15 +7873,29 @@ function netPeers(ch) {
   }
 }
 function netPeerLeft() {
-  const inMatch = NET.live || !$('end').hidden || !!RP.active;
-  netLeave();
+  const rnd = NET.mode === 'random', who = rnd ? 'opponent' : 'friend';
+  const report = (NET.live || cfg.net) && (!$('end').hidden || sim.S.phase === 'end' || !!(sim.S.score && sim.S.score.matchOver)), inMatch = NET.live || report || !!RP.active;
+  netLeave(); cfg.net = false;
+  if (report) {
+    // the match is finished: keep the match report up (no rematch now)
+    $('rematch').disabled = true; $('rematch').textContent = `Your ${who} left`; toast(`Your ${who} left`);
+    return;
+  }
   if (inMatch || $('online').hidden) {
-    callout('FRIEND LEFT', 'The online match is over', 'alert', 1800);
-    setTimeout(() => { if (!NET.live && !NET.role) toMenu(); }, 1900);
-  } else { $('onPick').hidden = false; $('onWait').hidden = true; netStatus(NET.mode === 'random' ? 'Your opponent left before the match started. Tap Find match to queue again.' : 'Your friend left. Host or join again.'); }
+    callout(rnd ? 'OPPONENT LEFT' : 'FRIEND LEFT', 'The online match is over', 'alert', 1800);
+    setTimeout(() => {
+      if (NET.live || NET.role) return;
+      toMenu();
+      if (rnd) { showOnline(); netStatus('Your opponent left the match. Tap Find match to play someone else.'); }
+    }, 1900);
+  }
+  else if (rnd) { netFindRandom(); $('onWaitTxt').textContent = 'Your opponent left before the start. Looking for another…'; } else { $('onPick').hidden = false; $('onWait').hidden = true; netStatus(NET.mode === 'random' ? 'Your opponent left before the match started. Tap Find match to queue again.' : 'Your friend left. Host or join again.'); }
 }
 // both games start the same match: the host's match length and court, each person's own player
 function startNetMatch() {
+  // building the two players and the court can freeze a slow phone for a few seconds: say so first, so the other
+  // side waits instead of deciding we've gone
+  if (NET.R) NET.R.presence({ ld: 1 });
   if (RP.active) rpStop();
   rpReset();
   practiceMode = false; epicMode = null; doublesMode = false; TUT.on = false; $('tut').hidden = true;
@@ -7894,13 +7922,13 @@ function startNetMatch() {
   $('hud').hidden = false; $('touch').hidden = !isTouch; $('fade').classList.remove('on');
   clearInput(); blurActive(); hintCount = 0;
   sim.newMatch();
-  NET.live = true; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.lostShown = false;
+  NET.live = true; NET.oppBg = false; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.lostShown = false;
   for (const h of sim.P) { h.charging = false; h.pending = null; }
   if (host) {
     NET.mid = Math.random().toString(36).slice(2, 10);
     const g = (netPeerOf() || {}).presence; const gg = g && g.g; NET.lastSeq = gg && Array.isArray(gg.a) && gg.a.length ? +gg.a[gg.a.length - 1][0] || 0 : 0;
-    NET.R.presence({ go: NET.mid, rp, s: null });
-  } else { NET.startedMid = hc.go; NET.evDone = 0; NET.acts.length = 0; }
+    NET.R.presence({ go: NET.mid, rp, s: null, ld: 0 });
+  } else { NET.startedMid = hc.go; NET.evDone = 0; NET.acts.length = 0; NET.R.presence({ ld: 0 }); }
   $('youName').textContent = sim.NAME[0]; $('cpuName').textContent = sim.NAME[1];
   applyMode();
   $('restart').hidden = true; $('quit').textContent = 'Leave match';
@@ -8085,7 +8113,7 @@ function netGuestTick(rdt, now) {
   const P0 = sim.P[0];
   if (P0.pending && sim.S.t - P0.pending.t > 0.8) P0.pending = null;
   if (P0.charging && sim.S.phase !== 'rally' && sim.S.phase !== 'serveReady' && sim.S.phase !== 'toss') P0.charging = false;
-  if (now - NET.lastRx > 2500 && !NET.lostShown && NET.live) { NET.lostShown = true; toast('Connection to your friend is slow…'); }
+  if (now - NET.lastRx > 2500 && !NET.lostShown && NET.live && !NET.oppBg) { NET.lostShown = true; toast('Connection to your opponent is slow…'); }
   netGuestSend(now);
 }
 function netGuestSend(now, force) {
@@ -8104,7 +8132,7 @@ function netGuestDown(key) {
   const S = sim.S, p = sim.P[0], k = netKeyOf(key), t = S.t;
   if (S.phase === 'serveReady' && S.srvAth === 0) { p.chKey = k; p.charging = true; p.chStart = t; }
   else if (S.phase === 'toss' && S.srvAth === 0) { /* the host decides (a second press after an early release) */ }
-  else if (S.phase === 'rally') { if (p.charging || p.pending) return; p.charging = true; p.chStart = t; p.chKey = k; }
+  else if (S.phase === 'rally' || ((S.phase === 'serveReady' || S.phase === 'toss') && S.srvAth !== 0)) { if (p.charging || p.pending) return; p.charging = true; p.chStart = t; p.chKey = k; } // (receiving: you can load the return during the toss, like the host)
   else return;
   netAct('d', k, t);
 }
