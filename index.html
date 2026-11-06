@@ -3458,10 +3458,15 @@ function applySurface(i) {
     indoorRoof.visible = true;
     THREE.__rawHex(scene.background, 0x0b0e14); scene.fog.color.setHex(0x0b0e14);
     hemi.color.setHex(0xe8eefc); hemi.groundColor.setHex(0x2a3140); hemi.intensity = 0.72; key.intensity = 0.7; key.color.setHex(0xffffff);
+    // (no sun indoors: the lighting environment is an open sky with a sun in it, and the court would mirror that sun as
+    //  a bright glare - so the court doesn't reflect the sky here, and is a touch more matte)
+    innerCourt.material.envMapIntensity = 0; outerCourt.material.envMapIntensity = 0; wearMat.envMapIntensity = 0;
+    innerCourt.material.roughness = Math.max(L.rough, 0.78); outerCourt.material.roughness = Math.max(L.rough, 0.85);
   } else {
     if (indoorRoof) indoorRoof.visible = false;
     THREE.__rawHex(scene.background, 0xdcebf7); scene.fog.color.setHex(0xcfdff0);
     hemi.color.setHex(0xdcebff); hemi.groundColor.setHex(0x55606a); hemi.intensity = 0.66; key.intensity = 1.15; key.color.setHex(0xfff3e0);
+    innerCourt.material.envMapIntensity = 0.28; outerCourt.material.envMapIntensity = 1; wearMat.envMapIntensity = 1;
   }
 }
 // court-side walls: tall charcoal back walls with big lettering, lower side boards
