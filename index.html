@@ -450,6 +450,7 @@ kbd.wide{min-width:52px}
         <div class="opt"><span>Match length</span><div class="seg" data-k="len"><button data-v="0">Quick</button><button data-v="1">One set</button><button data-v="2">Best of 3</button></div></div>
         <div class="opt"><span>Court</span><div class="seg" data-k="surface"><button data-v="0">Hard</button><button data-v="1">Indoor</button><button data-v="2">Clay</button><button data-v="3">Grass</button></div></div>
         <div class="opt"><span>Mega-perfect slow-mo</span><div class="seg" data-k="slowmo"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+        <div class="opt"><span>Hit sound</span><div class="seg" data-k="hitsnd"><button data-v="1">Real</button><button data-v="0">Classic</button></div></div>
         <div class="opt"><span>Ball size <b class="ballPct"></b></span><input type="range" class="ballSize" min="0" max="100" step="1" aria-label="Ball size"></div>
       </div>
       <div class="btns"><button class="cta" id="play">Play match</button><button class="ghost" id="practice">Practice court</button><button class="ghost" id="toTut">Tutorial</button><button class="ghost next" id="toEpics">Tennis Epics</button><button class="ghost next" id="toDoubles">Doubles</button><button class="ghost next" id="toOnline">Online 1v1</button><button class="ghost rpbtn" id="toRallies">Saved rallies</button></div>
@@ -2499,6 +2500,7 @@ settings.custom = Object.assign({}, settings.custom || {});
 for (const k of CUS_KEYS) { const v = Math.round(+settings.custom[k]); settings.custom[k] = isFinite(v) ? Math.max(0, Math.min(250, v)) : 100; }
 settings.surface = Math.max(0, Math.min(3, +settings.surface || 0));
 settings.ball = isFinite(+settings.ball) && settings.ball !== null && settings.ball !== '' ? Math.max(0, Math.min(1, +settings.ball)) : 1; // ball size (0 = v100 size, 1 = largest)
+settings.hitsnd = settings.hitsnd === 0 ? 0 : 1; // hit sound: 1 real (default), 0 classic
 delete settings.pfx; settings.slowmo = 0; // mega-perfect slow-mo is off whenever the game loads (it can be switched on in the menu for that session)
 settings.diff = Math.max(0, Math.min(3, +settings.diff || 0)); settings.len = Math.max(0, Math.min(2, +settings.len || 0)); settings.epicLen = settings.epicLen === 1 ? 1 : 0;
 // doubles line-up: your partner and the two CPU players (real players only, all different)
@@ -2512,8 +2514,92 @@ const saveSettings = () => { window.__nightSessionSettings = Object.assign({}, s
 let camMode = settings.cam === 'player' ? 'player' : 'tv';
 
 /* ---------------- audio ---------------- */
+/*HITSYNTH-START*/
+// ---------------- the sound of the ball on the strings ----------------
+// Built from what a racket/ball impact physically is (racket acoustics and impact-sound research):
+//  - the ball sits on the strings for ~4-5 ms (longer when the hit is soft or glancing);
+//  - a sharp, very quickly decaying "pop" from the ball shell and the air it pushes - most energy 100-1800 Hz with
+//    overtones to ~2.8 kHz that make it bright - at contact, and a smaller one as the ball leaves the strings;
+//  - a body "thock": the 4-5 ms force pulse itself (low, 100-300 Hz);
+//  - a quieter, slower RING: mostly the string bed's first mode (~580 Hz, the (0,2) mode ~1.4 kHz) and the frame
+//    (1st bending ~146 Hz, torsion ~382 Hz, 2nd/3rd bending ~411/862 Hz). A sweet-spot hit hardly excites the frame;
+//    an off-centre hit twists it (torsion) and buzzes (string (1,1) ~960 Hz);
+//  - the strings sliding across the felt: a short brush on topspin, a longer, scratchier scrape on a slice.
+// Each shot type mixes these differently; every variant gets a little random variation so hits never repeat exactly.
+const HIT_KINDS = {
+  //        contact ms, pop, pop brightness, body, string ring, ring decay ms, frame, brush, brush ms, brush Hz
+  top:    { tc: 4.6, pop: 1.0, bright: 1.0, body: 0.55, ring: 0.42, rd: 24, frame: 0.16, brush: 0.16, bms: 12, bhz: 4200 },
+  flat:   { tc: 4.3, pop: 1.12, bright: 1.18, body: 0.6, ring: 0.4, rd: 22, frame: 0.14, brush: 0.05, bms: 8, bhz: 4800 },
+  slice:  { tc: 5.8, pop: 0.62, bright: 0.6, body: 0.48, ring: 0.3, rd: 18, frame: 0.14, brush: 0.26, bms: 32, bhz: 3400 },
+  drop:   { tc: 7.0, pop: 0.45, bright: 0.45, body: 0.42, ring: 0.18, rd: 12, frame: 0.1, brush: 0.16, bms: 20, bhz: 3200 },
+  volley: { tc: 4.1, pop: 1.0, bright: 1.05, body: 0.62, ring: 0.3, rd: 15, frame: 0.18, brush: 0.03, bms: 6, bhz: 4500 },
+  serve:  { tc: 4.0, pop: 1.2, bright: 1.25, body: 0.66, ring: 0.44, rd: 26, frame: 0.16, brush: 0.08, bms: 10, bhz: 4600 },
+  smash:  { tc: 3.9, pop: 1.28, bright: 1.3, body: 0.72, ring: 0.46, rd: 28, frame: 0.2, brush: 0.05, bms: 8, bhz: 4800 },
+};
+function synthHit(sr, kind, power, mis, seed) {
+  const P = HIT_KINDS[kind] || HIT_KINDS.top;
+  let s = (seed * 9301 + 49297) % 233280 || 1;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; }, jit = a => 1 + (rnd() * 2 - 1) * a;
+  const len = Math.floor(sr * 0.3), out = new Float32Array(len);
+  const pw = Math.max(0, Math.min(1, power)), tc = P.tc * (1.12 - 0.24 * pw) * jit(0.06) * 1e-3, nc = Math.max(2, Math.round(tc * sr));
+  const bright = P.bright * (0.55 + 0.6 * pw) * (1 - 0.35 * mis);
+  // one vibration mode: struck at the start of contact (with a soft attack over the contact time - a longer, softer
+  // contact can't set the high modes ringing as hard), ringing at frequency f and dying away over decayMs;
+  // gain is the mode's peak amplitude
+  const mode = (f, decayMs, gain, at = 0, own = false) => {
+    const w = 2 * Math.PI * f / sr, dk = 1 / (decayMs * 1e-3 * sr), soft = Math.max(1, Math.round(Math.min(nc, sr / f * 0.5))), ph = rnd() * 0.6, st = Math.round(at * sr);
+    const hf = 1 / (1 + Math.pow(f * tc * 0.42, 2)); // (the contact acts as a low-pass: high modes are rung less by a long contact)
+    const g = own ? gain : gain * (0.35 + 0.65 * hf); // (the ball's own pop isn't filtered by the contact)
+    for (let i = 0; st + i < len; i++) { const d = Math.exp(-i * dk); if (d < 2e-5) break; out[st + i] += g * d * (i < soft ? i / soft : 1) * Math.sin(w * i + ph); }
+  };
+  const lv = 0.55 + 0.45 * pw;
+  // 1. the pop (ball shell / air): a cluster of very quickly dying resonances 0.9-2.9 kHz, at contact and (smaller)
+  //    as the ball leaves the strings; plus a 1 ms burst of broadband texture
+  const popF = [950, 1350, 1800, 2400, 2900], popD = [4.5, 3.8, 3.2, 2.6, 2.2], popG = [0.7, 1.0, 0.8, 0.55 * bright, 0.32 * bright * bright];
+  const pd = Math.pow(4.4e-3 / tc, 0.45); // (a longer, softer contact - slice, drop - makes a lower, duller pop)
+  for (let k = 0; k < 5; k++) { const f = popF[k] * pd * jit(0.06); mode(f, popD[k] * jit(0.15), P.pop * popG[k] * lv, 0, true); mode(f * jit(0.03), popD[k] * 0.7, 0.32 * P.pop * popG[k] * lv, tc, true); }
+  { const nk = Math.max(4, Math.round(sr * 0.001)); let lp = 0; for (let i = 0; i < nk; i++) { lp += ((rnd() * 2 - 1) - lp) * (0.5 + 0.3 * bright); out[i] += lp * Math.sin(Math.PI * i / nk) * 0.55 * P.pop * lv; } }
+  // 2. the body: a short low "thock" from the contact itself (100-300 Hz)
+  mode(170 * jit(0.08), 6.5, P.body * 0.42 * lv); mode(260 * jit(0.08), 5.5, P.body * 0.3 * lv);
+  // 3. the ring: string bed and frame (a sweet-spot hit barely excites the frame; an off-centre one twists and buzzes it)
+  const ring = P.ring * (0.6 + 0.5 * pw);
+  mode(580 * jit(0.05), P.rd * jit(0.12), ring * 0.55);
+  mode(1400 * jit(0.05), P.rd * 0.45, ring * 0.2 * bright);
+  mode(146 * jit(0.04), 34, P.frame * (0.2 + 1.0 * mis) * lv * 0.5);
+  mode(382 * jit(0.04), 26, (0.02 + 0.55 * mis) * ring);
+  mode(862 * jit(0.04), 16, (0.04 + 0.25 * mis) * ring);
+  if (mis > 0) mode(960 * jit(0.04), 20, 0.45 * mis * ring);
+  // 4. the strings sliding over the felt: a short brush (topspin) or a longer scrape (slice / drop)
+  if (P.brush > 0) {
+    const nb = Math.round(sr * P.bms * 1e-3 * jit(0.15)), f = P.bhz * jit(0.1), w = 2 * Math.PI * f / sr, r = Math.exp(-w / (2 * 1.1)), a1 = 2 * r * Math.cos(w), a2 = -r * r;
+    let y1 = 0, y2 = 0, lp = 0; const g = P.brush * (0.55 + 0.6 * pw);
+    for (let i = 0; i < nb + 40 && i < len; i++) {
+      const u = i / nb, env = i < nb ? Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.15)), 0.8) * (1 - 0.4 * u) : 0;
+      const x = (rnd() * 2 - 1) * env, y = x + a1 * y1 + a2 * y2; y2 = y1; y1 = y; lp += (y - lp) * 0.6;
+      out[i] += lp * g * 0.5;
+    }
+  }
+  // clean up: no DC, a smooth tail, normalised (loudness is set when it's played)
+  let m = 0; for (let i = 0; i < len; i++) m += out[i]; m /= len;
+  let pk = 0; for (let i = 0; i < len; i++) { out[i] -= m; const tail = i > len - sr * 0.04 ? (len - i) / (sr * 0.04) : 1; out[i] *= tail; pk = Math.max(pk, Math.abs(out[i])); }
+  for (let i = 0; i < len; i++) out[i] /= pk || 1;
+  return out;
+}
+// a stadium's sound around the court: early reflections off the stands, then a dark, quickly dying tail
+function stadiumIR(sr) {
+  const len = Math.floor(sr * 1.1), ir = [new Float32Array(len), new Float32Array(len)];
+  let s = 1234567; const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+  for (let ch = 0; ch < 2; ch++) {
+    const d = ir[ch]; let lp = 0;
+    for (let i = 0; i < len; i++) { const t = i / sr, k = 0.35 + 0.6 * Math.exp(-t / 0.25); lp += ((rnd() * 2 - 1) - lp) * k; d[i] = lp * Math.exp(-t / 0.28) * (t < 0.008 ? t / 0.008 : 1) * 0.35; }
+    for (const [ms, g] of [[11, 0.6], [19, 0.45], [31, 0.38], [47, 0.3], [64, 0.24], [88, 0.18]]) { const i = Math.floor((ms + ch * 1.7 + rnd() * 2) * 1e-3 * sr); if (i < len) d[i] += g * (rnd() < 0.5 ? -1 : 1); }
+  }
+  return ir;
+}
+/*HITSYNTH-END*/
+
 const AU = {
-  ctx: null, master: null, noise: null, claps: null,
+  ctx: null, master: null, noise: null, claps: null, bank: null, verb: null,
   init() {
     if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
     try { const C = window.AudioContext || window.webkitAudioContext; if (!C) return; this.ctx = new C(); } catch (e) { return; }
@@ -2550,6 +2636,25 @@ const AU = {
       for (let i = 0; i < len; i++) d[i] = Math.tanh(d[i] / pk * 1.2) * 0.8;
     }
     this.claps = cb;
+    // the stadium around the court (an echo the hits are sent into - more for the far player)
+    try {
+      const ir = stadiumIR(sr), ib = c.createBuffer(2, ir[0].length, sr); ib.getChannelData(0).set(ir[0]); ib.getChannelData(1).set(ir[1]);
+      this.verb = c.createConvolver(); this.verb.normalize = false; this.verb.buffer = ib;
+      const vg = c.createGain(); vg.gain.value = 0.55; this.verb.connect(vg); vg.connect(this.master);
+    } catch (e) { this.verb = null; }
+    // the hit sounds: every shot type at three strengths, a few variations each, and two off-centre (mis-hit) versions
+    this.bank = {};
+    const kinds = Object.keys(HIT_KINDS), toBuf = x => { const b = c.createBuffer(1, x.length, sr); b.getChannelData(0).set(x); return b; };
+    let ki = 0;
+    const step = () => {
+      if (ki >= kinds.length || !this.ctx) return;
+      const k = kinds[ki++], B = { pw: [0.3, 0.65, 1], v: [[], [], []], mis: [] };
+      B.pw.forEach((pw, j) => { for (let v = 0; v < 3; v++) B.v[j].push(toBuf(synthHit(sr, k, pw, 0, 1 + ki * 31 + j * 7 + v))); });
+      for (let v = 0; v < 2; v++) B.mis.push(toBuf(synthHit(sr, k, 0.7, 1, 500 + ki * 13 + v)));
+      this.bank[k] = B;
+      setTimeout(step, 0);
+    };
+    step();
     const ab = c.createBuffer(1, c.sampleRate * 4, c.sampleRate), ad = ab.getChannelData(0);
     let last = 0;
     for (let i = 0; i < ad.length; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; ad[i] = last * 3.2; }
@@ -2603,7 +2708,25 @@ const AU = {
     const c = this.ctx, t = c.currentTime, d = this.out(0);
     this.tone(d, t + 0.01, 0.18, 'sine', 1320, 1760, 0.14); this.tone(d, t + 0.05, 0.22, 'triangle', 1980, 2400, 0.08);
   },
-  hit(power, perfect, x, far, kind) {
+  // kind: top / flat / slice / drop / volley / serve / smash; mis 0..1 how far off the sweet spot
+  hit(power, perfect, x, far, kind, mis = 0) {
+    if (!this.ctx) return;
+    const B = this.bank && this.bank[kind];
+    if (settings.hitsnd === 0 || !B) { this.hitClassic(power, perfect, x, far, kind === 'smash' || kind === 'volley' ? kind : kind === 'slice' || kind === 'drop' ? 'slice' : 'drive'); return; }
+    const c = this.ctx, t = c.currentTime, pw = Math.max(0, Math.min(1, power || 0));
+    const j = pw < 0.47 ? 0 : pw < 0.82 ? 1 : 2, list = mis > 0.6 ? B.mis : B.v[j];
+    const src = c.createBufferSource(); src.buffer = list[Math.floor(Math.random() * list.length)];
+    src.playbackRate.value = (0.975 + Math.random() * 0.05) * (1 + 0.015 * (pw - 0.5)); // (no two hits exactly alike)
+    const loud = { top: 1, flat: 1.08, slice: 0.74, drop: 0.46, volley: 0.86, serve: 1.12, smash: 1.25 }[kind] || 1;
+    const g = c.createGain(); g.gain.value = 0.62 * loud * (0.45 + 0.55 * pw) * (far ? 0.48 : 1) * (mis > 0.6 ? 0.85 : 1);
+    src.connect(g);
+    // the far player's hit comes from 24 m away: a little duller, with more of the stadium in it
+    let dry = g; if (far) { const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 5200; g.connect(lp); dry = lp; }
+    dry.connect(this.out(x));
+    if (this.verb) { const sg = c.createGain(); sg.gain.value = far ? 0.42 : 0.16; dry.connect(sg); sg.connect(this.verb); }
+    src.start(t); src.stop(t + 0.32);
+  },
+  hitClassic(power, perfect, x, far, kind) {
     if (!this.ctx) return;
     const c = this.ctx, t = c.currentTime, d = this.out(x), v = (far ? 0.55 : 1) * (0.6 + power * 0.5) * (kind === 'smash' ? 1.25 : kind === 'volley' ? 0.8 : 1);
     if (kind === 'slice') {
@@ -2663,6 +2786,13 @@ const AU = {
   ui() { if (!this.ctx) return; const t = this.ctx.currentTime; this.tone(this.master, t, 0.06, 'sine', 900, 1300, 0.08); },
 };
 
+window.__hitSynth = { synthHit, stadiumIR, HIT_KINDS, AU: () => AU }; // (for testing)
+// the sound a strike makes: its shot type, and how clean it was (a 'bad' strike is off the sweet spot: a frame-y clunk)
+function hitSoundOf(info) {
+  const t = info.type;
+  const kind = info.smash ? 'smash' : info.serve ? 'serve' : t === 'drop' ? 'drop' : info.volley ? 'volley' : t === 'slice' ? 'slice' : t === 'flat' ? 'flat' : 'top';
+  return { kind, mis: info.q === 'bad' ? 1 : info.q === 'ok' ? 0.35 : 0 };
+}
 /* ---------------- HUD helpers ---------------- */
 let callTimer = 0, toastTimer = 0, qualTimer = 0, roTimer = 0;
 function callout(main, sub, tone, ms) {
@@ -2695,14 +2825,14 @@ const H = {
     else hint(`Get to the ball with ${isTouch ? 'the stick' : '<kbd>WASD</kbd>'} · hold ${BTN} as it comes and let go when the cursor hits yellow (close to the ball, holding it sets you up)`);
   },
   strike(idx, info) {
-    rpEvent('strike', { idx, power: info.power, smash: info.smash, volley: info.volley, type: info.type, kmh: info.kmh, label: info.label, serve: !!info.serve, side: info.side, tw: !!info.tweener });
+    rpEvent('strike', { idx, power: info.power, smash: info.smash, volley: info.volley, type: info.type, kmh: info.kmh, label: info.label, serve: !!info.serve, side: info.side, tw: !!info.tweener, q: info.q });
     if (idx === 0) { const pr = sim.predict(sim.ball); if (pr.fb) { landFlash.position.x = pr.fb.x; landFlash.position.z = pr.fb.z; landFlashT = Math.min(1.1, pr.fb.t + 0.35); } }
     rallyTag();
     hintCount++; if (idx === 0 || hintCount >= 5) hint(null);
     // with perfect-shot effects off, every strike sounds and looks like a normal clean hit
     const pfx = false; // perfect / ultra / mega flashes and stings are always off
     if (pfx && info.mega && idx === 0) AU.mega(); else if (pfx && info.ultra && idx === 0) AU.ultra();
-    AU.hit(info.power, pfx && info.perfect && idx === 0, sim.ball.x, (idx & 1) === 1, info.smash ? 'smash' : info.volley ? 'volley' : (info.type === 'slice' || info.type === 'drop') ? 'slice' : 'drive');
+    { const hs = hitSoundOf(info); AU.hit(info.power, pfx && info.perfect && idx === 0, sim.ball.x, (idx & 1) === 1, hs.kind, hs.mis); }
     fx.hitFlash(sim.ball, pfx && info.perfect, idx, info.smash, pfx && info.ultra, pfx && info.mega, info.kmh, info.volley, info.type);
     showReadout(info, idx);
     if (idx === 0) showQuality(info);
@@ -2739,7 +2869,7 @@ const H = {
   released() {},
   miss(i) { if (i) return; toast('Out of reach'); AU.whoosh(sim.P[0].pos.x); },
   // practice court
-  feed(yaw) { machine.aim = yaw; machine.kick = 1; AU.hit(0.3, false, 0, true, 'slice'); },
+  feed(yaw) { machine.aim = yaw; machine.kick = 1; AU.hitClassic(0.3, false, 0, true, 'slice'); }, // (a ball machine, not a racket)
   practice(kind, sub, pr) {
     const tone = kind === 'IN' ? 'good' : 'alert';
     callout(kind === 'IN' ? (pr.streak >= 3 ? `IN · ${pr.streak}` : 'IN') : kind, sub, tone, 700);
@@ -8366,7 +8496,7 @@ function rpApply(f) {
 function rpPlayEvents(f) {
   if (!f.ev) return;
   for (const [t, d] of f.ev) {
-    if (t === 'strike') { AU.hit(d.power, false, sim.ball.x, (d.idx & 1) === 1, d.smash ? 'smash' : d.volley ? 'volley' : (d.type === 'slice' || d.type === 'drop') ? 'slice' : 'drive'); fx.hitFlash(sim.ball, false, Math.min(d.idx, sim.P.length - 1), d.smash, false, false, d.kmh, d.volley, d.type); }
+    if (t === 'strike') { const hs = hitSoundOf(d); AU.hit(d.power, false, sim.ball.x, (d.idx & 1) === 1, hs.kind, hs.mis); fx.hitFlash(sim.ball, false, Math.min(d.idx, sim.P.length - 1), d.smash, false, false, d.kmh, d.volley, d.type); }
     else if (t === 'bounce') H.bounce(d.e, d.live);
     else if (t === 'mark') fx.mark(d.e, true);
     else if (t === 'sfx') { if (d.name === 'cord') AU.ooh(0.6); if (d.name === 'net' || d.name === 'cord') AU.net(d.x); }
