@@ -2520,27 +2520,28 @@ let camMode = settings.cam === 'player' ? 'player' : 'tv';
 // domain) - the racket impact only (the first 35 ms; the recording room's echo that followed is cut off), mono 24 kHz
 // 16-bit. Every shot plays this one real impact, shaped the way that shot sounds on court:
 const HIT_PCM = '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';
-// How a hit sounds on a TV broadcast: the courtside mics sit close, so you hear a hard, dry "pock" - a sharp crack
-// right at contact, a short body, and almost none of the stadium. Each shot is built from three layers:
-//  the recording (skipping its soft lead-in, gated short so it doesn't boom), the crack (a ~1 ms broadband snap of
-//  the strings and felt - the part a close mic picks up and a distant one loses), and "air" (overtones drawn out of
-//  the recording itself, so the top end follows the real hit). Then the strings across the felt: a quick brush on
-//  topspin, a long scratchy scrape on a slice.
-//  rate: pitch/length (a softer, longer contact - slice, drop - is lower); hold/tau: ms the body holds, then dies in;
-//  lp: top of the body (Hz); body: weight at 200 Hz (dB); box: the hollow 650 Hz boom (dB, cut for clarity);
-//  crack: snap level; ck: its centre (Hz, higher = harder); ckd: its decay (ms); air: overtone level;
-//  scrape/sms: felt noise level and length (ms); loud: overall
+// How a hit sounds on a TV broadcast: the courtside mics sit close, so you hear a full, hollow "POCK" - not a click -
+// with a short ring of the string bed after it, and almost none of the stadium. Each shot is built from layers:
+//  body: the recording, from the moment of contact, with its natural ~25 ms weight (rate = pitch; hold/tau ms; lp Hz;
+//        body = 200 Hz weight dB; box = 650 Hz hollowness dB);
+//  pock: the ball's shell and the air it pushes - a hollow resonance (pk Hz, pq sharpness, pg level) - the core of the
+//        sound, and what the recording (taken from a distance) lacks;
+//  ring: the string bed's "thwang" (rf Hz, rq: how long it rings, rg level) - a clean hit rings the strings, a short
+//        block (volley) or soft touch (drop) damps them;
+//  texture: the felt and strings - crisp noise at contact (tx level, txf Hz, txd ms), soft-edged so it isn't a click;
+//  air: overtones drawn out of the recording; scrape/sms: strings brushing across the felt (topspin, lob) or a long
+//        scrape (slice, drop); th: the low thump of the frame and the ball's weight (power); loud: overall
 const HIT_SND = {
-  top:    { rate: 1.15,  hold: 4,   tau: 6,   lp: 9000, body: 3,  box: -4, crack: 1.3,  ck: 2700, ckd: 1.1, air: 0.9,  scrape: 0.035, sms: 16, loud: 1.0 },
-  flat:   { rate: 1.22, hold: 3,   tau: 4.5, lp: 11000, body: 0, box: -6, crack: 2.0,  ck: 3400, ckd: 0.85, air: 1.4, scrape: 0,    sms: 0,  loud: 1.15 },
-  slice:  { rate: 1.03,  hold: 4,   tau: 7.5, lp: 3600, body: 1,  box: -1, crack: 0.45, ck: 2000, ckd: 1.7, air: 0.25, scrape: 0.07, sms: 48, loud: 0.62 },
-  drop:   { rate: 1.06, hold: 2,   tau: 4,   lp: 2300, body: -2, box: 0,  crack: 0.15, ck: 1800, ckd: 1.5, air: 0.06, scrape: 0.025, sms: 22, loud: 0.42 },
-  lob:    { rate: 1.1,  hold: 4,   tau: 7,   lp: 6000, body: 2,  box: -3, crack: 0.8,  ck: 2400, ckd: 1.3, air: 0.5,  scrape: 0.06, sms: 26, loud: 0.8 },
-  volley: { rate: 1.22, hold: 2,   tau: 3.5, lp: 9000, body: -1, box: -5, crack: 1.6,  ck: 3000, ckd: 0.8, air: 1.0,  scrape: 0,    sms: 0,  loud: 0.88 },
-  serve:  { rate: 1.12, hold: 4,   tau: 6,   lp: 11000, body: 4, box: -4, crack: 2.0,  ck: 3100, ckd: 1.0, air: 1.4,  scrape: 0.012, sms: 10, loud: 1.25 },
-  smash:  { rate: 1.1, hold: 4.5, tau: 6.5, lp: 11000, body: 5, box: -4, crack: 2.2,  ck: 2900, ckd: 1.05, air: 1.5, scrape: 0,    sms: 0,  loud: 1.38 },
+  top:    { rate: 1.12, hold: 14,  tau: 12,  lp: 9000,  body: 3, box: -2, pk: 1350, pq: 16,   pg: 1.0,  rf: 620, rq: 20, rg: 0.6,  tx: 0.5, txf: 3200, txd: 2.5, air: 0.9,  scrape: 0.04,  sms: 18, th: 0.6, loud: 1.0 },
+  flat:   { rate: 1.18, hold: 11,  tau: 9,  lp: 11000, body: 1, box: -3, pk: 1450, pq: 14,   pg: 1.15, rf: 650, rq: 18, rg: 0.55, tx: 0.5,  txf: 3800, txd: 2,   air: 1.0,  scrape: 0,     sms: 0, th: 0.5, loud: 1.1 },
+  slice:  { rate: 1.0,  hold: 12,  tau: 13, lp: 4000,  body: 2, box: 0,  pk: 1100, pq: 9, pg: 0.6,  rf: 560, rq: 12, rg: 0.4,  tx: 0.2, txf: 2600, txd: 3.5, air: 0.35,  scrape: 0.09,  sms: 50, th: 0.5, loud: 0.72 },
+  drop:   { rate: 1.02, hold: 5,  tau: 8,  lp: 2600,  body: 0, box: 0,  pk: 950,  pq: 8,   pg: 0.45, rf: 540, rq: 9,  rg: 0.2,  tx: 0.04, txf: 2400, txd: 3,   air: 0.05, scrape: 0.03,  sms: 22, th: 0.15, loud: 0.45 },
+  lob:    { rate: 1.08, hold: 12,  tau: 11,  lp: 6000,  body: 2, box: -1, pk: 1150, pq: 12, pg: 0.8,  rf: 600, rq: 16, rg: 0.45, tx: 0.3,  txf: 3000, txd: 3,   air: 0.6, scrape: 0.06,  sms: 26, th: 0.4, loud: 0.8 },
+  volley: { rate: 1.16, hold: 5,  tau: 7,  lp: 9000,  body: 0, box: -3, pk: 1400, pq: 10, pg: 1.1,  rf: 640, rq: 9,  rg: 0.35, tx: 0.45, txf: 3500, txd: 1.8, air: 0.8,  scrape: 0,     sms: 0, th: 0.4, loud: 0.9 },
+  serve:  { rate: 1.1,  hold: 15, tau: 13, lp: 11000, body: 4, box: -2, pk: 1350, pq: 16,   pg: 1.25, rf: 620, rq: 20, rg: 0.65, tx: 0.55, txf: 3600, txd: 2.2, air: 1.0,  scrape: 0.015, sms: 10, th: 0.8, loud: 1.25 },
+  smash:  { rate: 1.08, hold: 15, tau: 14, lp: 11000, body: 5, box: -2, pk: 1300, pq: 15,   pg: 1.35, rf: 600, rq: 20, rg: 0.7,  tx: 0.6,  txf: 3400, txd: 2.2, air: 1.1,  scrape: 0,     sms: 0, th: 1, loud: 1.35 },
 };
-const HIT_SKIP = 0.0024; // (the recording's first 2.4 ms are a soft lead-in before the real contact)
+const HIT_GAIN = 1.5, HIT_SKIP = 0.0024; // (the recording's first 2.4 ms are a soft lead-in before the real contact)
 // a stadium's sound around the court, as a TV mix hears it: a few faint reflections off the stands and a short,
 // dark tail (the court is open to the sky)
 function stadiumIR(sr) {
@@ -2548,7 +2549,7 @@ function stadiumIR(sr) {
   let s = 1234567; const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
   for (let ch = 0; ch < 2; ch++) {
     const d = ir[ch]; let lp = 0;
-    for (let i = 0; i < len; i++) { const t = i / sr, k = 0.25 + 0.5 * Math.exp(-t / 0.15); lp += ((rnd() * 2 - 1) - lp) * k; d[i] = lp * Math.exp(-t / 0.16) * (t < 0.012 ? t / 0.012 : 1) * 0.3; }
+    for (let i = 0; i < len; i++) { const t = i / sr, k = 0.35 + 0.45 * Math.exp(-t / 0.15); lp += ((rnd() * 2 - 1) - lp) * k; d[i] = lp * Math.exp(-t / 0.16) * (t < 0.012 ? t / 0.012 : 1) * 0.3; }
     for (const [ms, g] of [[14, 0.3], [23, 0.22], [37, 0.16], [56, 0.11]]) { const i = Math.floor((ms + ch * 1.7 + rnd() * 2) * 1e-3 * sr); if (i < len) d[i] += g * (rnd() < 0.5 ? -1 : 1); }
   }
   return ir;
@@ -2635,9 +2636,9 @@ const AU = {
       const vg = c.createGain(); vg.gain.value = 0.55; this.verb.connect(vg); vg.connect(this.master);
     } catch (e) { this.verb = null; }
     try {
-      const k = c.createDynamicsCompressor(); k.threshold.value = -16; k.knee.value = 8; k.ratio.value = 2.5; k.attack.value = 0.004; k.release.value = 0.09;
+      const k = c.createDynamicsCompressor(); k.threshold.value = -18; k.knee.value = 10; k.ratio.value = 3; k.attack.value = 0.006; k.release.value = 0.12;
       // (then a soft ceiling: the hardest cracks are rounded off just under full scale instead of clipping)
-      const mk = c.createGain(), sc = c.createWaveShaper(), cv = new Float32Array(2048); mk.gain.value = 1.3 * 0.5;
+      const mk = c.createGain(), sc = c.createWaveShaper(), cv = new Float32Array(2048); mk.gain.value = 1.7 * 0.5;
       for (let i = 0; i < 2048; i++) { const y = 2 * (i / 1023.5 - 1), m = Math.abs(y); cv[i] = Math.sign(y) * (m < 0.7 ? m : 0.7 + 0.28 * Math.tanh((m - 0.7) / 0.28)); }
       sc.curve = cv; sc.oversample = '2x'; k.connect(mk); mk.connect(sc); sc.connect(this.master); this.hitBus = k;
     } catch (e) { this.hitBus = null; }
@@ -2687,50 +2688,67 @@ const AU = {
     if (settings.hitsnd === 0 || !K || !this.hitBuf) { this.hitClassic(power, perfect, x, far, kind === 'smash' || kind === 'volley' ? kind : kind === 'slice' || kind === 'drop' ? 'slice' : 'drive'); return; }
     const c = this.ctx, t = when === undefined ? c.currentTime : when, pw = Math.max(0, Math.min(1, power || 0)), off = mis > 0.6, j = a => 1 + (Math.random() * 2 - 1) * a;
     // (a backhand - mostly two hands, a firmer, flatter frame - comes off a touch tighter and crisper)
-    const B = bh ? { r: 1.045, ck: 1.1, cr: 1.12, bd: -1.5 } : { r: 1, ck: 1, cr: 1, bd: 0 };
-    const lv = 0.85 * K.loud * (0.42 + 0.58 * pw) * (far ? 0.5 : 1) * (off ? 0.85 : 1);
+    const B = bh ? { r: 1.04, pk: 1.06, tx: 1.15, bd: -1 } : { r: 1, pk: 1, tx: 1, bd: 0 };
+    const lv = HIT_GAIN * K.loud * (0.4 + 0.6 * pw) * (far ? 0.5 : 1) * (off ? 0.85 : 1), solo = this.solo;
     const sum = c.createGain(); sum.gain.value = lv;
-    // 1. the body: the recording, from the moment of contact, held briefly and then shut down fast (no boom)
+    const layer = (name, node) => { if (!solo || solo === name) node.connect(sum); };
+    // 1. body: the recording, from the moment of contact, with its natural weight
     const src = c.createBufferSource(); src.buffer = this.hitBuf;
     const rate = K.rate * B.r * (1 + 0.04 * (pw - 0.5)) * j(0.03) * (off ? 0.9 : 1); src.playbackRate.value = rate;
-    const env = c.createGain(), hold = K.hold * (0.85 + 0.3 * pw) * 1e-3, tau = K.tau * (off ? 1.4 : 1) * 1e-3;
+    const env = c.createGain(), hold = K.hold * (0.85 + 0.3 * pw) * 1e-3, tau = K.tau * (off ? 1.3 : 1) * 1e-3;
     env.gain.setValueAtTime(1, t); env.gain.setValueAtTime(1, t + hold); env.gain.setTargetAtTime(0, t + hold, tau);
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = off ? 1600 : K.lp * (0.65 + 0.45 * pw); lp.Q.value = 0.5;
     const bx = c.createBiquadFilter(); bx.type = 'peaking'; bx.frequency.value = 650; bx.Q.value = 1.1; bx.gain.value = K.box;
     const bd = c.createBiquadFilter(); bd.type = 'lowshelf'; bd.frequency.value = 200; bd.gain.value = K.body + B.bd + (off ? 2 : 0);
-    src.connect(env); env.connect(lp); lp.connect(bx); bx.connect(bd); bd.connect(sum);
-    // 2. air: overtones pulled out of the recording itself (high-passed, driven, high-passed again)
+    src.connect(env); env.connect(lp); lp.connect(bx); bx.connect(bd); layer('body', bd);
+    // an impulse of noise (one of a few takes) set ringing in a resonance: the pock and the string ring
+    const exc = (f, q, g, atk) => {
+      const e = c.createBufferSource(); e.buffer = this.crack[(Math.random() * this.crack.length) | 0];
+      const r = c.createBiquadFilter(); r.type = 'bandpass'; r.frequency.value = f; r.Q.value = q;
+      const eg = c.createGain(); eg.gain.setValueAtTime(0, t); eg.gain.linearRampToValueAtTime(g, t + atk);
+      e.connect(eg); eg.connect(r); e.start(t); e.stop(t + 0.012); return r;
+    };
+    // 2. pock: the hollow resonance of the ball (higher and harder on a firm, clean hit; lower and duller off-centre)
+    if (this.crack) {
+      const pf = K.pk * B.pk * (0.92 + 0.14 * pw) * j(0.05) * (off ? 0.8 : 1);
+      layer('pock', exc(pf, K.pq, K.pg * (0.55 + 0.6 * pw) * (off ? 0.5 : 1) * K.pq * 1.8, 0.0004));
+      // (and its first overtone, much quieter - what makes it hollow rather than a pure tone)
+      layer('pock', exc(pf * 2.3, K.pq * 0.8, K.pg * (0.4 + 0.6 * pw) * (off ? 0.2 : 1) * K.pq * 0.9, 0.0004));
+      // 3. ring: the string bed
+      layer('ring', exc(K.rf * j(0.04), K.rq * (off ? 0.6 : 1), K.rg * (0.5 + 0.6 * pw) * K.rq * 3.5, 0.0006));
+      // the thump: the weight of the ball and the frame taking it (more on a big hit)
+      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, K.th * (0.25 + 0.95 * pw) * 40, 0.001));
+      // 4. texture: crisp felt/string noise at contact, with a soft edge
+      const tx = K.tx * B.tx * (0.4 + 0.8 * pw) * (off ? 0.3 : 1);
+      if (tx > 0.01) {
+        const cs = c.createBufferSource(); cs.buffer = this.crack[(Math.random() * this.crack.length) | 0];
+        const cg = c.createGain(), cd = K.txd * 1e-3;
+        cg.gain.setValueAtTime(0, t); cg.gain.linearRampToValueAtTime(tx * 2, t + 0.0005); cg.gain.setTargetAtTime(0, t + 0.0005, cd);
+        const cb = c.createBiquadFilter(); cb.type = 'bandpass'; cb.frequency.value = K.txf * (0.9 + 0.2 * pw) * j(0.08); cb.Q.value = 0.8;
+        cs.connect(cg); cg.connect(cb); layer('tex', cb); cs.start(t); cs.stop(t + 0.012);
+      }
+    }
+    // 5. air: overtones pulled out of the recording itself (high-passed, driven, high-passed again)
     const air = K.air * (0.5 + 0.7 * pw) * (off ? 0.25 : 1);
     if (air > 0.02 && this.airCurve) {
       const h1 = c.createBiquadFilter(); h1.type = 'highpass'; h1.frequency.value = 1100; h1.Q.value = 0.7;
       const dr = c.createGain(); dr.gain.value = 6;
       const ws = c.createWaveShaper(); ws.curve = this.airCurve;
       const h2 = c.createBiquadFilter(); h2.type = 'highpass'; h2.frequency.value = 2200; h2.Q.value = 0.7;
-      const ag = c.createGain(); ag.gain.value = air * 0.32;
-      env.connect(h1); h1.connect(dr); dr.connect(ws); ws.connect(h2); h2.connect(ag); ag.connect(sum);
-    }
-    // 3. the crack: a ~1 ms snap at contact - the hardest, brightest part of a clean hit
-    const ck = K.crack * B.cr * (0.45 + 0.75 * pw) * j(0.15) * (off ? 0.3 : 1);
-    if (ck > 0.01 && this.crack) {
-      const cs = c.createBufferSource(); cs.buffer = this.crack[(Math.random() * this.crack.length) | 0];
-      const cg = c.createGain(), cd = K.ckd * (1.1 - 0.2 * pw) * 1e-3;
-      cg.gain.setValueAtTime(0, t); cg.gain.linearRampToValueAtTime(ck, t + 0.00015); cg.gain.setTargetAtTime(0, t + 0.00015, cd);
-      const ch = c.createBiquadFilter(); ch.type = 'highpass'; ch.frequency.value = 900; ch.Q.value = 0.6;
-      const cb = c.createBiquadFilter(); cb.type = 'peaking'; cb.frequency.value = K.ck * B.ck * (0.85 + 0.25 * pw) * j(0.08); cb.Q.value = 0.9; cb.gain.value = 9;
-      const cl = c.createBiquadFilter(); cl.type = 'lowpass'; cl.frequency.value = 9000; cl.Q.value = 0.5;
-      cs.connect(cg); cg.connect(ch); ch.connect(cb); cb.connect(cl); cl.connect(sum); cs.start(t); cs.stop(t + 0.01);
+      const ag = c.createGain(); ag.gain.value = air * 0.42;
+      env.connect(h1); h1.connect(dr); dr.connect(ws); ws.connect(h2); h2.connect(ag); layer('air', ag);
     }
     // the far player's hit comes from 24 m away: duller, with a little more of the stadium in it
     let dry = sum; if (far) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 4500; sum.connect(f2); dry = f2; }
     const o = this.outHit(x); dry.connect(o);
-    if (this.verb) { const sg = c.createGain(); sg.gain.value = far ? 0.08 : 0.03; dry.connect(sg); sg.connect(this.verb); }
-    src.start(t, HIT_SKIP); src.stop(t + 0.07);
+    if (this.verb) { const sg = c.createGain(); sg.gain.value = far ? 0.12 : 0.04; dry.connect(sg); sg.connect(this.verb); }
+    src.start(t, HIT_SKIP); src.stop(t + 0.1);
     // 4. the strings across the felt: a quick brush on topspin, a long scratchy scrape on a slice
     if (K.scrape > 0 && !off) {
       const n = c.createBufferSource(); n.buffer = this.noise; const d = K.sms * j(0.15) * 1e-3, sv = K.scrape * (0.5 + 0.6 * pw) * (far ? 0.4 : 1);
       const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = kind === 'slice' || kind === 'drop' ? 3200 : 4800; f.Q.value = 0.8;
       const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(sv, t + Math.min(0.006, d * 0.25)); g.gain.setTargetAtTime(0, t + d * 0.45, d * 0.3);
-      n.connect(f); f.connect(g); g.connect(o); n.start(t, Math.random() * 0.5); n.stop(t + d * 2 + 0.02);
+      n.connect(f); f.connect(g); if (!this.solo || this.solo === 'scrape') g.connect(o); n.start(t, Math.random() * 0.5); n.stop(t + d * 2 + 0.02);
     }
     // an off-centre hit also twists the frame: a short, low clunk
     if (off) { this.tone(o, t, 0.05, 'sine', 380, 340, 0.05 * (far ? 0.5 : 1)); this.tone(o, t, 0.07, 'sine', 150, 140, 0.07 * (far ? 0.5 : 1)); }
