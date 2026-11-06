@@ -2591,9 +2591,9 @@ const HIT_PCM_M = [
 // (src: m re-voiced / p plain; rate/hold: pitch and length; boxMul/bodyMul/bodyAdd: how much of each shot's own tone
 //  shaping to use; pock/ring: hollow and string resonances; thump; tex/txd/txf: felt edge; air: felt fuzz)
 const HIT_VARS = [null,
-  { src: 'm', rate: 0.893, gain: 1.25, hb: 3, hold: 1.0,  boxMul: 0, bodyMul: 0.4, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.5,  tex: 0.08, txd: 2.5, txf: 0.85, air: 0 },
-  { src: 'm', rate: 0.82,  gain: 1.1, hold: 1.12, boxMul: 0, bodyMul: 0.7, bodyAdd: 2, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.9,  tex: 0.15, txd: 1.8, txf: 0.7,  air: 0 },
-  { src: 'm', rate: 0.94,  gain: 1.25, hold: 0.95, boxMul: 0, bodyMul: 0.3, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.3,  tex: 0.3,  txd: 1.4, txf: 1.0,  air: 0.5 },
+  { src: 'm', rate: 0.82,  gain: 1.25, hb: 3, hold: 1.0,  boxMul: 0, bodyMul: 0.4, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.5,  tex: 0.08, txd: 2.5, txf: 0.85, air: 0 },
+  { src: 'm', rate: 0.76,  gain: 1.1, hold: 1.12, boxMul: 0, bodyMul: 0.7, bodyAdd: 2, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.9,  tex: 0.15, txd: 1.8, txf: 0.7,  air: 0 },
+  { src: 'm', rate: 0.88,  gain: 1.25, hold: 0.95, boxMul: 0, bodyMul: 0.3, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.3,  tex: 0.3,  txd: 1.4, txf: 1.0,  air: 0.5 },
   { src: 'p', rate: 0.92,  gain: 1, hold: 1.2,  boxMul: 1, bodyMul: 1,   bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.6,  tex: 0.5,  txd: 1.5, txf: 0.85, air: 0.5 },
 ];
 // each shot's top end (dB above 2.4 kHz): a flat drive or serve comes off harder, a slice or drop softer
@@ -2752,18 +2752,20 @@ const AU = {
     // (a backhand - mostly two hands, a firmer, flatter frame - comes off a touch tighter and crisper)
     const B = bh ? { r: 1.04, pk: 1.06, tx: 1.15, bd: -1 } : { r: 1, pk: 1, tx: 1, bd: 0 }, V = HIT_VARS[this.vari || settings.hitsnd] || HIT_VARS[1];
     const LB = this.labOff ? LAB_NEUTRAL : settings.lab;
-    const lv = LB.loud * HIT_GAIN * V.gain * K.loud * (0.4 + 0.6 * pw) * (far ? 0.5 : 1) * (off ? 0.85 : 1), solo = this.solo;
+    // power (0 a soft push - 1 a full-blooded hit) changes everything: a big hit is louder, a touch higher, heavier in
+    // the low end, brighter, longer and thumps; a soft one is quiet, round and dull
+    const lv = LB.loud * HIT_GAIN * V.gain * K.loud * (0.2 + 0.8 * Math.pow(pw, 1.25)) * (far ? 0.5 : 1) * (off ? 0.85 : 1), solo = this.solo;
     const sum = c.createGain(); sum.gain.value = lv;
     const layer = (name, node) => { if (!solo || solo === name) node.connect(sum); };
     // 1. body: the recording, from the moment of contact, with its natural weight
     const useM = V.src === 'm' && this.hitBufs && this.hitBufs.length;
     const src = c.createBufferSource(); src.buffer = useM ? this.hitBufs[(Math.random() * this.hitBufs.length) | 0] : this.hitBuf;
-    const rate = LB.pitch * K.rate * V.rate * B.r * (1 + 0.04 * (pw - 0.5)) * j(0.03) * (off ? 0.9 : 1); src.playbackRate.value = rate;
-    const env = c.createGain(), hold = LB.length * K.hold * V.hold * (0.85 + 0.3 * pw) * 1e-3, tau = LB.length * K.tau * V.hold * (off ? 1.3 : 1) * 1e-3;
+    const rate = LB.pitch * K.rate * V.rate * B.r * (0.93 + 0.12 * pw) * j(0.025) * (off ? 0.9 : 1); src.playbackRate.value = rate;
+    const env = c.createGain(), hold = LB.length * K.hold * V.hold * (0.75 + 0.5 * pw) * 1e-3, tau = LB.length * K.tau * V.hold * (off ? 1.3 : 1) * 1e-3;
     env.gain.setValueAtTime(1, t); env.gain.setValueAtTime(1, t + hold); env.gain.setTargetAtTime(0, t + hold, tau);
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = off ? 1600 : K.lp * (0.65 + 0.45 * pw); lp.Q.value = 0.5;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = off ? 1600 : K.lp * (0.3 + 0.8 * pw); lp.Q.value = 0.5;
     const bx = c.createBiquadFilter(); bx.type = 'peaking'; bx.frequency.value = 650; bx.Q.value = 1.1; bx.gain.value = K.box * V.boxMul;
-    const bd = c.createBiquadFilter(); bd.type = 'lowshelf'; bd.frequency.value = 200; bd.gain.value = K.body * V.bodyMul + V.bodyAdd + LB.weight + B.bd + (off ? 2 : 0);
+    const bd = c.createBiquadFilter(); bd.type = 'lowshelf'; bd.frequency.value = 200; bd.gain.value = K.body * V.bodyMul + V.bodyAdd + LB.weight + B.bd + 6 * (pw - 0.5) + (off ? 2 : 0);
     src.connect(env); env.connect(lp); lp.connect(bx); bx.connect(bd); layer('body', bd);
     // an impulse of noise (one of a few takes) set ringing in a resonance: the pock and the string ring
     const exc = (f, q, g, atk) => {
@@ -2780,7 +2782,7 @@ const AU = {
       if (V.ring > 0) { const q = K.rq * V.rq * (off ? 0.6 : 1); layer('ring', exc(K.rf * j(0.04), q, V.ring * K.rg * (0.5 + 0.6 * pw) * q * 3.5, 0.0006)); }
       if (LB.ring > 0) { const q = K.rq * 0.5 * (off ? 0.6 : 1); layer('ring', exc(K.rf * LB.ringHz * j(0.04), q, LB.ring * K.rg * (0.5 + 0.6 * pw) * q * 3.5, 0.0006)); }
       // the thump: the weight of the ball and the frame taking it (more on a big hit)
-      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, LB.thump * V.thump * K.th * (0.25 + 0.95 * pw) * 40, 0.001));
+      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, LB.thump * V.thump * K.th * (0.1 + 1.2 * pw) * 40, 0.001));
       // 4. texture: crisp felt/string noise at contact, with a soft edge
       const tx = LB.crack * V.tex * K.tx * B.tx * (0.4 + 0.8 * pw) * (off ? 0.3 : 1);
       if (tx > 0.01) {
@@ -2808,7 +2810,7 @@ const AU = {
       n.start(t, Math.random() * 0.5); n.stop(t + 0.1);
     }
     // the far player's hit comes from 24 m away: duller, with a little more of the stadium in it
-    const hs = c.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 2400; hs.gain.value = LB.bright + (V.hb || 0) + (HIT_HB[kind] || 0); sum.connect(hs);
+    const hs = c.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 2400; hs.gain.value = LB.bright + (V.hb || 0) + (HIT_HB[kind] || 0) + 9 * (pw - 0.6); sum.connect(hs);
     let dry = hs; if (far) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 4500; hs.connect(f2); dry = f2; }
     const o = this.outHit(x);
     if (this.hitBus && this.hitBus.threshold) { this.hitBus.threshold.setTargetAtTime(-18 - 10 * (LB.punch - 1), t, 0.01); this.hitBus.ratio.setTargetAtTime(Math.max(1, 3 + 3 * (LB.punch - 1)), t, 0.01); }
@@ -2887,10 +2889,15 @@ const AU = {
 
 window.__hitSynth = { stadiumIR, HIT_SND, AU: () => AU }; // (for testing)
 // the sound a strike makes: its shot type, and how clean it was (a 'bad' strike is off the sweet spot: a frame-y clunk)
+// a soft and a big hit's ball speed (km/h) for each kind of shot
+const HIT_KMH = { top: [65, 150], flat: [80, 170], slice: [50, 115], drop: [25, 65], lob: [45, 100], volley: [40, 125], serve: [115, 215], smash: [95, 190] };
 function hitSoundOf(info) {
   const t = info.type;
   const kind = info.smash ? 'smash' : info.serve ? 'serve' : t === 'drop' ? 'drop' : info.volley ? 'volley' : t === 'slice' ? 'slice' : t === 'flat' ? 'flat' : t === 'lob' ? 'lob' : 'top';
-  return { kind, mis: info.q === 'bad' ? 1 : info.q === 'ok' ? 0.35 : 0, bh: info.side === -1 && !info.serve && !info.smash };
+  // how hard it was struck: half the swing's power, half how fast the ball actually left the strings (for that kind of shot)
+  const [s0, s1] = HIT_KMH[kind] || [60, 150], spd = isFinite(info.kmh) ? Math.max(0, Math.min(1, (info.kmh - s0) / (s1 - s0))) : (info.power || 0.6);
+  const pw = Math.max(0, Math.min(1, 0.5 * (info.power || 0) + 0.5 * spd));
+  return { kind, pw, mis: info.q === 'bad' ? 1 : info.q === 'ok' ? 0.35 : 0, bh: info.side === -1 && !info.serve && !info.smash };
 }
 /* ---------------- HUD helpers ---------------- */
 let callTimer = 0, toastTimer = 0, qualTimer = 0, roTimer = 0;
@@ -2931,7 +2938,7 @@ const H = {
     // with perfect-shot effects off, every strike sounds and looks like a normal clean hit
     const pfx = false; // perfect / ultra / mega flashes and stings are always off
     if (pfx && info.mega && idx === 0) AU.mega(); else if (pfx && info.ultra && idx === 0) AU.ultra();
-    { const hs = hitSoundOf(info); AU.hit(info.power, pfx && info.perfect && idx === 0, sim.ball.x, (idx & 1) === 1, hs.kind, hs.mis, undefined, hs.bh); }
+    { const hs = hitSoundOf(info); AU.hit(hs.pw, pfx && info.perfect && idx === 0, sim.ball.x, (idx & 1) === 1, hs.kind, hs.mis, undefined, hs.bh); }
     fx.hitFlash(sim.ball, pfx && info.perfect, idx, info.smash, pfx && info.ultra, pfx && info.mega, info.kmh, info.volley, info.type);
     showReadout(info, idx);
     if (idx === 0) showQuality(info);
@@ -8622,7 +8629,7 @@ function rpApply(f) {
 function rpPlayEvents(f) {
   if (!f.ev) return;
   for (const [t, d] of f.ev) {
-    if (t === 'strike') { const hs = hitSoundOf(d); AU.hit(d.power, false, sim.ball.x, (d.idx & 1) === 1, hs.kind, hs.mis, undefined, hs.bh); fx.hitFlash(sim.ball, false, Math.min(d.idx, sim.P.length - 1), d.smash, false, false, d.kmh, d.volley, d.type); }
+    if (t === 'strike') { const hs = hitSoundOf(d); AU.hit(hs.pw, false, sim.ball.x, (d.idx & 1) === 1, hs.kind, hs.mis, undefined, hs.bh); fx.hitFlash(sim.ball, false, Math.min(d.idx, sim.P.length - 1), d.smash, false, false, d.kmh, d.volley, d.type); }
     else if (t === 'bounce') H.bounce(d.e, d.live);
     else if (t === 'mark') fx.mark(d.e, true);
     else if (t === 'sfx') { if (d.name === 'cord') AU.ooh(0.6); if (d.name === 'net' || d.name === 'cord') AU.net(d.x); }
