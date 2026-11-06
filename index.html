@@ -346,6 +346,17 @@ kbd.wide{min-width:52px}
 .bars.edit input[type=number]:focus{outline:2px solid var(--optic);outline-offset:1px}
 .sigline{margin:0;font-size:14px;line-height:1.5;color:var(--chalk);opacity:.86;max-width:56ch}
 .card .abil{font-size:13px;padding:8px 10px}
+.labBtn{margin-top:6px;padding:6px 10px;font-size:14px}
+.lab{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:rgba(9,15,28,.6);display:grid;gap:10px}
+.lab[hidden]{display:none}
+.labHead{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}.labHead b{font-family:var(--display);font-size:18px;letter-spacing:.04em}.labHead span{opacity:.75;font-size:13px}
+.labGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px 18px}
+.labRow{display:grid;grid-template-columns:96px minmax(0,1fr) 44px;gap:8px;align-items:center;font-size:13px}.labRow output{text-align:right;font-variant-numeric:tabular-nums;opacity:.85}
+.labRow input{width:100%;min-width:0}
+.labTest,.labFoot{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.labTest span{font-size:13px;opacity:.75;margin-right:2px}
+.lab button{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:6px;padding:6px 10px;color:inherit;cursor:pointer;font:600 13px/1.2 system-ui,sans-serif}
+.lab button:hover{background:rgba(255,255,255,.14)}
+.labFoot code{flex:1 1 220px;min-width:0;overflow-wrap:anywhere;font-size:12px;opacity:.85;user-select:all}
 .selbot{grid-area:bot;display:grid;gap:10px;padding-top:14px;margin-top:10px;border-top:1px solid var(--line)}
 .opts{display:grid;grid-template-columns:1.1fr 1.1fr 1.4fr .8fr;gap:12px 18px}
 .opts .opt{gap:6px}
@@ -450,8 +461,14 @@ kbd.wide{min-width:52px}
         <div class="opt"><span>Match length</span><div class="seg" data-k="len"><button data-v="0">Quick</button><button data-v="1">One set</button><button data-v="2">Best of 3</button></div></div>
         <div class="opt"><span>Court</span><div class="seg" data-k="surface"><button data-v="0">Hard</button><button data-v="1">Indoor</button><button data-v="2">Clay</button><button data-v="3">Grass</button></div></div>
         <div class="opt"><span>Mega-perfect slow-mo</span><div class="seg" data-k="slowmo"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
-        <div class="opt"><span>Hit sound</span><div class="seg" data-k="hitsnd"><button data-v="1">A</button><button data-v="2">B</button><button data-v="3">C</button><button data-v="4">D</button><button data-v="0">Classic</button></div></div>
+        <div class="opt"><span>Hit sound</span><div class="seg" data-k="hitsnd"><button data-v="1">A</button><button data-v="2">B</button><button data-v="3">C</button><button data-v="4">D</button><button data-v="0">Classic</button></div><button class="ghost labBtn" id="labOpen" type="button">Sound lab</button></div>
         <div class="opt"><span>Ball size <b class="ballPct"></b></span><input type="range" class="ballSize" min="0" max="100" step="1" aria-label="Ball size"></div>
+      </div>
+      <div class="lab" id="lab" hidden>
+        <div class="labHead"><b>Sound lab</b><span>Shape the strike until it sounds right. The code below holds your settings.</span></div>
+        <div class="labGrid" id="labGrid"></div>
+        <div class="labTest"><span>Test:</span><button type="button" data-k="top">Forehand</button><button type="button" data-k="top" data-bh="1">Backhand</button><button type="button" data-k="flat">Flat</button><button type="button" data-k="slice">Slice</button><button type="button" data-k="drop">Drop</button><button type="button" data-k="volley">Volley</button><button type="button" data-k="serve">Serve</button><button type="button" data-k="smash">Smash</button><button type="button" data-k="rally">Rally</button></div>
+        <div class="labFoot"><code id="labCode"></code><button type="button" id="labCopy">Copy code</button><button type="button" id="labReset">Reset</button><button type="button" id="labClose">Done</button></div>
       </div>
       <div class="btns"><button class="cta" id="play">Play match</button><button class="ghost" id="practice">Practice court</button><button class="ghost" id="toTut">Tutorial</button><button class="ghost next" id="toEpics">Tennis Epics</button><button class="ghost next" id="toDoubles">Doubles</button><button class="ghost next" id="toOnline">Online 1v1</button><button class="ghost rpbtn" id="toRallies">Saved rallies</button></div>
       <p class="howto" id="howto"><kbd>WASD</kbd> move · <kbd>arrows</kbd> aim · hold <kbd>Space</kbd> topspin or <kbd>Shift</kbd> slice near the ball (it sets you up), let go on the yellow · <kbd>Q</kbd> flat · <kbd>E</kbd> lob · <kbd>R</kbd> drop · <kbd>C</kbd> camera</p>
@@ -2500,7 +2517,17 @@ settings.custom = Object.assign({}, settings.custom || {});
 for (const k of CUS_KEYS) { const v = Math.round(+settings.custom[k]); settings.custom[k] = isFinite(v) ? Math.max(0, Math.min(250, v)) : 100; }
 settings.surface = Math.max(0, Math.min(3, +settings.surface || 0));
 settings.ball = isFinite(+settings.ball) && settings.ball !== null && settings.ball !== '' ? Math.max(0, Math.min(1, +settings.ball)) : 1; // ball size (0 = v100 size, 1 = largest)
-settings.hitsnd = [0, 1, 2, 3, 4].includes(settings.hitsnd) ? settings.hitsnd : 1; // hit sound: 1-4 takes A-D on the real recording (A default), 0 classic
+settings.hitsnd = [0, 1, 2, 3, 4].includes(settings.hitsnd) ? settings.hitsnd : 1;
+// the sound lab's adjustments to the hit (on top of the chosen take); each is clamped to its slider's range
+const LAB = [
+  //  key, label, min, max, step, neutral
+  ['pitch', 'Pitch', 0.6, 1.5, 0.01, 1], ['weight', 'Low weight', -12, 12, 0.5, 0], ['thump', 'Thump', 0, 3, 0.05, 1],
+  ['crack', 'Crack', 0, 4, 0.05, 1], ['crackLen', 'Crack length', 0.3, 4, 0.05, 1], ['bright', 'Brightness', -15, 15, 0.5, 0],
+  ['fuzz', 'Felt fuzz', 0, 2, 0.05, 0], ['ring', 'String ring', 0, 2, 0.05, 0], ['ringHz', 'Ring pitch', 0.5, 2, 0.01, 1],
+  ['length', 'Length', 0.4, 2.5, 0.05, 1], ['echo', 'Echo', 0, 4, 0.05, 1], ['punch', 'Punch', 0, 2, 0.05, 1], ['loud', 'Loudness', 0.3, 2.5, 0.05, 1],
+];
+settings.lab = Object.assign({}, settings.lab || {});
+for (const [k, , lo, hi, , d] of LAB) { const v = +settings.lab[k]; settings.lab[k] = isFinite(v) && settings.lab[k] !== null && settings.lab[k] !== '' ? Math.max(lo, Math.min(hi, v)) : d; } // hit sound: 1-4 takes A-D on the real recording (A default), 0 classic
 delete settings.pfx; settings.slowmo = 0; // mega-perfect slow-mo is off whenever the game loads (it can be switched on in the menu for that session)
 settings.diff = Math.max(0, Math.min(3, +settings.diff || 0)); settings.len = Math.max(0, Math.min(2, +settings.len || 0)); settings.epicLen = settings.epicLen === 1 ? 1 : 0;
 // doubles line-up: your partner and the two CPU players (real players only, all different)
@@ -2561,11 +2588,12 @@ const HIT_PCM_M = [
 // (src: m re-voiced / p plain; rate/hold: pitch and length; boxMul/bodyMul/bodyAdd: how much of each shot's own tone
 //  shaping to use; pock/ring: hollow and string resonances; thump; tex/txd/txf: felt edge; air: felt fuzz)
 const HIT_VARS = [null,
-  { src: 'm', rate: 0.893, gain: 1.25, hold: 1.0,  boxMul: 0, bodyMul: 0.4, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.35, tex: 0.25, txd: 1.6, txf: 0.85, air: 0 },
+  { src: 'm', rate: 0.893, gain: 1.25, hold: 1.0,  boxMul: 0, bodyMul: 0.4, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.35, tex: 0.45, txd: 2.4, txf: 0.85, air: 0 },
   { src: 'm', rate: 0.82,  gain: 1.1, hold: 1.12, boxMul: 0, bodyMul: 0.7, bodyAdd: 2, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.9,  tex: 0.15, txd: 1.8, txf: 0.7,  air: 0 },
   { src: 'm', rate: 0.94,  gain: 1.25, hold: 0.95, boxMul: 0, bodyMul: 0.3, bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.3,  tex: 0.6,  txd: 1.4, txf: 1.0,  air: 0.5 },
   { src: 'p', rate: 0.92,  gain: 1, hold: 1.2,  boxMul: 1, bodyMul: 1,   bodyAdd: 0, pock: 0, pq: 1, ring: 0, rq: 1, thump: 0.6,  tex: 0.5,  txd: 1.5, txf: 0.85, air: 0.5 },
 ];
+const LAB_NEUTRAL = { pitch: 1, weight: 0, thump: 1, crack: 1, crackLen: 1, bright: 0, fuzz: 0, ring: 0, ringHz: 1, length: 1, echo: 1, punch: 1, loud: 1 };
 const HIT_GAIN = 1.5, HIT_SKIP = 0.0024; // (the recording's first 2.4 ms are a soft lead-in before the real contact)
 // a stadium's sound around the court, as a TV mix hears it: a few faint reflections off the stands and a short,
 // dark tail (the court is open to the sky)
@@ -2718,18 +2746,19 @@ const AU = {
     const c = this.ctx, t = when === undefined ? c.currentTime : when, pw = Math.max(0, Math.min(1, power || 0)), off = mis > 0.6, j = a => 1 + (Math.random() * 2 - 1) * a;
     // (a backhand - mostly two hands, a firmer, flatter frame - comes off a touch tighter and crisper)
     const B = bh ? { r: 1.04, pk: 1.06, tx: 1.15, bd: -1 } : { r: 1, pk: 1, tx: 1, bd: 0 }, V = HIT_VARS[this.vari || settings.hitsnd] || HIT_VARS[1];
-    const lv = HIT_GAIN * V.gain * K.loud * (0.4 + 0.6 * pw) * (far ? 0.5 : 1) * (off ? 0.85 : 1), solo = this.solo;
+    const LB = this.labOff ? LAB_NEUTRAL : settings.lab;
+    const lv = LB.loud * HIT_GAIN * V.gain * K.loud * (0.4 + 0.6 * pw) * (far ? 0.5 : 1) * (off ? 0.85 : 1), solo = this.solo;
     const sum = c.createGain(); sum.gain.value = lv;
     const layer = (name, node) => { if (!solo || solo === name) node.connect(sum); };
     // 1. body: the recording, from the moment of contact, with its natural weight
     const useM = V.src === 'm' && this.hitBufs && this.hitBufs.length;
     const src = c.createBufferSource(); src.buffer = useM ? this.hitBufs[(Math.random() * this.hitBufs.length) | 0] : this.hitBuf;
-    const rate = K.rate * V.rate * B.r * (1 + 0.04 * (pw - 0.5)) * j(0.03) * (off ? 0.9 : 1); src.playbackRate.value = rate;
-    const env = c.createGain(), hold = K.hold * V.hold * (0.85 + 0.3 * pw) * 1e-3, tau = K.tau * V.hold * (off ? 1.3 : 1) * 1e-3;
+    const rate = LB.pitch * K.rate * V.rate * B.r * (1 + 0.04 * (pw - 0.5)) * j(0.03) * (off ? 0.9 : 1); src.playbackRate.value = rate;
+    const env = c.createGain(), hold = LB.length * K.hold * V.hold * (0.85 + 0.3 * pw) * 1e-3, tau = LB.length * K.tau * V.hold * (off ? 1.3 : 1) * 1e-3;
     env.gain.setValueAtTime(1, t); env.gain.setValueAtTime(1, t + hold); env.gain.setTargetAtTime(0, t + hold, tau);
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = off ? 1600 : K.lp * (0.65 + 0.45 * pw); lp.Q.value = 0.5;
     const bx = c.createBiquadFilter(); bx.type = 'peaking'; bx.frequency.value = 650; bx.Q.value = 1.1; bx.gain.value = K.box * V.boxMul;
-    const bd = c.createBiquadFilter(); bd.type = 'lowshelf'; bd.frequency.value = 200; bd.gain.value = K.body * V.bodyMul + V.bodyAdd + B.bd + (off ? 2 : 0);
+    const bd = c.createBiquadFilter(); bd.type = 'lowshelf'; bd.frequency.value = 200; bd.gain.value = K.body * V.bodyMul + V.bodyAdd + LB.weight + B.bd + (off ? 2 : 0);
     src.connect(env); env.connect(lp); lp.connect(bx); bx.connect(bd); layer('body', bd);
     // an impulse of noise (one of a few takes) set ringing in a resonance: the pock and the string ring
     const exc = (f, q, g, atk) => {
@@ -2744,13 +2773,14 @@ const AU = {
       if (V.pock > 0) { const q = K.pq * V.pq; layer('pock', exc(pf * 0.75, q, V.pock * K.pg * (0.55 + 0.6 * pw) * (off ? 0.5 : 1) * q * 1.8, 0.0004)); }
       // 3. ring: the string bed
       if (V.ring > 0) { const q = K.rq * V.rq * (off ? 0.6 : 1); layer('ring', exc(K.rf * j(0.04), q, V.ring * K.rg * (0.5 + 0.6 * pw) * q * 3.5, 0.0006)); }
+      if (LB.ring > 0) { const q = K.rq * 0.5 * (off ? 0.6 : 1); layer('ring', exc(K.rf * LB.ringHz * j(0.04), q, LB.ring * K.rg * (0.5 + 0.6 * pw) * q * 3.5, 0.0006)); }
       // the thump: the weight of the ball and the frame taking it (more on a big hit)
-      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, V.thump * K.th * (0.25 + 0.95 * pw) * 40, 0.001));
+      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, LB.thump * V.thump * K.th * (0.25 + 0.95 * pw) * 40, 0.001));
       // 4. texture: crisp felt/string noise at contact, with a soft edge
-      const tx = V.tex * K.tx * B.tx * (0.4 + 0.8 * pw) * (off ? 0.3 : 1);
+      const tx = LB.crack * V.tex * K.tx * B.tx * (0.4 + 0.8 * pw) * (off ? 0.3 : 1);
       if (tx > 0.01) {
         const cs = c.createBufferSource(); cs.buffer = this.crack[(Math.random() * this.crack.length) | 0];
-        const cg = c.createGain(), cd = K.txd * V.txd * 1e-3;
+        const cg = c.createGain(), cd = LB.crackLen * K.txd * V.txd * 1e-3;
         cg.gain.setValueAtTime(0, t); cg.gain.linearRampToValueAtTime(tx * 2, t + 0.0005); cg.gain.setTargetAtTime(0, t + 0.0005, cd);
         const cb = c.createBiquadFilter(); cb.type = 'bandpass'; cb.frequency.value = K.txf * V.txf * (0.9 + 0.2 * pw) * j(0.08); cb.Q.value = 0.5;
         cs.connect(cg); cg.connect(cb); layer('tex', cb); cs.start(t); cs.stop(t + 0.012);
@@ -2759,7 +2789,7 @@ const AU = {
     // 5. fuzz: the felt - noise that swells and dies with the hit itself (the recording's own envelope opens it), so it
     //    brightens the hit without giving it a pitch (distorting the recording for brightness made it ring like a
     //    hollow plastic ball)
-    const fz = V.air * K.air * (0.5 + 0.7 * pw) * (off ? 0.3 : 1);
+    const fz = (V.air + LB.fuzz) * K.air * (0.5 + 0.7 * pw) * (off ? 0.3 : 1);
     if (fz > 0.02 && this.absCurve) {
       const rc = c.createWaveShaper(); rc.curve = this.absCurve;
       const sm = c.createBiquadFilter(); sm.type = 'lowpass'; sm.frequency.value = 160; sm.Q.value = 0.5;
@@ -2773,9 +2803,12 @@ const AU = {
       n.start(t, Math.random() * 0.5); n.stop(t + 0.1);
     }
     // the far player's hit comes from 24 m away: duller, with a little more of the stadium in it
-    let dry = sum; if (far) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 4500; sum.connect(f2); dry = f2; }
-    const o = this.outHit(x); dry.connect(o);
-    if (this.verb) { const sg = c.createGain(); sg.gain.value = far ? 0.12 : 0.04; dry.connect(sg); sg.connect(this.verb); }
+    const hs = c.createBiquadFilter(); hs.type = 'highshelf'; hs.frequency.value = 2400; hs.gain.value = LB.bright; sum.connect(hs);
+    let dry = hs; if (far) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 4500; hs.connect(f2); dry = f2; }
+    const o = this.outHit(x);
+    if (this.hitBus && this.hitBus.threshold) { this.hitBus.threshold.setTargetAtTime(-18 - 10 * (LB.punch - 1), t, 0.01); this.hitBus.ratio.setTargetAtTime(Math.max(1, 3 + 3 * (LB.punch - 1)), t, 0.01); }
+    dry.connect(o);
+    if (this.verb) { const sg = c.createGain(); sg.gain.value = (far ? 0.12 : 0.04) * LB.echo; dry.connect(sg); sg.connect(this.verb); }
     src.start(t, useM ? 0 : HIT_SKIP); src.stop(t + 0.1);
     // 4. the strings across the felt: a quick brush on topspin, a long scratchy scrape on a slice
     if (K.scrape > 0 && !off) {
@@ -7606,6 +7639,33 @@ for (const r of document.querySelectorAll('.ballSize')) {
   r.addEventListener('keydown', e => e.stopPropagation(), L); // (arrow keys move the slider, not the player)
 }
 setBallSize(settings.ball); syncBallSize();
+// the sound lab: a slider per part of the strike, test buttons, and a code to send back
+{
+  const grid = $('labGrid'), fmt = (k, v) => k === 'weight' || k === 'bright' ? (v > 0 ? '+' : '') + v + ' dB' : (+v).toFixed(2).replace(/\.?0+$/, '') + (['pitch', 'thump', 'crack', 'crackLen', 'ringHz', 'length', 'echo', 'punch', 'loud'].includes(k) ? '×' : '');
+  const code = () => 'NSLAB1 take=' + 'CABCD'[settings.hitsnd] + ' ' + LAB.map(([k]) => k + '=' + settings.lab[k]).join(' ');
+  const showCode = () => { $('labCode').textContent = code(); };
+  grid.innerHTML = LAB.map(([k, lab, lo, hi, st]) => `<label class="labRow"><span>${lab}</span><input type="range" data-k="${k}" min="${lo}" max="${hi}" step="${st}"><output data-k="${k}"></output></label>`).join('');
+  const sync = () => { for (const r of grid.querySelectorAll('input')) { r.value = settings.lab[r.dataset.k]; grid.querySelector(`output[data-k="${r.dataset.k}"]`).textContent = fmt(r.dataset.k, settings.lab[r.dataset.k]); } showCode(); };
+  let pending = 0;
+  for (const r of grid.querySelectorAll('input')) {
+    r.addEventListener('input', () => { settings.lab[r.dataset.k] = +r.value; sync(); }, L);
+    r.addEventListener('change', () => { saveSettings(); AU.init(); clearTimeout(pending); pending = setTimeout(() => AU.hit(0.8, false, 0, false, 'top', 0), 30); }, L);
+    r.addEventListener('keydown', e => e.stopPropagation(), L);
+  }
+  const play = (k, bh) => {
+    AU.init(); if (!AU.ctx) return; if (AU.ctx.state === 'suspended') AU.ctx.resume();
+    if (settings.hitsnd === 0) { settings.hitsnd = 1; saveSettings(); syncSegs(); showCode(); }
+    if (k === 'rally') { const t0 = AU.ctx.currentTime + 0.05; [['serve', 0.95, 0, 1], ['top', 0.75, 1, -2], ['top', 0.8, 0, 2], ['top', 0.7, 1, 1], ['flat', 0.95, 0, -1], ['slice', 0.6, 1, 2], ['top', 0.85, 0, -2]].forEach(([kk, pw, far, x], i) => AU.hit(pw, false, x, !!far, kk, 0, t0 + i * 0.75, i === 2)); return; }
+    AU.hit(k === 'drop' ? 0.45 : k === 'slice' ? 0.65 : 0.85, false, 0, false, k, 0, undefined, !!bh);
+  };
+  for (const b of document.querySelectorAll('.labTest button')) b.addEventListener('click', () => play(b.dataset.k, b.dataset.bh), L);
+  $('labOpen').addEventListener('click', () => { const lab = $('lab'); lab.hidden = !lab.hidden; sync(); if (!lab.hidden) lab.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, L);
+  $('labClose').addEventListener('click', () => { $('lab').hidden = true; }, L);
+  $('labReset').addEventListener('click', () => { Object.assign(settings.lab, LAB_NEUTRAL); saveSettings(); sync(); play('top'); }, L);
+  $('labCopy').addEventListener('click', () => { const t = code(); try { navigator.clipboard.writeText(t).then(() => { $('labCopy').textContent = 'Copied'; setTimeout(() => { $('labCopy').textContent = 'Copy code'; }, 1400); }, () => {}); } catch (e) {} const sel = window.getSelection(), rg = document.createRange(); rg.selectNodeContents($('labCode')); sel.removeAllRanges(); sel.addRange(rg); }, L);
+  for (const b of document.querySelectorAll('.seg[data-k="hitsnd"] button')) b.addEventListener('click', () => setTimeout(showCode, 0), L);
+  sync();
+}
 const cfg = { diff: settings.diff, len: settings.len, assist: 1, player: settings.player, surface: settings.surface, slowmo: settings.slowmo };
 sim = createSim(H, cfg);
 Object.assign(sim.PROFILES.cus, settings.custom);
