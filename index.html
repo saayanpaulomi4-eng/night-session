@@ -450,7 +450,7 @@ kbd.wide{min-width:52px}
         <div class="opt"><span>Match length</span><div class="seg" data-k="len"><button data-v="0">Quick</button><button data-v="1">One set</button><button data-v="2">Best of 3</button></div></div>
         <div class="opt"><span>Court</span><div class="seg" data-k="surface"><button data-v="0">Hard</button><button data-v="1">Indoor</button><button data-v="2">Clay</button><button data-v="3">Grass</button></div></div>
         <div class="opt"><span>Mega-perfect slow-mo</span><div class="seg" data-k="slowmo"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
-        <div class="opt"><span>Hit sound</span><div class="seg" data-k="hitsnd"><button data-v="1">Real</button><button data-v="0">Classic</button></div></div>
+        <div class="opt"><span>Hit sound</span><div class="seg" data-k="hitsnd"><button data-v="1">A</button><button data-v="2">B</button><button data-v="3">C</button><button data-v="4">D</button><button data-v="0">Classic</button></div></div>
         <div class="opt"><span>Ball size <b class="ballPct"></b></span><input type="range" class="ballSize" min="0" max="100" step="1" aria-label="Ball size"></div>
       </div>
       <div class="btns"><button class="cta" id="play">Play match</button><button class="ghost" id="practice">Practice court</button><button class="ghost" id="toTut">Tutorial</button><button class="ghost next" id="toEpics">Tennis Epics</button><button class="ghost next" id="toDoubles">Doubles</button><button class="ghost next" id="toOnline">Online 1v1</button><button class="ghost rpbtn" id="toRallies">Saved rallies</button></div>
@@ -2500,7 +2500,7 @@ settings.custom = Object.assign({}, settings.custom || {});
 for (const k of CUS_KEYS) { const v = Math.round(+settings.custom[k]); settings.custom[k] = isFinite(v) ? Math.max(0, Math.min(250, v)) : 100; }
 settings.surface = Math.max(0, Math.min(3, +settings.surface || 0));
 settings.ball = isFinite(+settings.ball) && settings.ball !== null && settings.ball !== '' ? Math.max(0, Math.min(1, +settings.ball)) : 1; // ball size (0 = v100 size, 1 = largest)
-settings.hitsnd = settings.hitsnd === 0 ? 0 : 1; // hit sound: 1 real (default), 0 classic
+settings.hitsnd = [0, 1, 2, 3, 4].includes(settings.hitsnd) ? settings.hitsnd : 1; // hit sound: 1-4 takes A-D on the real recording (A default), 0 classic
 delete settings.pfx; settings.slowmo = 0; // mega-perfect slow-mo is off whenever the game loads (it can be switched on in the menu for that session)
 settings.diff = Math.max(0, Math.min(3, +settings.diff || 0)); settings.len = Math.max(0, Math.min(2, +settings.len || 0)); settings.epicLen = settings.epicLen === 1 ? 1 : 0;
 // doubles line-up: your partner and the two CPU players (real players only, all different)
@@ -2541,6 +2541,20 @@ const HIT_SND = {
   serve:  { rate: 1.1,  hold: 15, tau: 13, lp: 11000, body: 4, box: -2, pk: 1350, pq: 16,   pg: 1.25, rf: 620, rq: 20, rg: 0.65, tx: 0.55, txf: 3600, txd: 2.2, air: 1.0,  scrape: 0.015, sms: 10, th: 0.8, loud: 1.25 },
   smash:  { rate: 1.08, hold: 15, tau: 14, lp: 11000, body: 5, box: -2, pk: 1300, pq: 15,   pg: 1.35, rf: 600, rq: 20, rg: 0.7,  tx: 0.6,  txf: 3400, txd: 2.2, air: 1.1,  scrape: 0,     sms: 0, th: 1, loud: 1.35 },
 };
+// Four takes on the mix, picked in the menu (Hit sound A-D). All are built around the real recording - a tennis ball is
+// heavy and felt-covered, so it mustn't ring like a hollow plastic ball (no high, tonal "pock"):
+//  A: the recording at its natural pitch, a fuzzy felt edge for crispness, a low thump for weight, faint strings
+//  B: heavier and deeper - more thump and body, darker
+//  C: brighter, more broadcast "crack" - more felt edge and air, a broad (not ringing) hollow
+//  D: closest to the plain recording - least added
+// (rate/hold: pitch and length; pock/pq: the hollow and its sharpness; ring/rq: strings; thump; tex/txd/txf: felt
+//  edge level, length, pitch; air: overtones)
+const HIT_VARS = [null,
+  { rate: 0.88, hold: 1.0,  pock: 0,    pq: 1,    ring: 0.3,  rq: 0.4, thump: 1.4, tex: 1.0, txd: 1.8, txf: 0.75, air: 0.8 },
+  { rate: 0.8,  hold: 1.15, pock: 0,    pq: 1,    ring: 0.25, rq: 0.4, thump: 2.0, tex: 0.6, txd: 2.0, txf: 0.65, air: 0.5 },
+  { rate: 0.93, hold: 0.9,  pock: 0.3,  pq: 0.13, ring: 0.3,  rq: 0.4, thump: 1.1, tex: 1.5, txd: 1.5, txf: 0.95, air: 1.15 },
+  { rate: 0.92, hold: 1.2,  pock: 0,    pq: 1,    ring: 0,    rq: 1,   thump: 0.6, tex: 0.5, txd: 1.5, txf: 0.85, air: 0.5 },
+];
 const HIT_GAIN = 1.5, HIT_SKIP = 0.0024; // (the recording's first 2.4 ms are a soft lead-in before the real contact)
 // a stadium's sound around the court, as a TV mix hears it: a few faint reflections off the stands and a short,
 // dark tail (the court is open to the sky)
@@ -2643,9 +2657,10 @@ const AU = {
       sc.curve = cv; sc.oversample = '2x'; k.connect(mk); mk.connect(sc); sc.connect(this.master); this.hitBus = k;
     } catch (e) { this.hitBus = null; }
     this.crack = crackBufs(sr).map(d => { const b = c.createBuffer(1, d.length, sr); b.getChannelData(0).set(d); return b; });
-    const cv = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; cv[i] = Math.tanh(3 * x) / Math.tanh(3); } this.airCurve = cv;
+    const cv = new Float32Array(1025); for (let i = 0; i < 1025; i++) cv[i] = Math.abs(i / 512 - 1); this.absCurve = cv;
     try { const bin = atob(HIT_PCM), n = bin.length >> 1, hb = c.createBuffer(1, n, 24000), hd = hb.getChannelData(0);
       for (let i = 0; i < n; i++) { const v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); hd[i] = (v >= 32768 ? v - 65536 : v) / 32768; }
+      for (let i = 0, m = Math.min(96, n); i < m; i++) hd[n - 1 - i] *= i / m; // (a clean end, no click)
       this.hitBuf = hb; } catch (e) { this.hitBuf = null; }
   },
   outHit(x) {
@@ -2688,14 +2703,14 @@ const AU = {
     if (settings.hitsnd === 0 || !K || !this.hitBuf) { this.hitClassic(power, perfect, x, far, kind === 'smash' || kind === 'volley' ? kind : kind === 'slice' || kind === 'drop' ? 'slice' : 'drive'); return; }
     const c = this.ctx, t = when === undefined ? c.currentTime : when, pw = Math.max(0, Math.min(1, power || 0)), off = mis > 0.6, j = a => 1 + (Math.random() * 2 - 1) * a;
     // (a backhand - mostly two hands, a firmer, flatter frame - comes off a touch tighter and crisper)
-    const B = bh ? { r: 1.04, pk: 1.06, tx: 1.15, bd: -1 } : { r: 1, pk: 1, tx: 1, bd: 0 };
+    const B = bh ? { r: 1.04, pk: 1.06, tx: 1.15, bd: -1 } : { r: 1, pk: 1, tx: 1, bd: 0 }, V = HIT_VARS[this.vari || settings.hitsnd] || HIT_VARS[1];
     const lv = HIT_GAIN * K.loud * (0.4 + 0.6 * pw) * (far ? 0.5 : 1) * (off ? 0.85 : 1), solo = this.solo;
     const sum = c.createGain(); sum.gain.value = lv;
     const layer = (name, node) => { if (!solo || solo === name) node.connect(sum); };
     // 1. body: the recording, from the moment of contact, with its natural weight
     const src = c.createBufferSource(); src.buffer = this.hitBuf;
-    const rate = K.rate * B.r * (1 + 0.04 * (pw - 0.5)) * j(0.03) * (off ? 0.9 : 1); src.playbackRate.value = rate;
-    const env = c.createGain(), hold = K.hold * (0.85 + 0.3 * pw) * 1e-3, tau = K.tau * (off ? 1.3 : 1) * 1e-3;
+    const rate = K.rate * V.rate * B.r * (1 + 0.04 * (pw - 0.5)) * j(0.03) * (off ? 0.9 : 1); src.playbackRate.value = rate;
+    const env = c.createGain(), hold = K.hold * V.hold * (0.85 + 0.3 * pw) * 1e-3, tau = K.tau * V.hold * (off ? 1.3 : 1) * 1e-3;
     env.gain.setValueAtTime(1, t); env.gain.setValueAtTime(1, t + hold); env.gain.setTargetAtTime(0, t + hold, tau);
     const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = off ? 1600 : K.lp * (0.65 + 0.45 * pw); lp.Q.value = 0.5;
     const bx = c.createBiquadFilter(); bx.type = 'peaking'; bx.frequency.value = 650; bx.Q.value = 1.1; bx.gain.value = K.box;
@@ -2711,32 +2726,36 @@ const AU = {
     // 2. pock: the hollow resonance of the ball (higher and harder on a firm, clean hit; lower and duller off-centre)
     if (this.crack) {
       const pf = K.pk * B.pk * (0.92 + 0.14 * pw) * j(0.05) * (off ? 0.8 : 1);
-      layer('pock', exc(pf, K.pq, K.pg * (0.55 + 0.6 * pw) * (off ? 0.5 : 1) * K.pq * 1.8, 0.0004));
-      // (and its first overtone, much quieter - what makes it hollow rather than a pure tone)
-      layer('pock', exc(pf * 2.3, K.pq * 0.8, K.pg * (0.4 + 0.6 * pw) * (off ? 0.2 : 1) * K.pq * 0.9, 0.0004));
+      if (V.pock > 0) { const q = K.pq * V.pq; layer('pock', exc(pf * 0.75, q, V.pock * K.pg * (0.55 + 0.6 * pw) * (off ? 0.5 : 1) * q * 1.8, 0.0004)); }
       // 3. ring: the string bed
-      layer('ring', exc(K.rf * j(0.04), K.rq * (off ? 0.6 : 1), K.rg * (0.5 + 0.6 * pw) * K.rq * 3.5, 0.0006));
+      if (V.ring > 0) { const q = K.rq * V.rq * (off ? 0.6 : 1); layer('ring', exc(K.rf * j(0.04), q, V.ring * K.rg * (0.5 + 0.6 * pw) * q * 3.5, 0.0006)); }
       // the thump: the weight of the ball and the frame taking it (more on a big hit)
-      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, K.th * (0.25 + 0.95 * pw) * 40, 0.001));
+      if (K.th > 0) layer('thump', exc(205 * j(0.05), 2.5, V.thump * K.th * (0.25 + 0.95 * pw) * 40, 0.001));
       // 4. texture: crisp felt/string noise at contact, with a soft edge
-      const tx = K.tx * B.tx * (0.4 + 0.8 * pw) * (off ? 0.3 : 1);
+      const tx = V.tex * K.tx * B.tx * (0.4 + 0.8 * pw) * (off ? 0.3 : 1);
       if (tx > 0.01) {
         const cs = c.createBufferSource(); cs.buffer = this.crack[(Math.random() * this.crack.length) | 0];
-        const cg = c.createGain(), cd = K.txd * 1e-3;
+        const cg = c.createGain(), cd = K.txd * V.txd * 1e-3;
         cg.gain.setValueAtTime(0, t); cg.gain.linearRampToValueAtTime(tx * 2, t + 0.0005); cg.gain.setTargetAtTime(0, t + 0.0005, cd);
-        const cb = c.createBiquadFilter(); cb.type = 'bandpass'; cb.frequency.value = K.txf * (0.9 + 0.2 * pw) * j(0.08); cb.Q.value = 0.8;
+        const cb = c.createBiquadFilter(); cb.type = 'bandpass'; cb.frequency.value = K.txf * V.txf * (0.9 + 0.2 * pw) * j(0.08); cb.Q.value = 0.5;
         cs.connect(cg); cg.connect(cb); layer('tex', cb); cs.start(t); cs.stop(t + 0.012);
       }
     }
-    // 5. air: overtones pulled out of the recording itself (high-passed, driven, high-passed again)
-    const air = K.air * (0.5 + 0.7 * pw) * (off ? 0.25 : 1);
-    if (air > 0.02 && this.airCurve) {
-      const h1 = c.createBiquadFilter(); h1.type = 'highpass'; h1.frequency.value = 1100; h1.Q.value = 0.7;
-      const dr = c.createGain(); dr.gain.value = 6;
-      const ws = c.createWaveShaper(); ws.curve = this.airCurve;
-      const h2 = c.createBiquadFilter(); h2.type = 'highpass'; h2.frequency.value = 2200; h2.Q.value = 0.7;
-      const ag = c.createGain(); ag.gain.value = air * 0.42;
-      env.connect(h1); h1.connect(dr); dr.connect(ws); ws.connect(h2); h2.connect(ag); layer('air', ag);
+    // 5. fuzz: the felt - noise that swells and dies with the hit itself (the recording's own envelope opens it), so it
+    //    brightens the hit without giving it a pitch (distorting the recording for brightness made it ring like a
+    //    hollow plastic ball)
+    const fz = V.air * K.air * (0.5 + 0.7 * pw) * (off ? 0.3 : 1);
+    if (fz > 0.02 && this.absCurve) {
+      const rc = c.createWaveShaper(); rc.curve = this.absCurve;
+      const sm = c.createBiquadFilter(); sm.type = 'lowpass'; sm.frequency.value = 160; sm.Q.value = 0.5;
+      const n = c.createBufferSource(); n.buffer = this.noise;
+      const nh = c.createBiquadFilter(); nh.type = 'highpass'; nh.frequency.value = 1300; nh.Q.value = 0.5;
+      const nl = c.createBiquadFilter(); nl.type = 'lowpass'; nl.frequency.value = 4800; nl.Q.value = 0.5;
+      const vca = c.createGain(); vca.gain.value = 0;
+      const fg = c.createGain(); fg.gain.value = fz * 1.6;
+      env.connect(rc); rc.connect(sm); sm.connect(vca.gain);
+      n.connect(nh); nh.connect(nl); nl.connect(vca); vca.connect(fg); layer('air', fg);
+      n.start(t, Math.random() * 0.5); n.stop(t + 0.1);
     }
     // the far player's hit comes from 24 m away: duller, with a little more of the stadium in it
     let dry = sum; if (far) { const f2 = c.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = 4500; sum.connect(f2); dry = f2; }
