@@ -4555,31 +4555,32 @@ const STYLE_DEFS = {
   // Serve: compact - he lifts the elbow to shoulder height right away with the racket arm held LOW at the trophy;
   // an early, deep knee bend released fast into a huge jump, contact at full stretch before he starts to fall, and
   // a landing about 30 cm inside the baseline.
-  she: { hand: -1, headLock: 0.22, reach: { fh: { tb: 0.82, ct: 0.94, ex: 0.95 }, bh: { tb: 0.84, ct: 0.94, ex: 0.94 } }, split: 1.15, bounce: 0.03, drive: 0.1,
+  she: { hand: -1, waitUp: 0.15, headLock: 0.22, reach: { fh: { tb: 0.82, ct: 0.94, ex: 0.95 }, bh: { tb: 0.84, ct: 0.94, ex: 0.94 } }, split: 1.15, bounce: 0.03, drive: 0.1,
     ready: { cr: 0.15, sp: 0.12, rh: [0.12, 0.98, 0.37], lg: 1, gp: 0.14, fL: [-0.28, 0.04], fR: [0.28, 0] },
     keys: {
-      fh: [[0, { sy: -1.55, hy: -0.8, cr: 0.13, px: 0.07, rh: [0.4, 1.32, -0.22], rt: [0.12, 0.88, -0.45], rn: [0.3, -0.5, 0.81], lg: 0.4, gp: 0.33, lh: [0.55, 1.3, 0.55], fL: [-0.24, 0.08], fR: [0.33, -0.04], aL: 0.35, aR: 0.8 }],
+      fh: [[0, { sy: -1.55, hy: -0.8, cr: 0.13, px: 0.07, rh: [0.42, 1.2, -0.28], rt: [0.22, 0.72, -0.66], rn: [0.3, -0.5, 0.81], lg: 0.4, gp: 0.33, lh: [0.55, 1.3, 0.55], fL: [-0.24, 0.08], fR: [0.33, -0.04], aL: 0.35, aR: 0.8 }],
            // high loop: hand up by the shoulder, elbow high, face shut
-           [0.12, { sy: -1.6, rh: [0.5, 1.42, -0.34], rt: [0.3, 0.5, -0.81], rn: [0.1, -0.95, 0.28], lg: 0, lh: [0.56, 1.3, 0.58] }],
+           [0.12, { sy: -1.6, rh: [0.5, 1.3, -0.4], rt: [0.42, 0.3, -0.86], rn: [0.1, -0.95, 0.28], lg: 0, lh: [0.6, 1.3, 0.6] }],
            // deep drop and lag
            [0.24, { sy: -1.25, hy: -0.6, cr: 0.17, rh: [0.52, 0.92, -0.26], rt: [0.24, -0.8, -0.55], rn: [0.05, -0.3, 0.95], lh: [0.42, 1.24, 0.52] }],
            [0.34, { sy: -0.55, hy: 0.0, rh: [0.5, 0.86, 0.1], rt: [0.36, -0.58, -0.73], rn: [-0.08, 0.02, 1], lh: [0.12, 1.2, 0.42] }],
            // legs exploding up through contact
            [0.42, { sy: 0.2, hy: 0.5, cr: 0.11, px: 0.0, lift: 0.06, airR: 0.03, rh: [0.44, 1.0, 0.44], rt: [0.96, 0.05, 0.26], rn: [-0.15, 0.08, 1], lh: [-0.2, 1.18, 0.26] }],
            [0.52, { sy: 0.75, hy: 0.68, lift: 0.12, airR: 0.08, airL: 0.05, rh: [0.26, 1.3, 0.66], rt: [-0.4, 0.42, 0.81], rn: [-0.8, -0.3, -0.5], lh: [-0.3, 1.14, 0.18] }],
-           [0.68, { sy: 1.15, hy: 0.82, lift: 0.05, airR: 0.03, airL: 0.01, rh: [-0.04, 1.6, 0.46], rt: [-0.75, 0.42, -0.5], rn: [-0.4, -0.3, -0.86] }],
-           [1, { sy: 1.38, hy: 0.9, cr: 0.1, lift: 0, airR: 0, airL: 0, rh: [-0.22, 1.66, 0.28], rt: [-0.3, -0.35, -0.89], rn: [-0.2, 0.3, -0.93], lg: 0.4, gp: 0.3, hlR: 0.75 }]],
+           [0.68, { sy: 1.15, hy: 0.82, lift: 0.05, airR: 0.03, airL: 0.01, rh: [-0.12, 1.42, 0.46], rt: [-0.8, 0.3, -0.52], rn: [-0.4, -0.3, -0.86] }],
+           [1, { sy: 1.38, hy: 0.9, cr: 0.1, lift: 0, airR: 0, airL: 0, rh: [-0.28, 1.36, 0.3], rt: [-0.25, -0.55, -0.8], rn: [-0.2, 0.3, -0.93], lg: 0.3, gp: 0.3, hlR: 0.75 }]], // (hand by the far shoulder, racket down the back)
       // two-hander with a bubble loop: the hands rise behind into a circle, drop under the ball, then a high finish
-      bh: [[0, { sy: 1.5, hy: 0.85, cr: 0.15, rh: [-0.3, 1.08, -0.22], rt: [-0.08, 0.78, -0.62], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.32, -0.04], fR: [0.08, 0.18], aL: -0.6, aR: -0.2 }],
-           [0.12, { sy: 1.6, rh: [-0.36, 1.26, -0.3], rt: [-0.15, 0.62, -0.77], rn: [0.75, 0.0, 0.66] }], // (up into the loop)
+      bh: [[0, { sy: 1.5, hy: 0.85, cr: 0.15, rh: [-0.34, 1.0, -0.3], rt: [-0.28, 0.42, -0.86], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.32, -0.04], fR: [0.08, 0.18], aL: -0.6, aR: -0.2 }],
+           [0.12, { sy: 1.6, rh: [-0.4, 1.08, -0.34], rt: [-0.3, 0.25, -0.92], rn: [0.75, 0.0, 0.66] }],
+           [0.18, { sy: 1.58, rh: [-0.42, 1.16, -0.34], rt: [-0.3, 0.05, -0.95], rn: [0.55, -0.2, 0.8] }], // (the bubble: the head circles up and back before dropping)
            [0.24, { sy: 1.45, hy: 0.8, cr: 0.17, rh: [-0.42, 0.92, -0.26], rt: [-0.25, -0.5, -0.83], rn: [0.35, -0.25, 0.9] }],
            [0.33, { sy: 1.1, hy: 0.62, rh: [-0.32, 0.86, 0.14], rt: [-0.7, -0.3, -0.65], rn: [0.15, -0.12, 0.98] }],
            [0.42, { sy: 0.78, hy: 0.42, cr: 0.15, rh: [-0.2, 0.96, 0.5], rt: [-0.92, 0.06, 0.3], rn: [0.12, -0.06, 1] }],
            [0.53, { sy: 0.36, hy: 0.22, rh: [-0.04, 1.12, 0.76], rt: [-0.72, 0.3, 0.62], rn: [0.6, 0.05, 0.8] }],
-           [0.63, { sy: 0.1, rh: [0.1, 1.3, 0.68], rt: [-0.3, 0.68, 0.67], rn: [0.85, 0.05, 0.52] }],
-           [0.74, { sy: -0.2, hy: -0.1, rh: [0.24, 1.46, 0.52], rt: [0.6, 0.66, 0.45], rn: [0.7, -0.35, -0.6] }],
-           [1, { sy: -0.62, hy: -0.32, cr: 0.1, rh: [0.4, 1.5, 0.28], rt: [0.3, 0.22, -0.93], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
-      srv: serveKeys({ stance: 0, rock: 0.04, knee: 0.33, turn: 1.3, arch: 0.42, toss: 2.22, tipBack: 0.1, compact: 1, troHi: -0.12, drop: 0.9, leap: 0.26, land: 0.6, kick: 0.32 }),
+           [0.63, { sy: 0.1, rh: [0.1, 1.2, 0.7], rt: [-0.35, 0.55, 0.76], rn: [0.85, 0.05, 0.52] }],
+           [0.74, { sy: -0.2, hy: -0.1, rh: [0.24, 1.3, 0.52], rt: [0.66, 0.5, 0.56], rn: [0.7, -0.35, -0.6] }],
+           [1, { sy: -0.62, hy: -0.32, cr: 0.1, rh: [0.38, 1.34, 0.26], rt: [0.3, -0.15, -0.94], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
+      srv: serveKeys({ stance: 0, rock: 0.04, knee: 0.33, turn: 1.3, arch: 0.42, toss: 2.22, tipBack: 0, compact: 1, troHi: -0.06, drop: 0.9, leap: 0.26, land: 0.6, kick: 0.32 }),
     } },
   // ---------------- CPU (fixed, tidy all-court style with a two-handed backhand) ----------------
   cpu: { hand: 1, headLock: 0.16, split: 1.1, bounce: 0.026, drive: 0.02,
@@ -5119,7 +5120,7 @@ function syncAthlete0(h, Mo, dt) {
         T.sy += 0.04 * Math.sin(ph * 0.5) * wait;
         // set early, players hold the racket head UP with the elbow bent (and only let it drop into the loop as the
         // ball arrives), not pointed stiffly back at hip height
-        if (a.kind === 'fh' || a.kind === 'bh') { T.rt[1] += 0.45 * wait; T.rh[1] += 0.07 * wait; T.rh[2] += 0.07 * wait; T.rh[0] -= 0.04 * wait; }
+        if (a.kind === 'fh' || a.kind === 'bh') { const wu = st.waitUp === undefined ? 1 : st.waitUp; T.rt[1] += 0.45 * wait * wu; T.rh[1] += 0.07 * wait * wu; T.rh[2] += 0.07 * wait; T.rh[0] -= 0.04 * wait; }
         const fo = 0.1 * wait; if (st2 % 2) T.fL[1] += fo * (st2 % 4 === 1 ? 1 : -0.6); else T.fR[1] += fo * (st2 % 4 === 0 ? -0.6 : 1);
       }
     } else {
