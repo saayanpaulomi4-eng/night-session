@@ -3897,8 +3897,16 @@ function refineDirs(keys) {
   const DK = ['rt', 'rn', 'rp'];
   const nrm = v => { const n = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / n, v[1] / n, v[2] / n]; };
   const ang = (a, b) => { const x = nrm(a), y = nrm(b); return Math.acos(Math.max(-1, Math.min(1, x[0] * y[0] + x[1] * y[1] + x[2] * y[2]))); };
-  const mid = (a, b) => {
+  // (racket direction half-way round a near-reversal: the head swings round the side the HAND is travelling to - a
+  //  forehand wiper carries it round the left side at shoulder height, a two-hander round the right - instead of
+  //  the old fallback that stood the racket straight up over the head between the contact and the finish)
+  const mid = (a, b, hA, hB, isRt) => {
     const x = nrm(a), y = nrm(b); let m = [x[0] + y[0], x[1] + y[1], x[2] + y[2]];
+    if (isRt && hA && hB && Math.abs(hB[0] - hA[0]) > 0.05 && Math.hypot(m[0], m[2]) < 0.5 * Math.hypot(m[0], m[1], m[2])) {
+      const sd = Math.sign(hB[0] - hA[0]); let q = [sd, 0.35, 0]; const d = q[0] * x[0] + q[1] * x[1] + q[2] * x[2];
+      q = [q[0] - d * x[0], q[1] - d * x[1], q[2] - d * x[2]];
+      if (Math.hypot(q[0], q[1], q[2]) > 0.2) { q = nrm(q); m = [m[0] * 0.3 + q[0], m[1] * 0.3 + q[1], m[2] * 0.3 + q[2]]; }
+    }
     if (Math.hypot(m[0], m[1], m[2]) < 0.3) { const bk = [0, 0, -1], d = bk[0] * x[0] + bk[1] * x[1] + bk[2] * x[2]; m = [bk[0] - d * x[0], bk[1] - d * x[1], bk[2] - d * x[2]]; if (Math.hypot(m[0], m[1], m[2]) < 0.2) m = [0, 1, 0]; }
     return nrm(m);
   };
@@ -3908,7 +3916,7 @@ function refineDirs(keys) {
       const [s0, A] = keys[i], [s1, Bk] = keys[i + 1];
       if (!DK.some(k => ang(A[k], Bk[k]) > 1.75)) continue;
       const M = cloneSpec(A); lerpSpec(A, Bk, 0.5, M);
-      for (const k of DK) M[k] = mid(A[k], Bk[k]);
+      for (const k of DK) M[k] = mid(A[k], Bk[k], A.rh, Bk.rh, k === 'rt');
       keys.splice(i + 1, 0, [(s0 + s1) / 2, M]); changed = true; i++;
     }
     if (!changed) break;
@@ -4232,7 +4240,7 @@ const STYLE_DEFS = {
            [0.42, { sy: 0.78, hy: 0.42, cr: 0.16, rh: [-0.2, 0.97, 0.5], rt: [-0.9, 0.08, 0.28], rn: [0.12, -0.06, 1] }],
            [0.53, { sy: 0.38, hy: 0.22, rh: [-0.04, 1.12, 0.74], rt: [-0.74, 0.3, 0.6], rn: [0.6, 0.05, 0.8] }],
            [0.61, { sy: 0.15, rh: [0.06, 1.28, 0.7], rt: [-0.4, 0.68, 0.61], rn: [0.85, 0.05, 0.52] }],
-           [0.72, { sy: -0.15, hy: -0.08, rh: [0.22, 1.42, 0.56], rt: [0.12, 0.95, 0.28], rn: [0.95, 0.05, -0.1] }],
+           [0.72, { sy: -0.15, hy: -0.08, rh: [0.22, 1.42, 0.56], rt: [0.62, 0.66, 0.42], rn: [0.7, -0.35, -0.6] }], // (round the right side, not straight up)
            [1, { sy: -0.6, hy: -0.3, cr: 0.1, rh: [0.4, 1.44, 0.32], rt: [0.3, 0.2, -0.93], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
       srv: serveKeys({ stance: 1, knee: 0.31, turn: 1.25, arch: 0.38, toss: 2.12, tipBack: 0.15, drop: 1, leap: 0.14, land: 0.78, kick: 0.2 }),
     } },
@@ -4291,7 +4299,7 @@ const STYLE_DEFS = {
            [0.42, { sy: 0.76, hy: 0.42, cr: 0.16, rh: [-0.2, 0.96, 0.5], rt: [-0.9, 0.07, 0.29], rn: [0.12, -0.05, 1] }],
            [0.53, { sy: 0.36, hy: 0.2, rh: [-0.03, 1.1, 0.78], rt: [-0.74, 0.28, 0.61], rn: [0.6, 0.05, 0.8] }],
            [0.62, { sy: 0.12, rh: [0.08, 1.27, 0.72], rt: [-0.38, 0.68, 0.63], rn: [0.85, 0.05, 0.52] }],
-           [0.74, { sy: -0.15, hy: -0.08, rh: [0.24, 1.42, 0.56], rt: [0.12, 0.95, 0.28], rn: [0.95, 0.05, -0.1] }],
+           [0.74, { sy: -0.15, hy: -0.08, rh: [0.24, 1.42, 0.56], rt: [0.62, 0.66, 0.42], rn: [0.7, -0.35, -0.6] }], // (round the right side, not straight up)
            [1, { sy: -0.58, hy: -0.3, cr: 0.1, rh: [0.4, 1.46, 0.32], rt: [0.32, 0.22, -0.92], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
       srv: serveKeys({ stance: 1, knee: 0.29, turn: 1.2, arch: 0.36, toss: 2.1, tipBack: 0.25, compact: 1, drop: 0.85, leap: 0.16, land: 0.8, kick: 0.22 }),
     } },
@@ -4449,7 +4457,7 @@ const STYLE_DEFS = {
   // Serve: pinpoint stance (the back foot slides up next to the front one), toss a little high and well forward,
   // a semicircular takeback, modest knee bend and leg drive, both feet push off, lands on the left foot in the court.
   mur: { hand: 1, headLock: 0.22, reach: { fh: { tb: 0.8, ct: 0.92, ex: 0.92 }, bh: { tb: 0.9, ct: 0.95, ex: 0.96 } }, split: 1.3, bounce: 0.032, drive: 0.04,
-    ready: { cr: 0.19, sp: 0.16, rh: [0.12, 0.96, 0.36], lg: 1, gp: 0.14, fL: [-0.3, 0.04], fR: [0.3, 0] },
+    ready: { cr: 0.21, sp: 0.16, rh: [0.12, 0.96, 0.36], lg: 1, gp: 0.14, fL: [-0.32, 0.04], fR: [0.32, 0] },
     keys: {
       fh: [[0, { sy: -1.42, hy: -0.75, cr: 0.17, px: 0.07, rh: [0.42, 1.04, -0.22], rt: [0.35, 0.22, -0.91], rn: [0.25, -0.85, 0.46], lg: 0.6, gp: 0.3, lh: [0.6, 1.2, 0.52], fL: [-0.24, 0.08], fR: [0.32, -0.04], aL: 0.35, aR: 0.8 }],
            [0.12, { sy: -1.4, rh: [0.5, 1.02, -0.32], rt: [0.68, 0.1, -0.73], rn: [-0.45, -0.6, -0.66], lg: 0, lh: [0.58, 1.18, 0.62] }],
@@ -4469,6 +4477,7 @@ const STYLE_DEFS = {
            // (the hands finish at shoulder height and the racket wraps back over the right shoulder - not thrown up
            // straight above the head)
            [0.61, { sy: 0.12, rh: [0.1, 1.22, 0.66], rt: [-0.25, 0.62, 0.74], rn: [0.85, 0.05, 0.52] }],
+           [0.665, { sy: -0.05, rh: [0.2, 1.27, 0.57], rt: [0.6, 0.64, 0.48], rn: [0.75, -0.3, -0.6] }], // (the head comes round the right side on its way over the shoulder, not straight up)
            [0.72, { sy: -0.2, hy: -0.12, rh: [0.28, 1.3, 0.44], rt: [0.35, 0.72, -0.6], rn: [0.92, 0.05, 0.38] }],
            [1, { sy: -0.62, hy: -0.32, cr: 0.11, rh: [0.4, 1.34, 0.2], rt: [0.32, 0.0, -0.95], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
       sbh: [[0, { sy: 1.8, hy: 0.95, cr: 0.2, rh: [-0.3, 1.42, -0.22], rt: [-0.22, 0.72, -0.66], rn: [0.3, 0.45, 0.84], lg: 1, gp: 0.3, fL: [-0.36, -0.14], fR: [-0.02, 0.36], aL: -0.6, aR: -0.35 }],
@@ -4521,7 +4530,7 @@ const STYLE_DEFS = {
            [0.42, { sy: 0.78, hy: 0.64, cr: 0.12, rh: [-0.18, 0.98, 0.54], rt: [-0.93, 0.05, 0.3], rn: [0.1, -0.05, 1] }],
            // long, flat extension: both arms out, the racket pointed at the target
            [0.55, { sy: 0.4, hy: 0.5, rh: [-0.02, 1.06, 0.9], rt: [-0.5, 0.12, 0.86], rn: [0.8, 0.05, 0.6] }],
-           [0.7, { sy: 0.05, hy: 0.36, rh: [0.18, 1.36, 0.66], rt: [0.0, 0.92, 0.38], rn: [0.95, 0.05, 0.25] }],
+           [0.7, { sy: 0.05, hy: 0.36, rh: [0.18, 1.36, 0.66], rt: [0.6, 0.66, 0.45], rn: [0.75, -0.35, -0.56] }],
            [1, { sy: -0.35, hy: 0.22, cr: 0.1, rh: [0.34, 1.55, 0.32], rt: [0.3, 0.3, -0.9], rn: [0.92, 0.3, -0.1], hlL: 0.35 }]],
       srv: serveKeys({ stance: 0, rock: 0.14, knee: 0.3, turn: 1.35, arch: 0.42, toss: 2.26, tipBack: 0.12, drop: 1, leap: 0.2, land: 0.95, kick: 0.34 }),
     } },
@@ -4839,6 +4848,28 @@ function makeFoot() { return { p: new THREE.Vector2(), yaw: 0, swing: false, t: 
 const _fw = { v: new THREE.Vector3(), d: [new THREE.Vector2(), new THREE.Vector2()] };
 function rootLocalToWorld2(Mo, r, f, out) { _fw.v.set(-r, 0, f); Mo.root.localToWorld(_fw.v); return out.set(_fw.v.x, _fw.v.z); }
 
+// where a running step lands: ahead of where the body will be at touch-down, each foot on its own side of the BODY.
+// Turned into the run that puts the feet either side of the line of travel (running, crossing over); still facing
+// the net on a short lateral move it keeps them apart along the line (a side shuffle - the legs never scissor
+// across each other at the knees).
+function gaitSpot(h, Mo, i, tAhead, spd, out) {
+  const vx = h.vel.x, vz = h.vel.z, ux = vx / spd, uz = vz / spd;
+  rootLocalToWorld2(Mo, i === 0 ? -0.12 : 0.12, 0, out); const ox = (out.x - h.pos.x) / 0.12, oz = (out.y - h.pos.z) / 0.12;
+  const sideways = Math.abs(ox * ux + oz * uz), w = 0.1 + 0.13 * sideways, lead = (0.1 + 0.03 * spd) * (1 - 0.6 * sideways);
+  return out.set(h.pos.x + vx * tAhead + ux * lead + ox * w, h.pos.z + vz * tAhead + uz * lead + oz * w);
+}
+// the legs never scissor: a stepping foot lands on its own side of the other foot (left foot to the body's left),
+// at least a narrow stance apart - on a quick side-to-side move the old steps could land across the planted foot
+const _ks = new THREE.Vector3(), _ko = new THREE.Vector3();
+function keepSides(Mo, feet, i, h) {
+  const F = feet[i], O = feet[1 - i], oq = O.swing ? O.to : O.p;
+  _ks.set(F.to.x, 0, F.to.y); Mo.root.worldToLocal(_ks); _ko.set(oq.x, 0, oq.y); Mo.root.worldToLocal(_ko);
+  // (a side shuffle keeps the feet about shoulder-width apart even as they close; running they pass close by)
+  const spd = Math.hypot(h.vel.x, h.vel.z), ry = Mo.root.rotation.y;
+  const sideways = spd > 0.5 ? Math.abs((h.vel.x * Math.cos(ry) - h.vel.z * Math.sin(ry)) / spd) : 1;
+  const gap = 0.12 + 0.13 * sideways, sd = i === 0 ? 1 : -1;            // left foot is root-local +x
+  if ((_ks.x - _ko.x) * sd < gap) { _ks.x = _ko.x + sd * gap; Mo.root.localToWorld(_ks); F.to.x = _ks.x; F.to.y = _ks.z; }
+}
 function updateFeet(h, Mo, spec, dt, stroke) {
   const feet = Mo.feet, D = _fw.d, vx = h.vel.x, vz = h.vel.z, spd = Math.hypot(vx, vz);
   const moving = spd > 0.45 && (!stroke || spd > 1.4);
@@ -4849,23 +4880,60 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     // running: aim each foot a little ahead of the body, on its own side of the line of travel
     // a running foot lands just ahead of the hips (about 25 cm), never out in front in a split
     const lead = Math.min(0.26, spd * 0.055) / spd;
-    rootLocalToWorld2(Mo, -0.12, 0, D[0]); rootLocalToWorld2(Mo, 0.12, 0, D[1]);
+    // (moving sideways to the body - a shuffle - the feet stay about stance-width apart; turned into a run they
+    //  come in under the hips)
+    const ry = Mo.root.rotation.y, sw = Math.abs((vx * Math.cos(ry) - vz * Math.sin(ry)) / spd), hw = 0.12 + 0.13 * sw;
+    rootLocalToWorld2(Mo, -hw, 0, D[0]); rootLocalToWorld2(Mo, hw, 0, D[1]);
     for (const d of D) { d.x += vx * lead; d.y += vz * lead; }
   } else {
     rootLocalToWorld2(Mo, spec.fL[0], spec.fL[1], D[0]); rootLocalToWorld2(Mo, spec.fR[0], spec.fR[1], D[1]);
   }
   // first frame / teleports: snap
   for (let i = 0; i < 2; i++) { const F = feet[i]; if (!F.init || F.p.distanceTo(D[i]) > 1.6) { F.p.copy(D[i]); F.to.copy(D[i]); F.swing = false; F.init = true; } }
+  // ---- running gait: a real stride rhythm once the player is truly running ----
+  // Steps come on a beat that quickens with speed (about 3.6 steps a second at a jog, 4.6 at a sprint) and alternate
+  // feet every beat; each foot lands a little ahead of where the body will be, on its own side of the line of travel,
+  // so a lateral run becomes crossover running and the stride length is speed / cadence (about 1 m flat out) - not
+  // the old "step when a foot is left too far behind", which on the game's quick bursts gave a glide then a 1.8 m leap.
+  const runG = spd > 1.7 ? Math.min(1, (spd - 1.7) / 0.6) : 0;
+  if (moving && runG > 0) {
+    const cad = Math.max(3.4, Math.min(4.7, 2.75 + 0.42 * spd)), per = 1 / cad;
+    const ux = vx / spd, uz = vz / spd;
+    if (!Mo.gaitOn) {
+      Mo.gaitOn = true; Mo.gaitT = per * 0.75;
+      // first step: the trailing foot (the one further back along the line of travel) crosses over / drives first
+      // first step: the leading foot opens toward the run (a side step / drop step), the other follows
+      const b0 = (feet[0].p.x - h.pos.x) * ux + (feet[0].p.y - h.pos.z) * uz, b1 = (feet[1].p.x - h.pos.x) * ux + (feet[1].p.y - h.pos.z) * uz;
+      Mo.gaitNext = b0 >= b1 ? 0 : 1;
+      if (feet[Mo.gaitNext].swing) { Mo.gaitNext = 1 - Mo.gaitNext; Mo.gaitT = per * 0.85; } // (already stepping: the other foot goes next)
+    }
+    Mo.gaitT += dt;
+    if (Mo.gaitT >= per) {
+      const i = Mo.gaitNext, F = feet[i];
+      if (!F.swing) {
+        Mo.gaitT -= per; if (Mo.gaitT > per) Mo.gaitT = 0;
+        Mo.gaitNext = 1 - i;
+        F.swing = true; F.t = 0; F.from.copy(F.p); F.g = Math.min(1, Math.max(0, (spd - 2.2) / 2.2));
+        // swing time: a jog keeps a foot down for most of the beat; flat out each foot is down only ~0.17 s and
+        // there's a short flight between steps
+        F.dur = per * (0.78 + 0.32 * F.g); F.gait = true;
+        F.to.set(0, 0); gaitSpot(h, Mo, i, F.dur, spd, F.to);
+      }
+    }
+  } else if (Mo.gaitOn) Mo.gaitOn = false;
   const thr = moving ? Math.max(0.12, Math.min(0.3, spd * 0.06)) * (1 - g) + Math.max(0.3, Math.min(0.6, spd * 0.1)) * g : stroke ? 0.07 : 0.09;
   for (let i = 0; i < 2; i++) {
     const F = feet[i], far = F.p.distanceTo(D[i]);
-    if (far > 0.75 && !F.swing) { F.swing = true; F.t = 0; F.from.copy(F.p); F.dur = 0.12; F.to.copy(D[i]); }
+    if (far > 0.75 && !F.swing && !Mo.gaitOn) { F.swing = true; F.t = 0; F.from.copy(F.p); F.dur = 0.12; F.to.copy(D[i]); F.gait = false; }
   }
   const busy = f => f.swing && !(moving && spd > 1.5 && f.t / f.dur > 0.45 + 0.25 * g);
   const anySwing = busy(feet[0]) || busy(feet[1]);
-  if (!anySwing) {
+  if (!anySwing && !Mo.gaitOn) {
     const e0 = feet[0].p.distanceTo(D[0]), e1 = feet[1].p.distanceTo(D[1]);
-    let i = e0 >= e1 ? 0 : 1; if (feet[i].swing) i = 1 - i;
+    let i = e0 >= e1 ? 0 : 1;
+    // moving off: the foot on the side you're going to steps first (an open step), unless the other is far behind
+    if (moving) { const pj = k => (feet[k].p.x - h.pos.x) * vx + (feet[k].p.y - h.pos.z) * vz, ld = pj(0) >= pj(1) ? 0 : 1, eL = ld === 0 ? e0 : e1, eO = ld === 0 ? e1 : e0; if (eL > thr * 0.5 && eO < eL * 1.6) i = ld; }
+    if (feet[i].swing) i = 1 - i;
     const e = i === 0 ? e0 : e1;
     if (e > thr && !feet[i].swing && (Mo.stepCool <= 0 || moving)) {
       const F = feet[i];
@@ -4882,13 +4950,20 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     if (F.swing) {
       // keep chasing a moving target so steps land where they're needed
       const rem = Math.max(0, F.dur - F.t);
-      const tgt = moving ? _fw.v.set(D[i].x + vx * rem, 0, D[i].y + vz * rem) : _fw.v.set(D[i].x, 0, D[i].y);
-      F.to.x += (tgt.x - F.to.x) * Math.min(1, dt * 20); F.to.y += (tgt.z - F.to.y) * Math.min(1, dt * 20);
+      if (F.gait && Mo.gaitOn) {
+        // a gait step keeps its line but tracks the body's change of pace (where the body will be at touch-down)
+        const G = gaitSpot(h, Mo, i, rem, spd, _fw.g || (_fw.g = new THREE.Vector2()));
+        F.to.x += (G.x - F.to.x) * Math.min(1, dt * 12); F.to.y += (G.y - F.to.y) * Math.min(1, dt * 12);
+      } else {
+        const tgt = moving ? _fw.v.set(D[i].x + vx * rem, 0, D[i].y + vz * rem) : _fw.v.set(D[i].x, 0, D[i].y);
+        F.to.x += (tgt.x - F.to.x) * Math.min(1, dt * 20); F.to.y += (tgt.z - F.to.y) * Math.min(1, dt * 20);
+      }
+      keepSides(Mo, feet, i, h);
       F.t += dt; const s = Math.min(1, F.t / F.dur), e = smooth(s);
       F.p.set(F.from.x + (F.to.x - F.from.x) * e, F.from.y + (F.to.y - F.from.y) * e);
       // (a running foot kicks up behind early in its swing and reaches forward low to land: the arc peaks early)
       const fg = F.g || 0; F.lift = Math.sin(Math.pow(s, 1 - 0.35 * fg) * Math.PI) * (0.045 + Math.min(0.08, spd * 0.012) + 0.08 * fg);
-      if (s >= 1) { F.swing = false; F.lift = 0; }
+      if (s >= 1) { F.swing = false; F.lift = 0; F.gait = false; }
     } else F.lift = 0;
   }
 }
@@ -4974,11 +5049,15 @@ function syncAthlete0(h, Mo, dt) {
       const sdT = a.s < a.cap ? a.rate * Math.min(1, (a.cap - a.s) / 0.03) : 0;
       Mo.sdS = spring(Mo.sdS || 0, Mo.sdV || 0, sdT, 30, dt); Mo.sdV = _spV;
       const sd = Math.max(0, Mo.sdS);
+      // (the lead now looks AHEAD ALONG THE PATH - the pose the stroke reaches one spring-lag later - instead of
+      //  extrapolating the path's tangent: where the path bends hard, just after contact as the racket turns up into
+      //  the wiper, the straight-line extrapolation shot far outside the curve and the racket flicked straight up
+      //  over the head for a few frames before coming back down to the finish)
       const lead = (spec, kind) => {
         if (sd <= 0.01) return;
-        const t3 = Mo.tmp3 || (Mo.tmp3 = cloneSpec(st.readySpec)), ds = 0.008, g = sd / ds * (2 / 72);
-        sampleStroke(st, kind, Math.min(1, a.s + ds), t3);
-        const add = (x, y, lim) => x + Math.max(-lim, Math.min(lim, (y - x) * g));
+        const t3 = Mo.tmp3 || (Mo.tmp3 = cloneSpec(st.readySpec)), ahead = Math.min(0.11, sd * (2 / 80));
+        sampleStroke(st, kind, Math.min(1, a.s + ahead), t3);
+        const add = (x, y, lim) => x + Math.max(-lim, Math.min(lim, y - x));
         for (const key of SC) spec[key] = add(spec[key], t3[key], 0.8);
         for (const key of V3K) for (let j = 0; j < 3; j++) spec[key][j] = add(spec[key][j], t3[key][j], 0.8);
         for (const key of V2K) for (let j = 0; j < 2; j++) spec[key][j] = add(spec[key][j], t3[key][j], 0.12);
@@ -5032,9 +5111,15 @@ function syncAthlete0(h, Mo, dt) {
         // (racket carried low at the side with the head tipped forward, both arms bent and swinging with the stride -
         // not held up like a torch with the free hand parked on the hip)
         const pu = strideSwing(Mo, h, spd, dt);
-        T.lg *= 1 - k; T.rh[0] += 0.14 * k; T.rh[1] -= 0.04 * k; T.rh[2] += (-0.12 - 0.12 * pu) * k;
-        const RT = [0.2, 0.42, 0.88]; for (let j = 0; j < 3; j++) T.rt[j] += (RT[j] - T.rt[j]) * k * 0.8;
-        T.lh[0] = T.lh[0] * (1 - k) - 0.3 * k; T.lh[1] = T.lh[1] * (1 - k) + (1.1 + 0.06 * Math.abs(pu)) * k; T.lh[2] = T.lh[2] * (1 - k) + (0.16 + 0.26 * pu) * k;
+        // (a runner's arms: elbows bent about 90 degrees and kept in by the ribs, the hands swinging from the hip back
+        //  to chest height in front, opposite to the legs - the old pose held the hands out at the hips with the
+        //  elbows flared like wings, which is most of what made running look odd)
+        T.lg *= 1 - k;
+        cbl(T.rh, [0.23, 1.0 + 0.05 * Math.max(0, -pu), 0.15 - 0.17 * pu], k);
+        const RT = [0.22, 0.22, 0.95]; for (let j = 0; j < 3; j++) T.rt[j] += (RT[j] - T.rt[j]) * k * 0.8;
+        cbl(T.rp, [0.3, -0.35, -1], k);
+        cbl(T.lh, [-0.17, 1.03 + 0.17 * Math.max(0, pu), 0.05 + 0.31 * pu], k);
+        Mo.runArmT = k;
         T.sp += 0.12 * k; T.cr += 0.03 * k;
       }
     }
@@ -5254,11 +5339,12 @@ function syncAthlete0(h, Mo, dt) {
   const baseYaw = h.team === 0 ? Math.PI : 0;
   let runYaw = 0;
   if (swinging && a.kind === 'tw') runYaw = (Mo.yaw || 0) >= 0 ? Math.PI : -Math.PI; // tweener: back to the net
-  else if ((!swinging || a.prep) && spd > 2.6) {
-    // sprinting: hips turn toward where you're going (crossover run); short moves stay a side shuffle
+  else if ((!swinging || a.prep || a.s > 0.7) && spd > 2.0) {
+    // running: the hips turn into the run (crossover running, the way players actually cover a court); short moves
+    // stay a side shuffle facing the net; a recovery that starts in the finish turns as the finish ends
     let diff = wrapPi(Math.atan2(h.vel.x, h.vel.z) - baseYaw);
     if (Math.abs(diff) > 2.6) diff = (Mo.yaw || -0.1) < 0 ? -Math.abs(diff) : Math.abs(diff);
-    runYaw = Math.max(-1.15, Math.min(1.15, diff * 0.7)) * Math.min(1, (spd - 2.6) / 2) * (a.prep ? 1 - setup : 1);
+    runYaw = Math.max(-1.3, Math.min(1.3, diff * 0.82)) * Math.min(1, (spd - 2.0) / 1.8) * (a.prep ? 1 - setup : swinging ? Math.min(1, (a.s - 0.7) / 0.2) : 1);
   }
   Mo.yaw = spring(Mo.yaw, Mo.yawV || 0, runYaw, 9, dt); Mo.yawV = _spV;
   Mo.root.position.set(h.pos.x, 0, h.pos.z);
@@ -5306,7 +5392,7 @@ function syncAthlete0(h, Mo, dt) {
     Mo.pvx = vlx; Mo.pvz = vlz;
     Mo.alx = spring(Mo.alx, Mo.alxV, ax0, 9, dt); Mo.alxV = _spV; Mo.alz = spring(Mo.alz, Mo.alzV, az0, 9, dt); Mo.alzV = _spV;
     const k0 = mood ? 0 : swinging && !a.prep ? 0.45 : 1; Mo.mkS = Mo.mkS === undefined ? k0 : Mo.mkS + (k0 - Mo.mkS) * Math.min(1, dt * 6); const k = Mo.mkS;
-    mPitch = k * (Math.max(-0.1, Math.min(0.1, Mo.alz * 0.01)) + 0.04 * Math.max(-0.5, Math.min(1, vlz / 5)));
+    mPitch = k * (Math.max(-0.12, Math.min(0.15, Mo.alz * 0.011)) + 0.06 * Math.max(-0.5, Math.min(1, vlz / 5))); // (a burst leans into the push-off)
     mRoll = k * (Math.max(-0.09, Math.min(0.09, -Mo.alx * 0.009)) + Math.max(-0.05, Math.min(0.05, -vlx * 0.012)));
   }
   Mo.torso.rotation.set(S.sp * 0.5 + drop * 0.6 + lean * 0.7 + mPitch, torsoYaw, mRoll);
@@ -5451,7 +5537,9 @@ function syncAthlete0(h, Mo, dt) {
     }
     lhW.lerp(_sv.c, lgW);
   }
-  _sv.pole.set(1, -1, -0.5).normalize();
+  // (running: the free elbow swings back by the ribs instead of flaring out)
+  Mo.runArm = (Mo.runArm || 0) + ((Mo.runArmT || 0) - (Mo.runArm || 0)) * Math.min(1, dt * 8); Mo.runArmT = 0;
+  _sv.pole.set(1 - 0.75 * Mo.runArm, -1 + 0.7 * Mo.runArm, -0.5 - 0.5 * Mo.runArm).normalize();
   twoBone(Mo.chest, Mo.armL.sh, Mo.armL.elbow, UPPER, FORE + 0.02, lhW, _sv.pole, 1, 1, Mo.ikL || (Mo.ikL = {}), dt);
   Mo.armL.hand.rotation.set(0.2, 0, 0);
   if (Mo.grip) {
