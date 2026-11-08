@@ -4482,43 +4482,48 @@ const STYLE_DEFS = {
       srv: serveKeys({ stance: 1, knee: 0.24, turn: 1.28, arch: 0.32, toss: 2.2, tipBack: 0.25, drop: 0.8, leap: 0.13, land: 0.76, kick: 0.22 }),
     } },
   // ---------------- FRITZ ----------------
-  // (tennis.com Tech Talk, Punto de Break, CPTA, Brain Game Tennis) 1.96 m, upright and long-levered.
-  // Forehand: an extreme grip, past full western - the face is shut in the takeback and the racket is LOW: the
-  // elbow stays tucked in by the waist instead of the arm and racket head lifted to head height, so the loop is
-  // short and below the shoulders; the left arm reaches out across and its pull back gives the torque as he turns
-  // into the court; a flat, heavy strike out in front with the chest coming round, then the forearm turns over in a
-  // quick wiper and the racket wraps over the left shoulder with the elbow pointing at the target.
-  // Backhand: a compact, flat two-hander from a closed, quiet stance - the arms run the show while the left hip and
-  // shoulder stay back (closed) through contact; a long push through the line, finishing with the hands up by the
-  // right shoulder, the chest still fairly side-on.
-  // Serve: foot back (the back foot stays back - a platform-style base), a full, fluid wind-up, big knee bend and
-  // leg drive from his height, a deep racket drop and contact at full stretch, landing well into the court.
-  fri: { hand: 1, headLock: 0.3, reach: { fh: { tb: 0.76, ct: 0.92, ex: 0.93 }, bh: { tb: 0.84, ct: 0.96, ex: 0.96 } }, split: 0.95, bounce: 0.02, drive: 0.04,
-    ready: { cr: 0.14, sp: 0.13, rh: [0.12, 0.98, 0.37], lg: 1, gp: 0.14, fL: [-0.28, 0.04], fR: [0.28, 0] },
+  // (tennis.com Tech Talk, Punto de Break, CPTA, Brain Game Tennis, tennis.com Forehand tips with Fritz)
+  // 1.96 m and UPRIGHT: he stays tall over the ball rather than sitting deep, the arm loose.
+  // Forehand: an extreme grip, past full western. The left arm goes out long and high toward the ball in the turn;
+  // the takeback is short and LOW - the hitting elbow stays tucked in by the waist, the hand never rises above the
+  // chest, the tip points back at the fence and the face is shut flat to the court; the head drops under the hand,
+  // contact out in front with the elbow still a little bent (the extreme-grip arm), the left arm snapping in tight to
+  // the chest; then a fast, big wiper that carries the racket over the left shoulder with the elbow up high and
+  // pointing at the target, the body often leaving the ground on the big ones. The left hand does NOT come back to
+  // the throat - it stays tucked by the ribs.
+  // Backhand: compact, flat two-hander from a closed, quiet base; the hands set high with the tip up, a short loop,
+  // arms driving it with the hips shut; a long, flat extension with the racket pointed at the target before the
+  // hands rise over the right shoulder.
+  // Serve: foot back (platform base), a rock back to start, arms dropping together in a full, rhythmic wind-up,
+  // big knee bend and a deep racket drop from his height, struck at full stretch, landing well inside the court with
+  // the back leg kicking high.
+  fri: { hand: 1, headLock: 0.32, reach: { fh: { tb: 0.72, ct: 0.84, ex: 0.88 }, bh: { tb: 0.84, ct: 0.96, ex: 0.97 } }, split: 0.9, bounce: 0.02, drive: 0.07,
+    ready: { cr: 0.11, sp: 0.1, rh: [0.12, 1.0, 0.37], lg: 1, gp: 0.14, fL: [-0.27, 0.04], fR: [0.27, 0] },
     keys: {
-      // low, tucked, face-shut takeback: hand at the hip, racket head up behind with the strings to the court
-      fh: [[0, { sy: -1.42, hy: -0.72, cr: 0.13, px: 0.06, rh: [0.3, 1.02, -0.12], rt: [0.22, 0.62, -0.75], rn: [0.25, -0.8, 0.55], lg: 0.3, gp: 0.3, lh: [0.5, 1.2, 0.58], fL: [-0.23, 0.08], fR: [0.31, -0.04], aL: 0.35, aR: 0.8 }],
-           [0.12, { sy: -1.46, rh: [0.34, 0.98, -0.22], rt: [0.4, 0.3, -0.87], rn: [0.1, -0.95, 0.3], lg: 0, lh: [0.52, 1.2, 0.6] }],
-           // the head drops behind and below the hand, the elbow still in by the waist
-           [0.24, { sy: -1.12, hy: -0.5, cr: 0.15, rh: [0.38, 0.86, -0.16], rt: [0.28, -0.78, -0.56], rn: [0.05, -0.35, 0.94], lh: [0.42, 1.18, 0.56] }],
-           [0.34, { sy: -0.5, hy: 0.0, rh: [0.44, 0.84, 0.14], rt: [0.36, -0.55, -0.75], rn: [-0.1, 0.0, 1], lh: [0.12, 1.18, 0.46] }],
-           [0.42, { sy: 0.18, hy: 0.42, cr: 0.12, px: 0.0, pz: 0.04, rh: [0.44, 0.98, 0.46], rt: [0.96, 0.03, 0.26], rn: [-0.15, 0.06, 1], lh: [-0.22, 1.18, 0.24] }],
-           // quick wiper: the forearm turns over right after contact
-           [0.53, { sy: 0.68, hy: 0.6, rh: [0.28, 1.22, 0.66], rt: [0.32, 0.86, 0.4], rn: [-0.92, 0.12, 0.36], lh: [-0.32, 1.14, 0.16] }],
-           [0.7, { sy: 1.08, hy: 0.76, rh: [-0.04, 1.42, 0.5], rt: [-0.42, 0.62, -0.66], rn: [-0.4, -0.45, -0.8], hlR: 0.5 }],
-           // wrapped over the left shoulder, elbow up and pointing at the target
-           [1, { sy: 1.3, hy: 0.84, cr: 0.1, rh: [-0.22, 1.5, 0.36], rt: [-0.3, -0.3, -0.9], rn: [-0.2, 0.35, -0.92], lg: 0.4, gp: 0.3, hlR: 0.75 }]],
-      // closed, quiet two-hander: the hips stay shut, the arms drive it
-      bh: [[0, { sy: 1.5, hy: 0.95, cr: 0.15, rh: [-0.32, 1.06, -0.24], rt: [-0.08, 0.72, -0.69], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.3, -0.1], fR: [0.02, 0.26], aL: -0.6, aR: -0.4 }],
-           [0.14, { sy: 1.55, hy: 0.98, rh: [-0.36, 1.02, -0.3], rt: [-0.18, 0.3, -0.94], rn: [0.7, -0.2, 0.68] }],
-           [0.24, { sy: 1.38, hy: 0.92, cr: 0.17, rh: [-0.36, 0.9, -0.2], rt: [-0.25, -0.45, -0.86], rn: [0.35, -0.25, 0.9] }],
-           [0.33, { sy: 1.08, hy: 0.8, rh: [-0.3, 0.9, 0.17], rt: [-0.68, -0.24, -0.69], rn: [0.15, -0.12, 0.98] }],
-           [0.42, { sy: 0.8, hy: 0.66, cr: 0.15, rh: [-0.2, 0.97, 0.52], rt: [-0.92, 0.06, 0.3], rn: [0.12, -0.06, 1] }],
-           // long, flat push through the line before the hands come up
-           [0.55, { sy: 0.46, hy: 0.52, rh: [-0.04, 1.08, 0.82], rt: [-0.62, 0.22, 0.75], rn: [0.7, 0.05, 0.72] }],
-           [0.7, { sy: 0.12, hy: 0.4, rh: [0.14, 1.32, 0.62], rt: [-0.05, 0.9, 0.42], rn: [0.95, 0.05, 0.25] }],
-           [1, { sy: -0.3, hy: 0.25, cr: 0.11, rh: [0.32, 1.42, 0.3], rt: [0.32, 0.25, -0.91], rn: [0.92, 0.3, -0.1], hlL: 0.35 }]],
-      srv: serveKeys({ stance: 0, rock: 0.06, knee: 0.27, turn: 1.32, arch: 0.4, toss: 2.24, tipBack: 0.15, drop: 0.95, leap: 0.18, land: 0.88, kick: 0.3 }),
+      // turn: left arm long and high at the ball, racket hand low by the hip, face already shut
+      fh: [[0, { sy: -1.52, hy: -0.76, cr: 0.1, sp: 0.1, px: 0.06, rh: [0.3, 1.08, -0.1], rt: [0.15, 0.75, -0.64], rn: [0.2, -0.85, 0.5], lg: 0.5, gp: 0.32, lh: [0.62, 1.32, 0.62], fL: [-0.24, 0.08], fR: [0.31, -0.04], aL: 0.35, aR: 0.8 }],
+           // short, low takeback: elbow in at the waist, tip back at the fence, strings flat to the court
+           [0.12, { sy: -1.58, rh: [0.3, 0.98, -0.24], rt: [0.3, 0.35, -0.89], rn: [0.05, -1, 0.1], lg: 0, lh: [0.62, 1.3, 0.64] }],
+           [0.24, { sy: -1.2, hy: -0.5, cr: 0.13, rh: [0.36, 0.88, -0.18], rt: [0.22, -0.8, -0.56], rn: [0.0, -0.4, 0.92], lh: [0.5, 1.26, 0.6] }],
+           [0.34, { sy: -0.5, hy: 0.02, rh: [0.42, 0.86, 0.12], rt: [0.34, -0.55, -0.76], rn: [-0.1, 0.0, 1], lh: [0.15, 1.18, 0.42] }],
+           // contact out front, elbow still a little bent; the left arm snaps in to the chest
+           [0.42, { sy: 0.16, hy: 0.42, cr: 0.1, px: 0.0, pz: 0.04, lift: 0.04, rh: [0.42, 1.0, 0.4], rt: [0.95, 0.05, 0.3], rn: [-0.15, 0.05, 1], lh: [-0.12, 1.12, 0.18] }],
+           // big, fast wiper, off the ground
+           [0.56, { sy: 0.72, hy: 0.62, lift: 0.09, airR: 0.06, airL: 0.02, rh: [0.26, 1.3, 0.62], rt: [0.2, 0.9, 0.38], rn: [-0.95, 0.1, 0.3], lh: [-0.2, 1.1, 0.14] }],
+           [0.72, { sy: 1.12, hy: 0.78, lift: 0.03, airR: 0.02, airL: 0, rh: [0.0, 1.56, 0.5], rt: [-0.35, 0.7, -0.62], rn: [-0.4, -0.4, -0.82], hlR: 0.6 }],
+           // over the left shoulder, elbow up high and pointing at the target, left hand tucked by the ribs
+           [1, { sy: 1.34, hy: 0.86, cr: 0.1, lift: 0, airR: 0, rh: [-0.16, 1.64, 0.42], rt: [-0.25, -0.4, -0.88], rn: [-0.2, 0.35, -0.92], lh: [-0.2, 1.08, 0.14], hlR: 0.8 }]],
+      // closed, quiet two-hander: hands set high with the tip up, the hips stay shut, the arms drive it
+      bh: [[0, { sy: 1.55, hy: 0.95, cr: 0.12, sp: 0.1, rh: [-0.3, 1.16, -0.22], rt: [-0.05, 0.9, -0.43], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.3, -0.1], fR: [0.02, 0.26], aL: -0.6, aR: -0.4 }],
+           [0.14, { sy: 1.6, hy: 0.98, rh: [-0.36, 1.12, -0.3], rt: [-0.12, 0.6, -0.79], rn: [0.8, -0.1, 0.6] }],
+           [0.24, { sy: 1.42, hy: 0.92, cr: 0.14, rh: [-0.38, 0.92, -0.22], rt: [-0.25, -0.45, -0.86], rn: [0.35, -0.25, 0.9] }],
+           [0.33, { sy: 1.1, hy: 0.8, rh: [-0.3, 0.9, 0.16], rt: [-0.7, -0.22, -0.68], rn: [0.15, -0.12, 0.98] }],
+           [0.42, { sy: 0.78, hy: 0.64, cr: 0.12, rh: [-0.18, 0.98, 0.54], rt: [-0.93, 0.05, 0.3], rn: [0.1, -0.05, 1] }],
+           // long, flat extension: both arms out, the racket pointed at the target
+           [0.55, { sy: 0.4, hy: 0.5, rh: [-0.02, 1.06, 0.9], rt: [-0.5, 0.12, 0.86], rn: [0.8, 0.05, 0.6] }],
+           [0.7, { sy: 0.05, hy: 0.36, rh: [0.18, 1.36, 0.66], rt: [0.0, 0.92, 0.38], rn: [0.95, 0.05, 0.25] }],
+           [1, { sy: -0.35, hy: 0.22, cr: 0.1, rh: [0.34, 1.55, 0.32], rt: [0.3, 0.3, -0.9], rn: [0.92, 0.3, -0.1], hlL: 0.35 }]],
+      srv: serveKeys({ stance: 0, rock: 0.14, knee: 0.3, turn: 1.35, arch: 0.42, toss: 2.26, tipBack: 0.12, drop: 1, leap: 0.2, land: 0.95, kick: 0.34 }),
     } },
   // ---------------- CPU (fixed, tidy all-court style with a two-handed backhand) ----------------
   cpu: { hand: 1, headLock: 0.16, split: 1.1, bounce: 0.026, drive: 0.02,
