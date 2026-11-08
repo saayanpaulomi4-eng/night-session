@@ -5609,41 +5609,41 @@ const THIGH = 0.45, SHIN = 0.43, HIP_Y = 0.95, LEG = THIGH + SHIN;
 const LOOKS = {
   // Federer: slim and tall, all-white kit with a collared shirt, fuller wavy brown hair under a white headband
   fed:  { face: { nose: 1.18, noseW: 1.05, chin: 1.15, jaw: 1.02, stubble: 0.3, eye: 0x5a3b22 }, skin: 0xd8a47f, shirt: 0xf6f6f2, shorts: 0xf0f0ec, collar: 0xe6e6e2, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0xc9ced6, hair: 0x4a3324, hairStyle: 'medium', headwear: 'headband', band: 0xffffff, racket: 0xd9f23e, sleeves: true,
-          build: { arm: 1.0, fore: 1.0, leg: 0.98, chest: 1.0, waist: 0.95, shorts: 0.42, sleeve: 0.42 } },
+          build: { arm: 1.0, fore: 1.0, leg: 0.98, chest: 0.98, waist: 0.93, shorts: 0.42, sleeve: 0.42 } },
   // Nadal: muscular build with a bigger racket arm, sleeveless shirt, knee-length shorts, long hair and a bandana
   rafa: { face: { nose: 1.12, noseW: 1.1, jaw: 1.06, brow: 1.1, stubble: 0.38, eye: 0x3a2414 }, skin: 0xc68a60, shirt: 0xff7a2e, shorts: 0xf4f4ee, sock: 0xffffff, shoe: 0x2f6fd6, sole: 0xffffff, hair: 0x2a1d14, hairStyle: 'long', headwear: 'bandana', band: 0x1c2233, racket: 0xf2cf3a, sleeves: false,
-          build: { arm: 1.2, fore: 1.12, racketArm: 1.07, leg: 1.08, chest: 1.08, waist: 1.0, shorts: 0.74 } },
+          build: { arm: 1.26, fore: 1.16, racketArm: 1.08, leg: 1.12, chest: 1.12, waist: 1.0, shorts: 0.74 } },
   // Djokovic: lean and wiry, navy polo with a white collar, short dark hair
-  nole: { face: { nose: 1.06, jaw: 0.98, chin: 1.05, stubble: 0.38, eye: 0x6a7a4a }, skin: 0xddb08d, shirt: 0x1d4f8c, shorts: 0x141f33, collar: 0xffffff, sock: 0xffffff, shoe: 0xffffff, sole: 0x1d4f8c, hair: 0x1e1612, hairStyle: 'crop', headwear: 'none', racket: 0xf2f4f8, sleeves: true,
-          build: { arm: 0.92, fore: 0.94, leg: 0.95, chest: 0.96, waist: 0.92, shorts: 0.4, sleeve: 0.46 } },
+  nole: { face: { nose: 1.06, jaw: 0.98, chin: 1.05, stubble: 0.38, eye: 0x6a7a4a }, skin: 0xddb08d, shirt: 0x1d4f8c, shorts: 0x141f33, collar: 0xffffff, sock: 0xffffff, shoe: 0xffffff, sole: 0x1d4f8c, hair: 0x1e1612, hairStyle: 'crop', headwear: 'none', racket: 0xf2f4f8, height: 1.016, sleeves: true,
+          build: { arm: 0.9, fore: 0.92, leg: 0.94, chest: 0.93, waist: 0.88, shorts: 0.4, sleeve: 0.46 } },
   // Kyrgios: tall and rangy, black kit with red trim, white cap worn backwards, red wristbands
   // Sinner: tall and slim, curly ginger hair, dark green shirt and black shorts
-  sin:  { face: { nose: 1.12, noseW: 0.95, jaw: 0.96, chin: 1.05, stubble: 0.08, eye: 0x5b7c8a }, skin: 0xe9c4a6, shirt: 0x1f4a3a, shorts: 0x15171b, collar: 0xe8ece9, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x2fbf71, hair: 0xb4532a, hairStyle: 'curly', headwear: 'none', racket: 0x2f2f33, sleeves: true,
-          build: { arm: 0.9, fore: 0.93, leg: 0.94, chest: 0.94, waist: 0.9, shorts: 0.42, sleeve: 0.44 } },
+  sin:  { face: { nose: 1.12, noseW: 0.95, jaw: 0.96, chin: 1.05, stubble: 0.08, eye: 0x5b7c8a }, skin: 0xe9c4a6, shirt: 0x1f4a3a, shorts: 0x15171b, collar: 0xe8ece9, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x2fbf71, hair: 0xb4532a, hairStyle: 'curly', curlBig: 0.6, headwear: 'none', racket: 0x2f2f33, height: 1.032, sleeves: true,
+          build: { arm: 0.86, fore: 0.9, leg: 0.92, chest: 0.89, waist: 0.85, shorts: 0.42, sleeve: 0.46 } },
   // Alcaraz: athletic build with strong legs, short dark brown hair, white shirt with green trim, black shorts
-  alc:  { face: { nose: 1.0, noseW: 1.05, jaw: 1.04, brow: 1.1, stubble: 0.14, eye: 0x3b2616 }, skin: 0xd5a07a, shirt: 0xf4f6f2, shorts: 0x16181c, collar: 0x2bb673, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x2bb673, hair: 0x2b1d14, hairStyle: 'crop', headwear: 'none', racket: 0xf0d43a, sleeves: true,
-          build: { arm: 1.04, fore: 1.04, leg: 1.07, chest: 1.03, waist: 0.97, shorts: 0.4, sleeve: 0.42 } },
+  alc:  { face: { nose: 1.0, noseW: 1.05, jaw: 1.04, brow: 1.1, stubble: 0.14, eye: 0x3b2616 }, skin: 0xd5a07a, shirt: 0xf4f6f2, shorts: 0x16181c, collar: 0x2bb673, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x2bb673, hair: 0x2b1d14, hairStyle: 'crop', headwear: 'none', racket: 0xf0d43a, height: 0.99, sleeves: true,
+          build: { arm: 1.08, fore: 1.06, leg: 1.12, chest: 1.06, waist: 0.97, shorts: 0.38, sleeve: 0.4 } },
   // Wawrinka: stocky and powerful, short dark hair, navy shirt and red-checked shorts
-  waw:  { face: { nose: 1.12, noseW: 1.1, jaw: 1.12, chin: 1.1, stubble: 0.45, eye: 0x5a6a5a }, skin: 0xdcae8a, shirt: 0x24345a, shorts: 0xa8243a, collar: 0xffffff, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x24345a, hair: 0x2a1f18, hairStyle: 'crop', headwear: 'none', racket: 0x1f3d8a, sleeves: true,
-          build: { arm: 1.12, fore: 1.1, racketArm: 1.04, leg: 1.1, chest: 1.08, waist: 1.04, shorts: 0.4, sleeve: 0.42 } },
+  waw:  { face: { nose: 1.12, noseW: 1.1, jaw: 1.12, chin: 1.1, stubble: 0.45, eye: 0x5a6a5a }, skin: 0xdcae8a, shirt: 0x24345a, shorts: 0xa8243a, collar: 0xffffff, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x24345a, hair: 0x2a1f18, hairStyle: 'crop', headwear: 'none', racket: 0x1f3d8a, height: 0.99, sleeves: true,
+          build: { arm: 1.16, fore: 1.12, racketArm: 1.04, leg: 1.14, chest: 1.12, waist: 1.08, shorts: 0.4, sleeve: 0.42 } },
   // Zverev: very tall (1.98 m) and lean, short dirty-blond hair, navy shirt with white trim, white shorts
-  zve:  { face: { nose: 1.04, jaw: 1.0, chin: 1.1, stubble: 0.1, eye: 0x5a86a8 }, skin: 0xe8c3a2, shirt: 0x1d2a48, shorts: 0xf2f3f0, collar: 0xffffff, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1d2a48, hair: 0x8a7552, hairStyle: 'crop', headwear: 'none', racket: 0x2a2d33, sleeves: true, height: 1.07,
-          build: { arm: 0.92, fore: 0.95, leg: 0.95, chest: 0.95, waist: 0.92, shorts: 0.42, sleeve: 0.44 } },
+  zve:  { face: { nose: 1.04, jaw: 1.0, chin: 1.1, stubble: 0.1, eye: 0x5a86a8 }, skin: 0xe8c3a2, shirt: 0x1d2a48, shorts: 0xf2f3f0, collar: 0xffffff, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1d2a48, hair: 0x9a8258, hairStyle: 'swept', headwear: 'none', racket: 0x2a2d33, height: 1.07, sleeves: true,
+          build: { arm: 0.88, fore: 0.92, leg: 0.92, chest: 0.9, waist: 0.86, shorts: 0.42, sleeve: 0.46 } },
   // Sampras: 1.85 m, athletic with long arms, thick dark curly hair, olive skin, classic white kit with navy trim
   pete: { face: { nose: 1.1, noseW: 1.05, jaw: 1.06, brow: 1.25, stubble: 0.3, eye: 0x3a2616 }, skin: 0xc9946c, shirt: 0xf5f5f0, shorts: 0xf2f2ee, collar: 0x1d3a6e, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1d3a6e, hair: 0x1c1410, hairStyle: 'curly', headwear: 'none', racket: 0x1e1b1b, sleeves: true,
           build: { arm: 1.02, fore: 1.02, racketArm: 1.03, leg: 1.0, chest: 1.0, waist: 0.96, shorts: 0.42, sleeve: 0.42 } },
   // Murray: tall and lean, fair skin, short tousled dark-brown hair and stubble; white shirt with navy trim, navy shorts
-  mur: { face: { nose: 1.08, jaw: 1.02, chin: 1.04, brow: 1.1, stubble: 0.45, eye: 0x4a3322 }, skin: 0xe6bea0, shirt: 0xf4f4f2, shorts: 0x1a2340, collar: 0x1a2340, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1a2340, hair: 0x2b1d14, hairStyle: 'short', headwear: 'none', racket: 0x22262e, sleeves: true,
-          build: { arm: 0.93, fore: 0.94, leg: 1.0, chest: 0.95, waist: 0.9, shorts: 0.42, sleeve: 0.46 } },
+  mur: { face: { nose: 1.08, jaw: 1.02, chin: 1.04, brow: 1.1, stubble: 0.45, eye: 0x4a3322 }, skin: 0xe6bea0, shirt: 0xf4f4f2, shorts: 0x1a2340, collar: 0x1a2340, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1a2340, hair: 0x2b1d14, hairStyle: 'short', headwear: 'none', racket: 0x22262e, height: 1.032, sleeves: true,
+          build: { arm: 0.92, fore: 0.93, leg: 1.0, chest: 0.94, waist: 0.88, shorts: 0.42, sleeve: 0.46 } },
   // Fritz: 1.96 m, long and lean, fair skin, short light-brown hair swept up on top; black shirt with white trim,
   // white shorts, an orange-and-black frame (generic: build, colouring and kit only, no facial likeness)
-  fri: { face: { nose: 1.06, noseW: 0.98, jaw: 1.06, chin: 1.08, brow: 1.05, stubble: 0.12, eye: 0x6b7f8c }, skin: 0xebc6a6, shirt: 0x17181c, shorts: 0xf2f2ef, collar: 0xf2f2ef, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x17181c, hair: 0x8a6a4a, hairStyle: 'short', headwear: 'none', racket: 0xd8652a, sleeves: true, height: 1.06,
+  fri: { face: { nose: 1.06, noseW: 0.98, jaw: 1.06, chin: 1.08, brow: 1.05, stubble: 0.12, eye: 0x6b7f8c }, skin: 0xebc6a6, shirt: 0x17181c, shorts: 0xf2f2ef, collar: 0xf2f2ef, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x17181c, hair: 0x8a6a4a, hairStyle: 'swept', headwear: 'none', racket: 0xd8652a, height: 1.06, sleeves: true,
           build: { arm: 0.95, fore: 0.96, leg: 0.98, chest: 0.98, waist: 0.93, shorts: 0.42, sleeve: 0.44 } },
   // Del Potro: very tall (1.98 m) and long-limbed, wavy dark hair and a short beard, sky-blue shirt, navy shorts
-  dpo:  { face: { nose: 1.1, jaw: 1.08, chin: 1.1, stubble: 0.85, eye: 0x3a2616 }, skin: 0xdcae8a, shirt: 0x8cc2e6, shorts: 0x1b2436, collar: 0xffffff, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1b2436, hair: 0x2a1c14, hairStyle: 'medium', beard: true, headwear: 'none', racket: 0x22252b, sleeves: true, height: 1.07,
+  dpo:  { face: { nose: 1.1, jaw: 1.08, chin: 1.1, stubble: 0.85, eye: 0x3a2616 }, skin: 0xdcae8a, shirt: 0x8cc2e6, shorts: 0x1b2436, collar: 0xffffff, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1b2436, hair: 0x2a1c14, hairStyle: 'medium', beard: true, headwear: 'none', racket: 0x22252b, height: 1.07, sleeves: true,
           build: { arm: 1.0, fore: 1.0, leg: 1.0, chest: 1.0, waist: 0.98, shorts: 0.42, sleeve: 0.44 } },
-  kyr:  { face: { nose: 1.04, noseW: 1.1, jaw: 1.08, brow: 1.1, stubble: 0.45, eye: 0x3a2414 }, skin: 0xc9946b, shirt: 0x17191d, shorts: 0x17191d, collar: 0xd8262f, sock: 0xffffff, shoe: 0x17191d, sole: 0xd8262f, hair: 0x15100c, hairStyle: 'crop', headwear: 'capback', cap: 0xf2f2f2, band: 0xd8262f, racket: 0xd8262f, sleeves: true,
-          build: { arm: 0.97, fore: 1.0, leg: 1.0, chest: 1.02, waist: 0.98, shorts: 0.44, sleeve: 0.44 } },
+  kyr:  { face: { nose: 1.04, noseW: 1.1, jaw: 1.08, brow: 1.1, stubble: 0.45, eye: 0x3a2414 }, skin: 0xc9946b, shirt: 0x17191d, shorts: 0x17191d, collar: 0xd8262f, sock: 0xffffff, shoe: 0x17191d, sole: 0xd8262f, hair: 0x15100c, hairStyle: 'crop', headwear: 'capback', cap: 0xf2f2f2, band: 0xd8262f, racket: 0xd8262f, height: 1.043, sleeves: true,
+          build: { arm: 1.0, fore: 1.0, leg: 1.0, chest: 1.04, waist: 1.02, shorts: 0.46, sleeve: 0.44 } },
   // Custom: an athletic build, short dark hair, a purple shirt with optic-yellow trim, black shorts
   cus:  { face: { nose: 1.02, jaw: 1.02, brow: 1.05, stubble: 0.2, eye: 0x4a3220 }, skin: 0xd9a77f, shirt: 0x5b34c9, shorts: 0x15171b, collar: 0xd9f23e, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x5b34c9, hair: 0x2a1d15, hairStyle: 'crop', headwear: 'none', racket: 0x2a2d33, sleeves: true,
           build: { arm: 1.02, fore: 1.02, leg: 1.02, chest: 1.02, waist: 0.96, shorts: 0.42, sleeve: 0.42 } },
@@ -6418,9 +6418,11 @@ function hairInfo(al, uy, uz, look) {
   const nz = 1 - sstep(0.8, 0.97, uy); // no ripples at the crown
   let T;
   if (style === 'medium') T = 0.008 + 0.016 * sstep(-0.1, 0.85, uy) + 0.006 * Math.max(0, -uz) + 0.003 * nz * Math.sin(a * 9 + uy * 7);
-  else if (style === 'curly') { const be = Math.asin(uy); T = 0.015 + 0.017 * sstep(-0.1, 0.85, uy) + 0.008 * nz * Math.abs(Math.sin(al * 13) * Math.sin(be * 15) + Math.sin(al * 7 + 1) * Math.sin(be * 9 + 2)) * 0.5; }
+  else if (style === 'curly') { const be = Math.asin(uy); const cb = look.curlBig || 0; T = 0.015 + 0.007 * cb + (0.017 + 0.009 * cb) * sstep(-0.1, 0.85, uy) + (0.008 + 0.004 * cb) * nz * Math.abs(Math.sin(al * 13) * Math.sin(be * 15) + Math.sin(al * 7 + 1) * Math.sin(be * 9 + 2)) * 0.5; }
   else if (style === 'long') T = 0.008 + 0.012 * sstep(0, 0.9, uy) + 0.004 * Math.max(0, -uz) + 0.003 * nz * Math.sin(a * 11 + uy * 5) + 0.004 * sstep(-0.1, -0.6, uy) * sstep(0.9, 1.5, a); // (lies close to the head and neck: thicker read as a helmet)
   else if (style === 'crop') T = 0.003 + 0.009 * sstep(0.35, 0.75, uy) - 0.0025 * sstep(0.85, 1, uy) + 0.005 * sstep(0.55, 0.85, uy) * front;   // faded at the sides, fuller on top
+  // swept: short at the sides and back, long on top and combed up and back off the forehead (a quiff at the front)
+  else if (style === 'swept') T = 0.003 + 0.016 * sstep(0.4, 0.8, uy) + 0.012 * sstep(0.5, 0.85, uy) * sstep(0.2, 0.9, front) - 0.004 * sstep(0.9, 1, uy) * (1 - front) + 0.002 * nz * Math.sin(al * 17 + uy * 6);
   else T = 0.0025 + 0.005 * sstep(0.35, 0.85, uy);
   // pressed flat under a headband or bandana
   if (look.headwear === 'headband' || look.headwear === 'bandana') { const w = look.headwear === 'bandana' ? 0.19 : 0.12; T *= 1 - 0.6 * sstep(w + 0.05, w - 0.02, Math.abs(uy - bandLine(al))); }
@@ -6872,7 +6874,7 @@ function mhShape(look) {
   const F = faceOf(look), sc = x => Math.max(-1, Math.min(1, x));
   let hsh = 0; for (const v of [look.skin, look.hair, look.shirt, look.shorts]) hsh = (hsh * 31 + (v || 0)) >>> 0;
   const rnd = k => ((Math.sin(hsh * 0.000013 + k * 12.9898) * 43758.5453) % 1 + 1) % 1;
-  return Object.assign({ mus: cl((avg - 0.95) * 4.5), fat: cl((B.waist - 1.0) * 5), thin: cl((0.97 - (B.chest + B.waist) / 2) * 4),
+  return Object.assign({ mus: Math.max(0, Math.min(1.6, (avg - 0.95) * 6)), fat: cl((B.waist - 1.0) * 5), thin: Math.max(0, Math.min(1.3, (0.97 - (B.chest + B.waist) / 2) * 6)), // (pushed past the plain targets for the extremes: Nadal's arms, Sinner's and Zverev's slim frames)
     afr: 0.25 * rnd(1), asi: 0.2 * rnd(2),
     nose: sc((F.nose - 1) * 5 + (rnd(3) - 0.5) * 0.4), noseW: sc((F.noseW - 1) * 5 + (rnd(4) - 0.5) * 0.4), jaw: sc((F.jaw - 1) * 5 + (rnd(5) - 0.5) * 0.3),
     chin: sc((F.chin - 1) * 5 + (rnd(6) - 0.5) * 0.3), brow: cl((F.brow - 1) * 1.2), oval: 0.45 * rnd(7), round: 0.35 * rnd(8), rect: 0.35 * rnd(9) }, look.mh || {});
@@ -6936,11 +6938,18 @@ function mhMaterial(look) {
   m.extensions = { derivatives: true };
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = 'attribute vec4 aReg;\nattribute vec4 aPaint;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+    sh.vertexShader = 'attribute vec4 aReg;\nattribute vec4 aPaint;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + sh.vertexShader.replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+      { vec4 mkN = mhMask(aReg, position, 0.03); float fN = max(mkN.y, mkN.x) * exp(-pow(position.x / 0.09, 2.0)) * smoothstep(0.78, 0.86, position.y) * smoothstep(1.04, 0.95, position.y);
+        objectNormal = normalize(mix(objectNormal, vec3(0.0, 0.0, position.z > 0.0 ? 1.0 : -1.0), fN * 0.9)); }`).replace('#include <begin_vertex>', `#include <begin_vertex>
       vReg = aReg; vPaint = aPaint; vBind = position;
       { vec4 mk = mhMask(aReg, position, 0.03); float legT = aReg.z * 2.5;
         float puff = mk.x * (0.007 + 0.007 * smoothstep(1.2, 0.95, position.y)) + mk.y * (0.016 + 0.026 * smoothstep(0.0, uCut.y, legT) * aReg.w) + mk.z * 0.0025;
-        transformed += objectNormal * puff; }`);
+        transformed += objectNormal * puff;
+        // shorts hang from the hips across the groin instead of clinging to it: fill the front and back folds between
+        // the legs (the skin-tight cloth showed the anatomy underneath as a V)
+        float gx = exp(-pow(position.x / 0.09, 2.0)), gy = smoothstep(0.78, 0.86, position.y) * smoothstep(1.04, 0.95, position.y);
+        float fill = max(mk.y, mk.x) * gx * gy;
+        transformed.z += fill * (position.z > 0.0 ? 0.04 : -0.02); transformed.y -= fill * 0.025 * smoothstep(0.95, 0.86, position.y); }`);
     sh.fragmentShader = 'uniform vec3 uSkin, uShirt, uShorts, uSock, uTrim, uHair, uEyeL, uEyeR;\nuniform vec4 uFace;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         float mhRough;
