@@ -673,6 +673,9 @@ function createSim(H, cfg) {
     // Sampras: the purest serve-and-volleyer - a huge, loose serve and the best volleys in the game; ordinary from the back
     pete: { key: 'pete', name: 'Sampras',  short: 'SAM', hand: 1,  serve: 110, fh: 70, bh: 70, net: 130, speed: 90, slice: 70, drop: 70 },
     mur:  { key: 'mur',  name: 'Murray',   short: 'MUR', hand: 1,  serve: 80, fh: 80, bh: 110, net: 90, speed: 120, slice: 95, drop: 95 },
+    // Fritz: 1.96 m, the biggest serve in the game, a flat, heavy forehand off an extreme grip, a solid two-hander;
+    // movement is the weak spot
+    fri:  { key: 'fri',  name: 'Fritz',    short: 'FRI', hand: 1,  serve: 115, fh: 105, bh: 95, net: 80, speed: 75, slice: 80, drop: 80 },
     // your own player: every rating set on the menu (0-250), no special ability
     cus:  { key: 'cus',  name: 'Custom',   short: 'CUS', hand: 1,  serve: 100, fh: 100, bh: 100, net: 100, speed: 100, slice: 100, drop: 100 },
     cpu:  { key: 'cpu',  name: 'CPU',      short: 'CPU', hand: 1,  serve: 86, fh: 86, bh: 86, net: 84, speed: 88, slice: 86, drop: 84 },
@@ -1057,6 +1060,7 @@ function createSim(H, cfg) {
     dpo: { name: 'Last stand', desc: 'A 140 forehand at 35% stamina or below.' },
     pete: { name: 'Pistol serve', desc: 'Serving to save a break, set or match point: the serve jumps to 122.' },
     mur: { name: 'Lob genius', desc: 'Below 50% stamina every lob is MEGA PERFECT.' },
+    fri: { name: 'Serve plus one', desc: 'The first forehand after his own serve plays at 115.' },
   };
   // online 1v1 (cfg.net): both players are people - the far one plays from a friend's device
   const isMe = h => h.idx === 0 || (!!cfg.net && h.idx === 1);
@@ -1072,6 +1076,8 @@ function createSim(H, cfg) {
     if (key === 'zve' && kind === 'serve' && S.faults === 0) v += 7;
     if (key === 'pete' && kind === 'serve' && S.pressure && S.pressure.w === 1 - h.team && S.srvAth === h.idx) v += 12;
     if (key === 'waw' && S.pressure) v += kind === 'bh' ? 10 : kind === 'fh' ? 8 : kind === 'serve' ? 6 : 0;
+    // (serve = shot 1, the return = shot 2: his own next ball is struck while the count still reads 2)
+    if (key === 'fri' && kind === 'fh' && S.srvAth === h.idx && S.rally.shots === 2) v = Math.max(v, 115);
     return v;
   }
   function abilityActive(h) {
@@ -1087,7 +1093,7 @@ function createSim(H, cfg) {
       if (!h.megaArmed && !h.megaSpent && h.stamina <= 0.3) { h.megaArmed = true; H.toast(`${h.prof.short} · ${ABILITY[key].name}: next ${key === 'nole' ? 'backhand' : 'forehand'} is MEGA PERFECT`); }
       if (h.megaSpent && h.stamina > 0.5) h.megaSpent = false;
     }
-    const on = abilityActive(h) && key !== 'rafa' && key !== 'alc' && key !== 'nole' && key !== 'kyr';
+    const on = abilityActive(h) && key !== 'rafa' && key !== 'alc' && key !== 'nole' && key !== 'kyr' && key !== 'fri';
     if (key === 'waw' && on && !h.abilOn) { H.toast(`${h.prof.short} · Big-point Stan: +10 backhand on the big point`); h.abilOn = on; return; }
     if (on && !h.abilOn && ABILITY[key]) H.toast(`${h.prof.short} · ${ABILITY[key].name}: ${ABILITY[key].desc.replace(/\.$/, '')}`);
     h.abilOn = on;
@@ -1256,6 +1262,7 @@ function createSim(H, cfg) {
     zve:  { n: 3, rate: 4.2, hy: 0.98, hold: 0.5 },
     pete: { n: 2, rate: 3.2, hy: 0.96, hold: 0.3 },
     mur:  { n: 4, rate: 4.4, hy: 0.9, hold: 0.35 },
+    fri:  { n: 3, rate: 4.6, hy: 0.94, hold: 0.3 },
     cpu:  { n: 2, rate: 3.6, hy: 0.96, hold: 0.3 },
   };
   const ritualOf = h => RITUALS[h.prof && h.prof.key] || RITUALS.cpu;
@@ -2510,7 +2517,7 @@ const settings = { diff: 1, len: 0, player: 'fed', sound: 1, surface: 0, slowmo:
 try { Object.assign(settings, JSON.parse(localStorage.getItem('night-session-tennis') || '{}')); } catch (e) {}
 // an in-page copy too, so a restart inside the page (switching graphics) keeps the settings even where storage is blocked
 if (window.__nightSessionSettings) Object.assign(settings, window.__nightSessionSettings);
-if (!['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'cus'].includes(settings.player)) settings.player = 'fed';
+if (!['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'fri', 'cus'].includes(settings.player)) settings.player = 'fed';
 // the custom player's ratings, each 0-250
 const CUS_KEYS = ['serve', 'fh', 'bh', 'net', 'slice', 'drop', 'speed'];
 settings.custom = Object.assign({}, settings.custom || {});
@@ -2532,7 +2539,7 @@ for (const [k, , lo, hi, , d] of LAB) { const v = +settings.lab[k]; settings.lab
 delete settings.pfx; settings.slowmo = 0; // mega-perfect slow-mo is off whenever the game loads (it can be switched on in the menu for that session)
 settings.diff = Math.max(0, Math.min(3, +settings.diff || 0)); settings.len = Math.max(0, Math.min(2, +settings.len || 0)); settings.epicLen = settings.epicLen === 1 ? 1 : 0;
 // doubles line-up: your partner and the two CPU players (real players only, all different)
-{ const ok = k => ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur'].includes(k); if (!ok(settings.dPartner)) settings.dPartner = 'nole'; if (!ok(settings.dOpp1)) settings.dOpp1 = 'sin'; if (!ok(settings.dOpp2)) settings.dOpp2 = 'alc'; }
+{ const ok = k => ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'fri'].includes(k); if (!ok(settings.dPartner)) settings.dPartner = 'nole'; if (!ok(settings.dOpp1)) settings.dOpp1 = 'sin'; if (!ok(settings.dOpp2)) settings.dOpp2 = 'alc'; }
 // graphics: 1 = full, 0 = low (drops the stadium; for Chromebooks and older laptops), 2 = ultra low (everything low
 // does, plus it cuts what costs per pixel: no shadow map (flat projected shadows instead), Lambert shading instead
 // of physical, no strike effects or swing trails, and fewer pixels). A Chromebook starts on low.
@@ -4356,8 +4363,8 @@ const STYLE_DEFS = {
   dpo: { hand: 1, headLock: 0.35, reach: { fh: { tb: 0.9, ct: 0.97, ex: 0.98 }, bh: { tb: 0.82, ct: 0.9, ex: 0.86 } }, split: 0.85, bounce: 0.016, drive: 0.04,
     ready: { cr: 0.13, sp: 0.12, rh: [0.12, 0.98, 0.37], lg: 1, gp: 0.14, fL: [-0.27, 0.04], fR: [0.27, 0] },
     keys: {
-      fh: [[0, { sy: -1.75, hy: -0.85, cr: 0.12, px: 0.06, rh: [0.4, 1.36, -0.24], rt: [0.1, 0.84, -0.53], rn: [0.12, -0.5, 0.86], lg: 0, lh: [0.24, 1.32, 0.6], fL: [-0.18, 0.2], fR: [0.3, -0.12], aL: 0.6, aR: 0.9 }],
-           [0.12, { sy: -1.78, rh: [0.48, 1.42, -0.38], rt: [0.18, 0.72, -0.67], rn: [0.05, -0.2, 0.98], lh: [0.24, 1.3, 0.58] }],
+      fh: [[0, { sy: -1.75, hy: -0.85, cr: 0.12, px: 0.06, rh: [0.42, 1.5, -0.26], rt: [0.08, 0.92, -0.38], rn: [0.12, -0.5, 0.86], lg: 0, lh: [0.24, 1.32, 0.6], fL: [-0.18, 0.2], fR: [0.3, -0.12], aL: 0.6, aR: 0.9 }],
+           [0.12, { sy: -1.78, rh: [0.48, 1.68, -0.36], rt: [0.12, 0.9, -0.42], rn: [0.05, -0.2, 0.98], lh: [0.24, 1.3, 0.58] }], // (hand above the head, racket standing on edge)
            [0.24, { sy: -1.45, hy: -0.6, cr: 0.14, rh: [0.54, 1.12, -0.38], rt: [0.3, -0.45, -0.84], rn: [0.93, 0.2, 0.3], lh: [0.2, 1.3, 0.5] }],
            [0.34, { sy: -0.75, hy: -0.05, rh: [0.56, 1.0, 0.04], rt: [0.55, -0.3, -0.78], rn: [0.78, 0.12, 0.6], lh: [0.04, 1.25, 0.42] }],
            [0.42, { sy: 0.0, hy: 0.35, cr: 0.1, pz: 0.06, rh: [0.5, 1.05, 0.55], rt: [0.95, 0.06, 0.3], rn: [-0.3, 0.05, 0.95], lh: [-0.15, 1.22, 0.3], fL: [-0.17, 0.32] }],
@@ -4408,8 +4415,8 @@ const STYLE_DEFS = {
   pete: { hand: 1, oneHand: true, headLock: 0.35, runFin: true, reach: { fh: { tb: 0.88, ct: 0.95, ex: 0.95 }, bh: { tb: 0.86, ct: 0.97, ex: 0.96 } }, split: 1.0, bounce: 0.026, drive: 0.04,
     ready: { cr: 0.15, sp: 0.15, rh: [0.12, 1.0, 0.37], fL: [-0.27, 0.04], fR: [0.27, 0] },
     keys: {
-      fh: [[0, { sy: -1.4, hy: -0.75, cr: 0.13, px: 0.06, rh: [0.4, 1.26, -0.24], rt: [0.15, 0.7, -0.7], rn: [0.3, -0.6, 0.74], lg: 0, lh: [0.14, 1.3, 0.6], fL: [-0.22, 0.12], fR: [0.3, -0.06], aL: 0.4, aR: 0.85 }],
-           [0.12, { sy: -1.42, rh: [0.44, 1.38, -0.3], rt: [0.25, 0.55, -0.8], rn: [0.1, -0.9, 0.42], lh: [0.16, 1.28, 0.58] }],
+      fh: [[0, { sy: -1.4, hy: -0.75, cr: 0.13, px: 0.06, rh: [0.42, 1.42, -0.26], rt: [0.15, 0.78, -0.6], rn: [0.3, -0.6, 0.74], lg: 0, lh: [0.14, 1.3, 0.6], fL: [-0.22, 0.12], fR: [0.3, -0.06], aL: 0.4, aR: 0.85 }],
+           [0.12, { sy: -1.42, rh: [0.46, 1.52, -0.34], rt: [0.25, 0.6, -0.76], rn: [0.1, -0.9, 0.42], lh: [0.16, 1.28, 0.58] }],
            [0.24, { sy: -1.15, hy: -0.52, cr: 0.15, rh: [0.52, 1.0, -0.26], rt: [0.22, -0.72, -0.66], rn: [0.05, -0.3, 0.95], lh: [0.16, 1.24, 0.5] }],
            [0.34, { sy: -0.52, hy: 0.0, rh: [0.5, 0.94, 0.12], rt: [0.36, -0.45, -0.82], rn: [-0.1, 0.0, 1], lh: [0.0, 1.2, 0.4] }],
            [0.42, { sy: 0.05, hy: 0.42, cr: 0.12, pz: 0.05, rh: [0.45, 1.0, 0.5], rt: [0.97, 0.04, 0.22], rn: [-0.15, 0.05, 1], lh: [-0.18, 1.2, 0.28] }],
@@ -4473,6 +4480,45 @@ const STYLE_DEFS = {
             [0.72, { sy: 1.12, cr: 0.27, rh: [0.06, 1.0, 0.88], rt: [-0.46, 0.24, 0.85], rn: [0.2, 0.85, 0.48], lh: [-0.5, 1.1, -0.7] }],
             [1, { sy: 1.06, hy: 0.6, cr: 0.2, rh: [0.1, 1.06, 0.8], rt: [-0.44, 0.32, 0.84], rn: [0.2, 0.85, 0.48], lh: [-0.5, 1.12, -0.68] }]],
       srv: serveKeys({ stance: 1, knee: 0.24, turn: 1.28, arch: 0.32, toss: 2.2, tipBack: 0.25, drop: 0.8, leap: 0.13, land: 0.76, kick: 0.22 }),
+    } },
+  // ---------------- FRITZ ----------------
+  // (tennis.com Tech Talk, Punto de Break, CPTA, Brain Game Tennis) 1.96 m, upright and long-levered.
+  // Forehand: an extreme grip, past full western - the face is shut in the takeback and the racket is LOW: the
+  // elbow stays tucked in by the waist instead of the arm and racket head lifted to head height, so the loop is
+  // short and below the shoulders; the left arm reaches out across and its pull back gives the torque as he turns
+  // into the court; a flat, heavy strike out in front with the chest coming round, then the forearm turns over in a
+  // quick wiper and the racket wraps over the left shoulder with the elbow pointing at the target.
+  // Backhand: a compact, flat two-hander from a closed, quiet stance - the arms run the show while the left hip and
+  // shoulder stay back (closed) through contact; a long push through the line, finishing with the hands up by the
+  // right shoulder, the chest still fairly side-on.
+  // Serve: foot back (the back foot stays back - a platform-style base), a full, fluid wind-up, big knee bend and
+  // leg drive from his height, a deep racket drop and contact at full stretch, landing well into the court.
+  fri: { hand: 1, headLock: 0.3, reach: { fh: { tb: 0.76, ct: 0.92, ex: 0.93 }, bh: { tb: 0.84, ct: 0.96, ex: 0.96 } }, split: 0.95, bounce: 0.02, drive: 0.04,
+    ready: { cr: 0.14, sp: 0.13, rh: [0.12, 0.98, 0.37], lg: 1, gp: 0.14, fL: [-0.28, 0.04], fR: [0.28, 0] },
+    keys: {
+      // low, tucked, face-shut takeback: hand at the hip, racket head up behind with the strings to the court
+      fh: [[0, { sy: -1.42, hy: -0.72, cr: 0.13, px: 0.06, rh: [0.3, 1.02, -0.12], rt: [0.22, 0.62, -0.75], rn: [0.25, -0.8, 0.55], lg: 0.3, gp: 0.3, lh: [0.5, 1.2, 0.58], fL: [-0.23, 0.08], fR: [0.31, -0.04], aL: 0.35, aR: 0.8 }],
+           [0.12, { sy: -1.46, rh: [0.34, 0.98, -0.22], rt: [0.4, 0.3, -0.87], rn: [0.1, -0.95, 0.3], lg: 0, lh: [0.52, 1.2, 0.6] }],
+           // the head drops behind and below the hand, the elbow still in by the waist
+           [0.24, { sy: -1.12, hy: -0.5, cr: 0.15, rh: [0.38, 0.86, -0.16], rt: [0.28, -0.78, -0.56], rn: [0.05, -0.35, 0.94], lh: [0.42, 1.18, 0.56] }],
+           [0.34, { sy: -0.5, hy: 0.0, rh: [0.44, 0.84, 0.14], rt: [0.36, -0.55, -0.75], rn: [-0.1, 0.0, 1], lh: [0.12, 1.18, 0.46] }],
+           [0.42, { sy: 0.18, hy: 0.42, cr: 0.12, px: 0.0, pz: 0.04, rh: [0.44, 0.98, 0.46], rt: [0.96, 0.03, 0.26], rn: [-0.15, 0.06, 1], lh: [-0.22, 1.18, 0.24] }],
+           // quick wiper: the forearm turns over right after contact
+           [0.53, { sy: 0.68, hy: 0.6, rh: [0.28, 1.22, 0.66], rt: [0.32, 0.86, 0.4], rn: [-0.92, 0.12, 0.36], lh: [-0.32, 1.14, 0.16] }],
+           [0.7, { sy: 1.08, hy: 0.76, rh: [-0.04, 1.42, 0.5], rt: [-0.42, 0.62, -0.66], rn: [-0.4, -0.45, -0.8], hlR: 0.5 }],
+           // wrapped over the left shoulder, elbow up and pointing at the target
+           [1, { sy: 1.3, hy: 0.84, cr: 0.1, rh: [-0.22, 1.5, 0.36], rt: [-0.3, -0.3, -0.9], rn: [-0.2, 0.35, -0.92], lg: 0.4, gp: 0.3, hlR: 0.75 }]],
+      // closed, quiet two-hander: the hips stay shut, the arms drive it
+      bh: [[0, { sy: 1.5, hy: 0.95, cr: 0.15, rh: [-0.32, 1.06, -0.24], rt: [-0.08, 0.72, -0.69], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.3, -0.1], fR: [0.02, 0.26], aL: -0.6, aR: -0.4 }],
+           [0.14, { sy: 1.55, hy: 0.98, rh: [-0.36, 1.02, -0.3], rt: [-0.18, 0.3, -0.94], rn: [0.7, -0.2, 0.68] }],
+           [0.24, { sy: 1.38, hy: 0.92, cr: 0.17, rh: [-0.36, 0.9, -0.2], rt: [-0.25, -0.45, -0.86], rn: [0.35, -0.25, 0.9] }],
+           [0.33, { sy: 1.08, hy: 0.8, rh: [-0.3, 0.9, 0.17], rt: [-0.68, -0.24, -0.69], rn: [0.15, -0.12, 0.98] }],
+           [0.42, { sy: 0.8, hy: 0.66, cr: 0.15, rh: [-0.2, 0.97, 0.52], rt: [-0.92, 0.06, 0.3], rn: [0.12, -0.06, 1] }],
+           // long, flat push through the line before the hands come up
+           [0.55, { sy: 0.46, hy: 0.52, rh: [-0.04, 1.08, 0.82], rt: [-0.62, 0.22, 0.75], rn: [0.7, 0.05, 0.72] }],
+           [0.7, { sy: 0.12, hy: 0.4, rh: [0.14, 1.32, 0.62], rt: [-0.05, 0.9, 0.42], rn: [0.95, 0.05, 0.25] }],
+           [1, { sy: -0.3, hy: 0.25, cr: 0.11, rh: [0.32, 1.42, 0.3], rt: [0.32, 0.25, -0.91], rn: [0.92, 0.3, -0.1], hlL: 0.35 }]],
+      srv: serveKeys({ stance: 0, rock: 0.06, knee: 0.27, turn: 1.32, arch: 0.4, toss: 2.24, tipBack: 0.15, drop: 0.95, leap: 0.18, land: 0.88, kick: 0.3 }),
     } },
   // ---------------- CPU (fixed, tidy all-court style with a two-handed backhand) ----------------
   cpu: { hand: 1, headLock: 0.16, split: 1.1, bounce: 0.026, drive: 0.02,
@@ -4572,7 +4618,7 @@ function buildWarp(st, kind, arm) {
 // is eased part of the way toward the contact direction: authored at full lag, the head all but stopped there while the
 // hand and hips moved on, then snapped through the last frames. The amounts were picked per stroke (measured tip speed:
 // the head now keeps speeding up into the ball, the lag still reads).
-const LAG_EASE = { fed: [0.3, 0.25], rafa: [0.35, 0], nole: [0.35, 0.25], kyr: [0.4, 0.2], sin: [0.35, 0.25], alc: [0.4, 0.3], waw: [0.4, 0.4], dpo: [0.4, 0.25], zve: [0.4, 0.3], pete: [0.4, 0.4], mur: [0.35, 0.25], cpu: [0.35, 0], cus: [0.35, 0] };
+const LAG_EASE = { fed: [0.3, 0.25], rafa: [0.35, 0], nole: [0.35, 0.25], kyr: [0.4, 0.2], sin: [0.35, 0.25], alc: [0.4, 0.3], waw: [0.4, 0.4], dpo: [0.4, 0.25], zve: [0.4, 0.3], pete: [0.4, 0.4], mur: [0.35, 0.25], fri: [0.4, 0.3], cpu: [0.35, 0], cus: [0.35, 0] };
 for (const k in STYLES) {
   const st = STYLES[k], E = LAG_EASE[k] || LAG_EASE.cpu;
   ['fh', 'bh'].forEach((kind, j) => {
@@ -4637,6 +4683,13 @@ const CELEBS = {
     const w = inW(t, 0.16); T.lg = 0;
     if (big) { const p = pumpW(t, 2.2, 2); T.cr += 0.12 * w; T.sp += 0.12 * w; cbl(T.rh, [0.3, 1.18 + 0.1 * p, 0.3], w); cbl(T.rt, CU, w); cbl(T.lh, [-0.3, 1.18 + 0.1 * p, 0.3], w); }
     else { const p = pumpW(t, 3, 1); racketDown(T, w); T.cr += 0.06 * w; cbl(T.lh, [-0.24, 1.0 + 0.18 * p, 0.34], w); }
+  },
+  // Fritz: a loud "Come on!" - leaning toward his box, the free fist clenched and shaken low by the hip, the racket
+  // held up beside him; a single quick fist on ordinary points
+  fri(T, t, big) {
+    const w = inW(t, 0.15); T.lg = 0;
+    if (big) { const p = pumpW(t, 3.4, 3); T.cr += 0.1 * w; T.sp += 0.16 * w; T.sy -= 0.15 * w; cbl(T.rh, [0.34, 1.12, 0.24], w); cbl(T.rt, CU, w); cbl(T.lh, [-0.3, 0.98 + 0.14 * p, 0.32 + 0.06 * p], w); }
+    else { const p = pumpW(t, 3, 1); racketDown(T, w); T.cr += 0.05 * w; cbl(T.lh, [-0.24, 0.98 + 0.16 * p, 0.3], w); }
   },
   // "Vamos!": crouched low, the free fist uppercutting again and again, racket hanging down
   rafa(T, t, big) {
@@ -5452,6 +5505,10 @@ const LOOKS = {
   // Murray: tall and lean, fair skin, short tousled dark-brown hair and stubble; white shirt with navy trim, navy shorts
   mur: { face: { nose: 1.08, jaw: 1.02, chin: 1.04, brow: 1.1, stubble: 0.45, eye: 0x4a3322 }, skin: 0xe6bea0, shirt: 0xf4f4f2, shorts: 0x1a2340, collar: 0x1a2340, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1a2340, hair: 0x2b1d14, hairStyle: 'short', headwear: 'none', racket: 0x22262e, sleeves: true,
           build: { arm: 0.93, fore: 0.94, leg: 1.0, chest: 0.95, waist: 0.9, shorts: 0.42, sleeve: 0.46 } },
+  // Fritz: 1.96 m, long and lean, fair skin, short light-brown hair swept up on top; black shirt with white trim,
+  // white shorts, an orange-and-black frame (generic: build, colouring and kit only, no facial likeness)
+  fri: { face: { nose: 1.06, noseW: 0.98, jaw: 1.06, chin: 1.08, brow: 1.05, stubble: 0.12, eye: 0x6b7f8c }, skin: 0xebc6a6, shirt: 0x17181c, shorts: 0xf2f2ef, collar: 0xf2f2ef, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x17181c, hair: 0x8a6a4a, hairStyle: 'short', headwear: 'none', racket: 0xd8652a, sleeves: true, height: 1.06,
+          build: { arm: 0.95, fore: 0.96, leg: 0.98, chest: 0.98, waist: 0.93, shorts: 0.42, sleeve: 0.44 } },
   // Del Potro: very tall (1.98 m) and long-limbed, wavy dark hair and a short beard, sky-blue shirt, navy shorts
   dpo:  { face: { nose: 1.1, jaw: 1.08, chin: 1.1, stubble: 0.85, eye: 0x3a2616 }, skin: 0xdcae8a, shirt: 0x8cc2e6, shorts: 0x1b2436, collar: 0xffffff, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1b2436, hair: 0x2a1c14, hairStyle: 'medium', beard: true, headwear: 'none', racket: 0x22252b, sleeves: true, height: 1.07,
           build: { arm: 1.0, fore: 1.0, leg: 1.0, chest: 1.0, waist: 0.98, shorts: 0.42, sleeve: 0.44 } },
@@ -7737,11 +7794,12 @@ const PLAYER_INFO = {
   waw: { tag: 'Right-handed · one-handed backhand', sig: 'The heaviest one-handed backhand ever (125): tip-up compact loop, early arm extension and a huge finish behind the head. A heavy forehand (105), slow-ish feet, little touch.' },
   pete: { tag: 'Right-handed · one-handed backhand', sig: 'The greatest serve-and-volleyer: the best volleys in the game (130) and a huge serve (110) off a loose, deep racket drop, landing well inside the court. A high-loop running forehand that finishes by the right ear. Ordinary off the ground (70): get to the net.' },
   mur: { tag: 'Right-handed · two-handed backhand', sig: 'The great counter-puncher: elite movement (120), a 110 backhand and a 95 slice; a 90 volley, an 80 forehand and serve.' },
+  fri: { tag: 'Right-handed · two-handed backhand', sig: 'The biggest serve in the game (115) from 1.96 m, then a flat, heavy forehand (105) off an extreme grip and a low, tucked takeback. A solid two-hander (95); the legs are the weak spot (75).' },
   cus: { tag: 'Your player · right-handed · two-handed backhand', sig: 'Build your own: drag each rating anywhere from 0 to 250 (most tour players sit between 65 and 130). No special ability.' },
-  kyr: { tag: 'Right-handed · two-handed backhand', sig: 'The biggest serve in the game: a low, quick toss struck on the way up (release a touch earlier). Whippy forehand, great hands, slow feet.' },
+  kyr: { tag: 'Right-handed · two-handed backhand', sig: 'A huge serve (110): a low, quick toss struck on the way up (release a touch earlier). Whippy forehand, great hands, slow feet.' },
 };
 const STAT_ROWS = [['serve', 'Serve'], ['fh', 'Forehand'], ['bh', 'Backhand'], ['net', 'Volley'], ['slice', 'Slice'], ['drop', 'Drop shot'], ['speed', 'Movement']];
-const ROSTER = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'cus'];
+const ROSTER = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'fri', 'cus'];
 setTimeout(() => prebuildBodies(ROSTER.map(k => LOOKS[k]).concat([LOOKS.cpu])), 600);
 // player select: one player at a time, the live 3D model on the left (framed by the menu camera), his card on the right
 function renderPlayers() {
@@ -8061,7 +8119,7 @@ if (!settings.tutDone) $('toTut').classList.add('next'); // (first time here: th
   H.practice = (kind, sub, pr) => { oP(kind, sub, pr); tutEvent('practice', kind); };
   H.bounce = (e, live) => { oB(e, live); tutEvent('bounce', e); }; }
 // ---- doubles line-up ----
-const D_POOL = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur'];
+const D_POOL = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'fri'];
 const D_SLOTS = ['dPartner', 'dOpp1', 'dOpp2'];
 // no player appears twice on court: a clash (with you, or between slots) is replaced by the first free player
 function dLineup() {
@@ -8504,7 +8562,7 @@ function startNetMatch() {
   // a random match: two different pros, a quick match, a random court - picked by the host and sent with "go"
   let rp = null;
   if (NET.mode === 'random') {
-    const POOL = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur'], ok = k => POOL.includes(k);
+    const POOL = ['fed', 'rafa', 'nole', 'sin', 'alc', 'kyr', 'waw', 'dpo', 'zve', 'pete', 'mur', 'fri'], ok = k => POOL.includes(k);
     if (host) { const a = POOL[Math.floor(Math.random() * POOL.length)], rest = POOL.filter(k => k !== a); rp = [a, rest[Math.floor(Math.random() * rest.length)], Math.floor(Math.random() * 4)]; }
     else rp = Array.isArray(hc.rp) && ok(hc.rp[0]) && ok(hc.rp[1]) ? hc.rp : ['fed', 'rafa', 0];
     cfg.player = host ? rp[0] : rp[1]; cfg.opp = host ? rp[1] : rp[0]; cfg.oppCus = null;
