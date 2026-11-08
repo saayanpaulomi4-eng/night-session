@@ -1621,7 +1621,7 @@ function createSim(H, cfg) {
       const k = info.tweener ? 'tw' : info.smash ? 'oh' : info.volley ? (f ? 'vfh' : 'vbh') : info.type === 'drop' ? (f ? 'dfh' : 'dbh') : info.type === 'slice' ? (f ? 'sfh' : 'sbh') : (f ? 'fh' : 'bh');
       a.flat = info.type === 'flat' && !info.volley && !info.smash;
       if (a.kind !== k && !(a.kind === 'oh' && k === 'oh')) a.blendFrom = a.kind;
-      const base = k === 'oh' ? 1.7 : k[0] === 'v' ? 2.4 : k[0] === 'd' ? 1.3 : k[0] === 's' ? 1.5 : 1.7; // the finish is held long enough to read (a drop shot's finish is short)
+      const base = k === 'oh' ? 1.7 : k[0] === 'v' ? 2.4 : k[0] === 'd' ? 1.3 : k[0] === 's' ? 1.5 : k === 'fh' || k === 'bh' ? 1.55 : 1.7; // the finish is held long enough to read (a drop shot's finish is short)
       const inRate = a.fwd ? Math.max(a.rate, a.fwdRate || 0) : base;
       a.kind = k; a.fwd = false; a.cap = 1; a.active = true; a.baseRate = base;
       // if the swing is running late, catch up quickly but continuously instead of snapping to the contact pose;
@@ -5139,8 +5139,11 @@ function syncAthlete0(h, Mo, dt) {
   // the springs alone pass the jump straight through as a burst of speed - the "pop". Instead the old target is
   // held and blended into the new one over a moment.
   // the end of every stroke flows back into the ready stance (instead of freezing in the finish, then snapping)
+  // (it starts once the finish has been reached: the stroke paths arrive at their finish around s 0.8, and a return
+  //  that began at 0.7 washed every player's own finish - the wrap, the lasso, the high one-hander - into the same
+  //  racket-up-in-front ready pose)
   if (swinging && !a.prep && !mood) {
-    const r0 = a.kind === 'srv' ? 0.8 : a.kind === 'oh' || a.kind === 'tw' ? 0.76 : a.kind === 'fh' || a.kind === 'bh' ? 0.7 : 0.66, u0 = a.s > r0 ? Math.min(1, (a.s - r0) / (1 - r0)) : 0, r = u0 * u0 * u0 * (u0 * (u0 * 6 - 15) + 10);
+    const r0 = a.kind === 'srv' ? 0.8 : a.kind === 'oh' || a.kind === 'tw' ? 0.76 : a.kind === 'fh' || a.kind === 'bh' ? 0.83 : 0.74, u0 = a.s > r0 ? Math.min(1, (a.s - r0) / (1 - r0)) : 0, r = u0 * u0 * u0 * (u0 * (u0 * 6 - 15) + 10);
     if (r > 0) { const rs = st.readySpec; for (const key of SC) if (!FAST_KEYS[key]) T[key] += (rs[key] - T[key]) * r; for (const key of V3K) { if (key === 'rt' || key === 'rn' || key === 'rp') slerpDir(T[key], rs[key], r, T[key]); else for (let j = 0; j < 3; j++) T[key][j] += (rs[key][j] - T[key][j]) * r; } for (const key of V2K) for (let j = 0; j < 2; j++) T[key][j] += (rs[key][j] - T[key][j]) * r; }
   }
   {
@@ -6919,6 +6922,7 @@ function makeModel(look, style) {
   if (!look.noRacket) {
     racket = new THREE.Group(); racket.position.set(0, -0.05, 0.006); racket.scale.setScalar(1.12); armR.hand.add(racket); // a touch larger so it reads in the TV view
     if (MHB_) { racket.position.copy(MH_GRIPQ.pos); racket.quaternion.copy(MH_GRIPQ.q); } // (held in the new hand's fist)
+    racket.userData.q0 = racket.quaternion.clone();
     // grip: octagonal handle with a white overgrip and a flared butt cap
     const gripM = new THREE.MeshStandardMaterial({ map: gripTex, roughness: 0.9 });
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.0165, 0.0175, 0.2, 8), gripM); handle.position.y = -0.045; racket.add(handle);
@@ -7229,7 +7233,7 @@ const _dV = new THREE.Vector3();
 // in the plane of the racket face and are gone in a tenth of a second; a few felt fibres and a faint puff of felt
 // come off the ball; the string bed shivers; a hard hit gives the near camera a tiny punch.
 const gaussR = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-const SFX = { t: 9, off: new THREE.Vector3(), pk: 0, idx: 0, wob: [9, 9, 9, 9], wobA: [0, 0, 0, 0] };
+const SFX = { t: 9, off: new THREE.Vector3(), pk: 0, idx: 0, wob: [9, 9, 9, 9], wobA: [0, 0, 0, 0] }; const _wobQ = new THREE.Quaternion(), _wobE = new THREE.Euler();
 // the air pushed off the strings: a soft-edged ring with a bright leading rim (a pressure wave, not a hoop)
 const waveTex = canvasTex(256, 256, (g, w, h) => {
   g.clearRect(0, 0, w, h); const gr = g.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w / 2);
@@ -7337,8 +7341,11 @@ function updateStrikeFx(rdt, vdt) {
   for (let i = 0; i < sim.P.length; i++) {
     const M = models[i]; if (!M || !M.racket) continue;
     SFX.wob[i] += vdt; const t = SFX.wob[i];
-    if (t < 0.2) { const a = SFX.wobA[i] * Math.exp(-t / 0.055); M.racket.rotation.set(a * Math.sin(t * 190), 0, a * 0.5 * Math.sin(t * 190 + 1.3)); }
-    else if (M.racket.rotation.x || M.racket.rotation.z) M.racket.rotation.set(0, 0, 0);
+    // (the flutter rides on top of the racket's own angle in the fist: resetting the rotation to zero threw away the
+    //  new hands' grip angle after the first hit and left the racket twisted in the hand for the rest of the match)
+    const q0 = M.racket.userData.q0 || (M.racket.userData.q0 = M.racket.quaternion.clone());
+    if (t < 0.2) { const a = SFX.wobA[i] * Math.exp(-t / 0.055); _wobE.set(a * Math.sin(t * 190), 0, a * 0.5 * Math.sin(t * 190 + 1.3)); M.racket.quaternion.copy(q0).multiply(_wobQ.setFromEuler(_wobE)); M.racket.userData.wob = true; }
+    else if (M.racket.userData.wob) { M.racket.quaternion.copy(q0); M.racket.userData.wob = false; }
   }
 }
 
