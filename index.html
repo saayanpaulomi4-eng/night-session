@@ -471,6 +471,33 @@ kbd.wide{min-width:52px}
   .modes{grid-template-columns:repeat(6,minmax(0,1fr))}.mode small{display:none}.mode b{font-size:13px}
   .go .cta{font-size:19px;padding:8px}
 }
+
+/* ===== menu v2 polish ===== */
+.ghost-name{display:none} /* (the giant outlined name was clipped by the panels on every screen size: the card already shows the name) */
+.plist{align-self:start;max-height:var(--rowH,100%);background:rgba(9,15,28,.86)}
+.card{align-self:start;align-content:start;max-height:var(--rowH,100%);background:rgba(9,15,28,.9)}
+.card,.plist{box-sizing:border-box}
+.bars.edit{gap:5px}.bars.edit input[type=number]{padding:2px 4px;font-size:18px}
+.card .who{gap:2px}
+.abil{margin-top:2px}
+.nav{width:44px;height:44px;background:rgba(9,15,28,.7)}
+.selbot{background:linear-gradient(0deg,rgba(6,10,19,.85),rgba(6,10,19,.55));border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.setup .seg button,.mode{transition:background .15s,border-color .15s,color .15s}
+.setup .seg button:hover{border-color:rgba(238,242,234,.45)}
+.roster button{transition:background .12s,border-color .12s}
+@media (max-width:860px),(orientation:portrait){
+  .selbot{background:none;border:0;border-radius:0;padding:10px 0 0}
+  .card{max-height:none}
+  .plist{background:none}
+  .topbtn span{display:none}.topbtn{padding:8px 10px}
+  .go{background:linear-gradient(0deg,var(--night) calc(100% - 14px),rgba(6,10,19,0))}
+}
+@media (max-height:500px) and (orientation:landscape){
+  .selbot{background:none;border:0;border-radius:0;padding:8px 0 0;margin-top:28px} /* (starts below the fold, not half-hidden behind the Play bar) */
+  .plist{background:none;align-self:end}
+  .card{max-height:calc(100vh - 140px);overflow-y:auto}
+  .go{background:linear-gradient(0deg,var(--night) calc(100% - 10px),rgba(6,10,19,0));padding-top:12px}
+}
 </style>
 
 <div id="stage"></div>
@@ -8244,6 +8271,8 @@ function openSettings(on) {
   if (on) { AU.ui && AU.ui(); setTimeout(() => $('setClose').focus(), 30); } else $('setOpen').focus();
 }
 $('setOpen').addEventListener('click', () => openSettings(true), L);
+function menuRowH() { const z = $('avatarZone'), s = document.querySelector('.sel'); if (!z || !s) return; const h = z.getBoundingClientRect().height; if (h > 0) s.style.setProperty('--rowH', Math.floor(h) + 'px'); }
+window.addEventListener('resize', menuRowH, L); setTimeout(menuRowH, 50); setTimeout(menuRowH, 600);
 $('setClose').addEventListener('click', () => openSettings(false), L);
 $('setDrawer').addEventListener('click', e => { if (e.target === $('setDrawer')) openSettings(false); }, L);
 window.addEventListener('keydown', e => { if (e.code === 'Escape' && !$('setDrawer').hidden) { e.preventDefault(); e.stopImmediatePropagation(); openSettings(false); } }, { capture: true, signal: lifetime.signal });
@@ -9549,7 +9578,7 @@ function menuCamera(now, dt) {
   const r = z.getBoundingClientRect(), W = window.innerWidth, Hh = window.innerHeight;
   if (r.width < 10 || r.height < 10) return;
   const t = now / 1000, a = 0.42 + Math.sin(t * 0.25) * 0.12 + (menuShow.dir ? 0 : 0);
-  const fov = 34, tall = 2.25, px = Math.max(120, r.height * 0.86);
+  const fov = 34, tall = 2.25, px = Math.max(120, Math.min(r.height * 0.8, r.width * 1.05));
   const d = tall * Hh / (2 * Math.tan(fov * Math.PI / 360) * px);
   M.root.getWorldPosition(_mc);
   camera.fov = fov;
