@@ -4855,7 +4855,7 @@ function rootLocalToWorld2(Mo, r, f, out) { _fw.v.set(-r, 0, f); Mo.root.localTo
 function gaitSpot(h, Mo, i, tAhead, spd, out) {
   const vx = h.vel.x, vz = h.vel.z, ux = vx / spd, uz = vz / spd;
   rootLocalToWorld2(Mo, i === 0 ? -0.12 : 0.12, 0, out); const ox = (out.x - h.pos.x) / 0.12, oz = (out.y - h.pos.z) / 0.12;
-  const sideways = Math.abs(ox * ux + oz * uz), w = 0.1 + 0.13 * sideways, lead = (0.05 + 0.02 * spd) * (1 - 0.6 * sideways);
+  const sideways = Math.abs(ox * ux + oz * uz), w = 0.1 + 0.07 * sideways, lead = (0.05 + 0.02 * spd) * (1 - 0.6 * sideways);
   return out.set(h.pos.x + vx * tAhead + ux * lead + ox * w, h.pos.z + vz * tAhead + uz * lead + oz * w);
 }
 // the legs never scissor: a stepping foot lands on its own side of the other foot (left foot to the body's left),
@@ -4867,7 +4867,7 @@ function keepSides(Mo, feet, i, h) {
   // (a side shuffle keeps the feet about shoulder-width apart even as they close; running they pass close by)
   const spd = Math.hypot(h.vel.x, h.vel.z), ry = Mo.root.rotation.y;
   const sideways = spd > 0.5 ? Math.abs((h.vel.x * Math.cos(ry) - h.vel.z * Math.sin(ry)) / spd) : 1;
-  const gap = 0.12 + 0.13 * sideways, sd = i === 0 ? 1 : -1;            // left foot is root-local +x
+  const gap = 0.12 + 0.08 * sideways, sd = i === 0 ? 1 : -1;            // left foot is root-local +x
   if ((_ks.x - _ko.x) * sd < gap) { _ks.x = _ko.x + sd * gap; Mo.root.localToWorld(_ks); F.to.x = _ks.x; F.to.y = _ks.z; }
 }
 function updateFeet(h, Mo, spec, dt, stroke) {
@@ -4882,7 +4882,7 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     const lead = Math.min(0.26, spd * 0.055) / spd;
     // (moving sideways to the body - a shuffle - the feet stay about stance-width apart; turned into a run they
     //  come in under the hips)
-    const ry = Mo.root.rotation.y, sw = Math.abs((vx * Math.cos(ry) - vz * Math.sin(ry)) / spd), hw = 0.12 + 0.13 * sw;
+    const ry = Mo.root.rotation.y, sw = Math.abs((vx * Math.cos(ry) - vz * Math.sin(ry)) / spd), hw = 0.12 + 0.07 * sw;
     rootLocalToWorld2(Mo, -hw, 0, D[0]); rootLocalToWorld2(Mo, hw, 0, D[1]);
     for (const d of D) { d.x += vx * lead; d.y += vz * lead; }
   } else {
@@ -4912,8 +4912,11 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     //  waiting for its beat: the body never drags away from a planted foot)
     const nf = feet[Mo.gaitNext], behind = -((nf.p.x - h.pos.x) * ux + (nf.p.y - h.pos.z) * uz);
     if (Mo.gaitT >= per || (Mo.gaitT >= per * 0.3 && behind > 0.3 + 0.03 * spd)) {
-      const i = Mo.gaitNext, F = feet[i];
-      if (!F.swing) {
+      const i = Mo.gaitNext, F = feet[i], O = feet[1 - i];
+      // (one foot on the court at all times below a sprint - a jog with both feet up at once read as hopping; flat out
+      //  the next foot may leave just before the other lands, a short flight)
+      const flight = Math.max(0, Math.min(0.25, (spd - 4.2) * 0.15));
+      if (!F.swing && (!O.swing || O.t / O.dur >= 1 - flight)) {
         Mo.gaitT -= per; if (Mo.gaitT > per) Mo.gaitT = 0;
         Mo.gaitNext = 1 - i;
         F.swing = true; F.t = 0; F.from.copy(F.p); F.g = Math.min(1, Math.max(0, (spd - 2.2) / 2.2));
@@ -4929,7 +4932,7 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     const F = feet[i], far = F.p.distanceTo(D[i]);
     if (far > 0.75 && !F.swing && !Mo.gaitOn) { F.swing = true; F.t = 0; F.from.copy(F.p); F.dur = 0.12; F.to.copy(D[i]); F.gait = false; }
   }
-  const busy = f => f.swing && !(moving && spd > 1.5 && f.t / f.dur > 0.45 + 0.25 * g);
+  const busy = f => f.swing;
   const anySwing = busy(feet[0]) || busy(feet[1]);
   if (!anySwing && !Mo.gaitOn) {
     const e0 = feet[0].p.distanceTo(D[0]), e1 = feet[1].p.distanceTo(D[1]);
@@ -5393,7 +5396,9 @@ function syncAthlete0(h, Mo, dt) {
   const feet = Mo.feet;
   // pelvis height: as low as the stance asks, and low enough that both legs reach their planted feet
   const Lmax = (THIGH + SHIN) * 0.985, ANK = 0.07;
-  let drop = S.cr;
+  // (the stance's knee bend, toned down: at full value every player waited and moved in a deep squat, the hips
+  //  15-25 cm down - real players are bent but far more upright between shots)
+  let drop = S.cr * 0.7;
   const hipYaw = S.hy;
   for (let i = 0; i < 2; i++) {
     const side = i === 0 ? 1 : -1; // left hip is root-local +x
@@ -5404,7 +5409,7 @@ function syncAthlete0(h, Mo, dt) {
     drop = Math.max(drop, HIP_Y + S.lift - maxHip);
   }
   // never sink into a split: a real player is at most in a deep athletic crouch
-  drop = Math.min(drop, Math.min(0.24, S.cr) + 0.06);
+  drop = Math.min(drop, Math.min(0.17, S.cr * 0.7) + 0.05);
   // the hips follow the legs on a spring, so steps and stance changes never jolt the body
   if (Mo.dropS === undefined) { Mo.dropS = drop; Mo.dropV = 0; }
   Mo.dropS = spring(Mo.dropS, Mo.dropV, drop, 40, dt); Mo.dropV = _spV; drop = Mo.dropS;
@@ -5436,7 +5441,7 @@ function syncAthlete0(h, Mo, dt) {
   Mo.chest.rotation.set(S.sp * 0.5 + drop * 0.4, torsoYaw, S.tl);
   Mo.root.updateMatrixWorld(true);
   // ---- 6. legs: IK to the planted feet ----
-  const kneeOut = 0.42; // knees track out over the toes in an athletic stance (not knock-kneed)
+  const kneeOut = 0.3; // knees track out over the toes in an athletic stance (not knock-kneed, not bowed like a sumo stance)
   for (let i = 0; i < 2; i++) {
     const L = i === 0 ? Mo.legL : Mo.legR, F = feet[i], side = i === 0 ? 1 : -1;
     let heel = i === 0 ? S.hlL : S.hlR; const air = i === 0 ? S.airL : S.airR;
@@ -5470,7 +5475,10 @@ function syncAthlete0(h, Mo, dt) {
   const rt = _sv.a.set(-S.rt[0], S.rt[1], S.rt[2]).normalize();
   const wristL = _sv.b.set(-S.rh[0], S.rh[1], S.rh[2]);
   Mo.root.localToWorld(wristL);
-  _sv.pole.set(-S.rp[0], S.rp[1], S.rp[2]).normalize();
+  // (between shots the elbows hang relaxed by the sides instead of flaring out like wings - from behind the old
+  //  ready stance looked like hands on hips)
+  Mo.elbIn = (Mo.elbIn || 0) + (((!swinging && !mood) ? 1 : 0) - (Mo.elbIn || 0)) * Math.min(1, dt * 6);
+  _sv.pole.set(-S.rp[0] * (1 - 0.6 * Mo.elbIn), S.rp[1], S.rp[2] - 0.2 * Mo.elbIn).normalize();
   Mo.chest.updateMatrixWorld(true);
   // long levers: through the takeback, contact and extension keep the hitting arm reaching out from the shoulder
   // (hand moved outward horizontally, height kept); on two-handers the other arm must still reach the grip
@@ -5576,7 +5584,8 @@ function syncAthlete0(h, Mo, dt) {
   }
   // (running: the free elbow swings back by the ribs instead of flaring out)
   Mo.runArm = (Mo.runArm || 0) + ((Mo.runArmT || 0) - (Mo.runArm || 0)) * Math.min(1, dt * 8); Mo.runArmT = 0;
-  _sv.pole.set(1 - 0.75 * Mo.runArm, -1 + 0.7 * Mo.runArm, -0.5 - 0.5 * Mo.runArm).normalize();
+  const ei = Math.max(Mo.runArm, 0.6 * (Mo.elbIn || 0));
+  _sv.pole.set(1 - 0.75 * ei, -1 + 0.7 * Mo.runArm, -0.5 - 0.5 * ei).normalize();
   twoBone(Mo.chest, Mo.armL.sh, Mo.armL.elbow, UPPER, FORE + 0.02, lhW, _sv.pole, 1, 1, Mo.ikL || (Mo.ikL = {}), dt);
   Mo.armL.hand.rotation.set(0.2, 0, 0);
   if (Mo.grip) {
