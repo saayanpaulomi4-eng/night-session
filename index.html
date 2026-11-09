@@ -5077,7 +5077,14 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     rootLocalToWorld2(Mo, -hw, 0, D[0]); rootLocalToWorld2(Mo, hw, 0, D[1]);
     for (const d of D) { d.x += vx * lead; d.y += vz * lead; }
   } else {
-    rootLocalToWorld2(Mo, spec.fL[0], spec.fL[1], D[0]); rootLocalToWorld2(Mo, spec.fR[0], spec.fR[1], D[1]);
+    // (a stroke's stance a little narrower than authored: with the knee bend now lighter, the full-width split stances
+    //  left the legs locked straight - the "stretched" look at contact)
+    const nw = stroke ? 0.82 : 1;
+    rootLocalToWorld2(Mo, spec.fL[0] * nw, spec.fL[1] * nw, D[0]); rootLocalToWorld2(Mo, spec.fR[0] * nw, spec.fR[1] * nw, D[1]);
+    // moving during a stroke (sliding into the ball, pushing off into the recovery): the stance travels with the body,
+    // a little ahead of it, so the feet keep stepping under the hips instead of staying planted while the body glides
+    // away from them (the legs stretched out straight on every assisted forehand and volley)
+    if (stroke && spd > 0.3) { const ld = Math.min(0.2, spd * 0.07) / spd; for (const d of D) { d.x += vx * ld; d.y += vz * ld; } }
   }
   // first frame / teleports: snap
   for (let i = 0; i < 2; i++) { const F = feet[i]; if (!F.init || F.p.distanceTo(D[i]) > 2.4) { F.p.copy(D[i]); F.to.copy(D[i]); F.swing = false; F.init = true; } }
@@ -5118,7 +5125,23 @@ function updateFeet(h, Mo, spec, dt, stroke) {
       }
     }
   } else if (Mo.gaitOn) Mo.gaitOn = false;
-  const thr = moving ? Math.max(0.12, Math.min(0.3, spd * 0.06)) * (1 - g) + Math.max(0.3, Math.min(0.6, spd * 0.1)) * g : stroke ? 0.07 : 0.09;
+  const thr = moving ? Math.max(0.12, Math.min(0.3, spd * 0.06)) * (1 - g) + Math.max(0.3, Math.min(0.6, spd * 0.1)) * g : stroke ? (spd > 0.3 ? 0.1 : 0.07) : 0.09;
+  // never a stretched leg: a planted foot that has ended up further from its hip than a comfortable stride (the body
+  // slid on, or the stance target moved) steps back under the body straight away, even mid-stroke
+  if (!Mo.gaitOn) for (let i = 0; i < 2; i++) {
+    const F = feet[i]; if (F.swing) continue;
+    rootLocalToWorld2(Mo, i === 0 ? -0.1 : 0.1, 0, _fw.h || (_fw.h = new THREE.Vector2()));
+    const reach = Math.hypot(F.p.x - _fw.h.x, F.p.y - _fw.h.y);
+    if (reach > (stroke || spd > 0.3 ? 0.4 : 0.5) && !feet[1 - i].swing) { F.swing = true; F.t = 0; F.from.copy(F.p); F.to.copy(D[i]); F.dur = Math.max(0.12, Math.min(0.2, 0.08 + reach * 0.16)); F.gait = false; F.g = 0; break; }
+  }
+  // the trailing foot drags: while the other foot is still in the air and the body runs on past a planted foot,
+  // that foot rides up onto its toes and slides along behind (a toe drag), instead of the leg locking out straight
+  for (let i = 0; i < 2; i++) {
+    const F = feet[i]; F.dg = (F.dg || 0) * Math.max(0, 1 - dt * 8); if (F.swing || !feet[1 - i].swing) continue;
+    rootLocalToWorld2(Mo, i === 0 ? -0.1 : 0.1, 0, _fw.h || (_fw.h = new THREE.Vector2()));
+    const dx = F.p.x - _fw.h.x, dz = F.p.y - _fw.h.y, reach = Math.hypot(dx, dz), lim = stroke || spd > 0.3 ? 0.38 : 0.46;
+    if (reach > lim) { const k = lim / reach; F.p.x = _fw.h.x + dx * k; F.p.y = _fw.h.y + dz * k; F.dg = Math.min(1, F.dg + dt * 14); }
+  }
   for (let i = 0; i < 2; i++) {
     const F = feet[i], far = F.p.distanceTo(D[i]);
     if (far > 0.75 && !F.swing && !Mo.gaitOn) { F.swing = true; F.t = 0; F.from.copy(F.p); F.dur = 0.12; F.to.copy(D[i]); F.gait = false; }
@@ -5156,6 +5179,8 @@ function updateFeet(h, Mo, spec, dt, stroke) {
         F.to.x += (tgt.x - F.to.x) * Math.min(1, dt * 20); F.to.y += (tgt.z - F.to.y) * Math.min(1, dt * 20);
       }
       keepSides(Mo, feet, i, h);
+      // (no giant splits: a single shuffle or adjustment step covers at most ~55 cm; a longer way is taken in steps)
+      if (!F.gait) { const sx = F.to.x - F.from.x, sz = F.to.y - F.from.y, sl = Math.hypot(sx, sz); if (sl > 0.55) { F.to.x = F.from.x + sx * 0.55 / sl; F.to.y = F.from.y + sz * 0.55 / sl; } }
       F.t += dt; const s = Math.min(1, F.t / F.dur), e = smooth(s);
       F.p.set(F.from.x + (F.to.x - F.from.x) * e, F.from.y + (F.to.y - F.from.y) * e);
       // (a running foot kicks up behind early in its swing and reaches forward low to land: the arc peaks early)
@@ -5586,7 +5611,7 @@ function syncAthlete0(h, Mo, dt) {
   updateFeet(h, Mo, S, dt, swinging);
   const feet = Mo.feet;
   // pelvis height: as low as the stance asks, and low enough that both legs reach their planted feet
-  const Lmax = (THIGH + SHIN) * 0.985, ANK = 0.07;
+  const Lmax = (THIGH + SHIN) * (swinging || spd > 0.4 ? 0.945 : 0.985), ANK = 0.07; // (an athlete's legs keep a little bend while they play: never locked dead straight)
   // (the stance's knee bend, toned down: at full value every player waited and moved in a deep squat, the hips
   //  15-25 cm down - real players are bent but far more upright between shots)
   let drop = S.cr * 0.7;
@@ -5600,7 +5625,7 @@ function syncAthlete0(h, Mo, dt) {
     drop = Math.max(drop, HIP_Y + S.lift - maxHip);
   }
   // never sink into a split: a real player is at most in a deep athletic crouch
-  drop = Math.min(drop, Math.min(0.17, S.cr * 0.7) + 0.05);
+  drop = Math.min(drop, Math.min(0.17, S.cr * 0.7) + (swinging || spd > 0.4 ? 0.1 : 0.05));
   // the hips follow the legs on a spring, so steps and stance changes never jolt the body
   if (Mo.dropS === undefined) { Mo.dropS = drop; Mo.dropV = 0; }
   Mo.dropS = spring(Mo.dropS, Mo.dropV, drop, 40, dt); Mo.dropV = _spV; drop = Mo.dropS;
@@ -5639,7 +5664,7 @@ function syncAthlete0(h, Mo, dt) {
     // running: the planted foot rolls up onto its toes as the body passes over it (push-off), and that carries
     // into the start of its swing instead of the foot flipping flat the moment it leaves the court
     { let hr = 0; if (!F.swing && spd > 2.2) { const beh = ((h.pos.x - F.p.x) * h.vel.x + (h.pos.z - F.p.y) * h.vel.z) / spd; hr = Math.max(0, Math.min(1, (beh - 0.02) / 0.26)) * Math.min(1, (spd - 2.2) / 2); }
-      F.hr = (F.hr || 0) + (hr - (F.hr || 0)) * Math.min(1, dt * (hr > (F.hr || 0) ? 30 : 10)); heel = Math.max(heel, F.hr); }
+      F.hr = (F.hr || 0) + (hr - (F.hr || 0)) * Math.min(1, dt * (hr > (F.hr || 0) ? 30 : 10)); heel = Math.max(heel, F.hr, (F.dg || 0) * 0.85); }
     _sv.a.set(F.p.x, ANK + F.lift + air + heel * 0.045, F.p.y);
     _sv.pole.set(side * kneeOut, 0, 1).normalize();
     twoBone(Mo.body, L.hip, L.knee, THIGH, SHIN, _sv.a, _sv.pole, -1, 1, L.mem || (L.mem = {}), dt);
@@ -5839,10 +5864,11 @@ const LOOKS = {
   // white shorts, an orange-and-black frame (generic: build, colouring and kit only, no facial likeness)
   fri: { face: { nose: 1.06, noseW: 0.98, jaw: 1.06, chin: 1.08, brow: 1.05, stubble: 0.12, eye: 0x6b7f8c }, skin: 0xebc6a6, shirt: 0x17181c, shorts: 0xf2f2ef, collar: 0xf2f2ef, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x17181c, hair: 0x8a6a4a, hairStyle: 'swept', headwear: 'none', racket: 0xd8652a, height: 1.06, sleeves: true,
           build: { arm: 0.95, fore: 0.96, leg: 0.98, chest: 0.98, waist: 0.93, shorts: 0.42, sleeve: 0.44 } },
-  // Shelton: 1.93 m, powerful and athletic (a football player as a boy), brown skin, short dark curly hair cropped at
-  // the sides, light stubble; white shirt with flame-orange trim, black shorts, a blue frame (generic face, no likeness)
-  she: { face: { nose: 1.08, noseW: 1.14, jaw: 1.08, chin: 1.04, brow: 1.08, stubble: 0.3, eye: 0x2a1a10 }, skin: 0x8a5a3c, shirt: 0xf5f5f2, shorts: 0x15171b, collar: 0xff5a1f, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0xff5a1f, hair: 0x120d0a, hairStyle: 'curly', curlBig: -0.3, headwear: 'none', racket: 0x1f5fb8, height: 1.043, sleeves: true,
-          build: { arm: 1.1, fore: 1.08, leg: 1.12, chest: 1.1, waist: 0.98, shorts: 0.4, sleeve: 0.42 } },
+  // Shelton: 1.93 m, broad-shouldered and athletic (a football player as a boy), light-brown skin, scruffy dark-brown
+  // curls on top with short sides, light stubble; On's 2026 kit - a white sleeveless top with a black speckled
+  // "concrete" print and white shorts; a blue Yonex-style frame (generic face, no likeness)
+  she: { face: { nose: 1.06, noseW: 1.1, jaw: 1.1, chin: 1.06, brow: 1.08, stubble: 0.22, eye: 0x2e1d12 }, skin: 0xae7d5f, shirt: 0xf3f3f0, print: 1, printC: 0x16171a, shorts: 0xf3f3f0, collar: 0xf3f3f0, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x16171a, hair: 0x2a1b12, hairStyle: 'curltop', headwear: 'none', racket: 0x1f5fb8, height: 1.043, sleeves: false,
+          build: { arm: 1.12, fore: 1.08, racketArm: 1.03, leg: 1.12, chest: 1.12, waist: 0.98, shorts: 0.38 } },
   // Del Potro: very tall (1.98 m) and long-limbed, wavy dark hair and a short beard, sky-blue shirt, navy shorts
   dpo:  { face: { nose: 1.1, jaw: 1.08, chin: 1.1, stubble: 0.85, eye: 0x3a2616 }, skin: 0xdcae8a, shirt: 0x8cc2e6, shorts: 0x1b2436, collar: 0xffffff, sock: 0xffffff, shoe: 0xf4f4f4, sole: 0x1b2436, hair: 0x2a1c14, hairStyle: 'medium', beard: true, headwear: 'none', racket: 0x22252b, height: 1.07, sleeves: true,
           build: { arm: 1.0, fore: 1.0, leg: 1.0, chest: 1.0, waist: 0.98, shorts: 0.42, sleeve: 0.44 } },
@@ -6625,6 +6651,8 @@ function hairInfo(al, uy, uz, look) {
   else if (style === 'curly') { const be = Math.asin(uy); const cb = look.curlBig || 0; T = 0.015 + 0.007 * cb + (0.017 + 0.009 * cb) * sstep(-0.1, 0.85, uy) + (0.008 + 0.004 * cb) * nz * Math.abs(Math.sin(al * 13) * Math.sin(be * 15) + Math.sin(al * 7 + 1) * Math.sin(be * 9 + 2)) * 0.5; }
   else if (style === 'long') T = 0.008 + 0.012 * sstep(0, 0.9, uy) + 0.004 * Math.max(0, -uz) + 0.003 * nz * Math.sin(a * 11 + uy * 5) + 0.004 * sstep(-0.1, -0.6, uy) * sstep(0.9, 1.5, a); // (lies close to the head and neck: thicker read as a helmet)
   else if (style === 'crop') T = 0.003 + 0.009 * sstep(0.35, 0.75, uy) - 0.0025 * sstep(0.85, 1, uy) + 0.005 * sstep(0.55, 0.85, uy) * front;   // faded at the sides, fuller on top
+  // curltop: tight and short at the sides and back, a scruffy mop of curls on top falling a little toward the front
+  else if (style === 'curltop') { const be = Math.asin(uy); T = 0.004 + 0.016 * sstep(0.38, 0.75, uy) - 0.004 * sstep(0.85, 1, uy) + 0.007 * sstep(0.45, 0.8, uy) * sstep(0.1, 0.8, front) + 0.009 * nz * sstep(0.35, 0.7, uy) * Math.abs(Math.sin(al * 11) * Math.sin(be * 13) + Math.sin(al * 6 + 1) * Math.sin(be * 8 + 2)) * 0.5; }
   // swept: short at the sides and back, long on top and combed up and back off the forehead (a quiff at the front)
   else if (style === 'swept') T = 0.003 + 0.016 * sstep(0.4, 0.8, uy) + 0.012 * sstep(0.5, 0.85, uy) * sstep(0.2, 0.9, front) - 0.004 * sstep(0.9, 1, uy) * (1 - front) + 0.002 * nz * Math.sin(al * 17 + uy * 6);
   else T = 0.0025 + 0.005 * sstep(0.35, 0.85, uy);
@@ -6842,7 +6870,7 @@ function buildHead(look, headG, add) {
     const k = 0.35 + 0.65 * c;
     return [sk.r + (hr.r * s - sk.r) * k, sk.g + (hr.g * s - sk.g) * k, sk.b + (hr.b * s - sk.b) * k, Math.min(1, c * 1.15)];
   });
-  const HT2 = hairTextures(look.hairStyle === 'curly' ? 'curly' : look.hairStyle === 'long' || look.hairStyle === 'medium' ? 'wavy' : 'straight');
+  const HT2 = hairTextures(look.hairStyle === 'curly' || look.hairStyle === 'curltop' ? 'curly' : look.hairStyle === 'long' || look.hairStyle === 'medium' ? 'wavy' : 'straight');
   const hairM = new THREE.MeshStandardMaterial({ vertexColors: true, map: HT2.map, normalMap: HT2.normal, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.6, metalness: 0, side: THREE.DoubleSide, alphaTest: 0.5 });
   hairM.vertexAlphas = true; hairM.alphaToCoverage = true; // (a soft, anti-aliased hairline with multisampling)
   add(headG, hairGeo, hairM, 0, 0, 0);
@@ -7135,6 +7163,7 @@ function mhMaterial(look) {
     uCut: { value: new THREE.Vector4(look.sleeves ? Math.min(0.95, B.sleeve * 1.25) : 0, Math.min(1.25, B.shorts * 1.55), look.sleeves ? 0 : 1, 1.8) },
     uSkin: { value: col(look.skin) }, uShirt: { value: col(look.shirt) }, uShorts: { value: col(look.shorts) }, uSock: { value: col(look.sock) },
     uTrim: { value: col(look.collar || look.shirt) }, uHair: { value: col(look.hair || 0x2a1d15) },
+    uPrint: { value: look.print || 0 }, uPrintC: { value: col(look.printC === undefined ? 0x111111 : look.printC) },
     uFace: { value: new THREE.Vector4(Math.min(1, F.stubble * (F.beard ? 1.6 : 1)), F.brow || 1, F.beard ? 1 : 0, 0) },
     uEyeL: { value: new THREE.Vector3().fromArray(D.H.eyeL) }, uEyeR: { value: new THREE.Vector3().fromArray(D.H.eyeR) },
   };
@@ -7154,7 +7183,7 @@ function mhMaterial(look) {
         float gx = exp(-pow(position.x / 0.09, 2.0)), gy = smoothstep(0.78, 0.86, position.y) * smoothstep(1.04, 0.95, position.y);
         float fill = max(mk.y, mk.x) * gx * gy;
         transformed.z += fill * (position.z > 0.0 ? 0.04 : -0.02); transformed.y -= fill * 0.025 * smoothstep(0.95, 0.86, position.y); }`);
-    sh.fragmentShader = 'uniform vec3 uSkin, uShirt, uShorts, uSock, uTrim, uHair, uEyeL, uEyeR;\nuniform vec4 uFace;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + sh.fragmentShader
+    sh.fragmentShader = 'uniform vec3 uSkin, uShirt, uShorts, uSock, uTrim, uHair, uEyeL, uEyeR, uPrintC;\nuniform vec4 uFace;\nuniform float uPrint;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         float mhRough;
         { float e = max(0.002, fwidth(vBind.y) * 0.75);
@@ -7177,7 +7206,19 @@ function mhMaterial(look) {
           vec3 c = skin; mhRough = 0.5;
           float trimN = mk.w;      // collar band
           float armT = vReg.x * 2.5; float trimS = uCut.z > 0.5 ? 0.0 : smoothstep(uCut.x - 0.06 - e * 2.0, uCut.x - 0.06 + e * 2.0, armT) * smoothstep(0.3, 0.6, vReg.y) * mk.x;
-          c = mix(c, uShirt, mk.x); c = mix(c, uTrim, clamp(trimN + trimS, 0.0, 1.0));
+          // a speckled print (On's "concrete" pattern): small dark flecks, denser toward the chest, over the shirt colour
+          vec3 shirtC = uShirt;
+          if (uPrint > 0.0) {
+            // (value noise, so the flecks are soft irregular specks rather than square pixels)
+            vec3 q = vBind * 230.0, fq = floor(q), t = fract(q); t = t * t * (3.0 - 2.0 * t);
+            #define H3(v) fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453)
+            float a0 = mix(mix(H3(fq), H3(fq + vec3(1,0,0)), t.x), mix(H3(fq + vec3(0,1,0)), H3(fq + vec3(1,1,0)), t.x), t.y);
+            float a1 = mix(mix(H3(fq + vec3(0,0,1)), H3(fq + vec3(1,0,1)), t.x), mix(H3(fq + vec3(0,1,1)), H3(fq + vec3(1,1,1)), t.x), t.y);
+            float n = mix(a0, a1, t.z);
+            float dens = uPrint * mix(0.12, 0.26, smoothstep(1.0, 1.45, vBind.y));
+            shirtC = mix(shirtC, uPrintC, smoothstep(1.0 - dens, 1.0 - dens + 0.05, n) * 0.85);
+          }
+          c = mix(c, shirtC, mk.x); c = mix(c, uTrim, clamp(trimN + trimS, 0.0, 1.0));
           c = mix(c, uShorts, mk.y); c = mix(c, uSock, mk.z);
           mhRough = mix(0.5, 0.86, clamp(mk.x + mk.y + mk.z, 0.0, 1.0));
           diffuseColor.rgb = c; }`)
