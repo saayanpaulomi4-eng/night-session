@@ -1201,7 +1201,7 @@ function createSim(H, cfg) {
     pete: { name: 'Pistol serve', desc: 'Serving to save a break, set or match point: the serve jumps to 122.' },
     mur: { name: 'Lob genius', desc: 'Below 50% stamina every lob is MEGA PERFECT.' },
     fri: { name: 'Serve plus one', desc: 'The first forehand after his own serve plays at 115.' },
-    she: { name: 'Overhead hammer', desc: 'Every overhead is struck GOOD or better, whatever the timing.' },
+    she: { name: 'Overhead hammer', desc: 'Every overhead is struck GOOD or better, whatever the timing, and with a 95 volley rating (other volleys stay at 75).' },
   };
   // online 1v1 (cfg.net): both players are people - the far one plays from a friend's device
   const isMe = h => h.idx === 0 || (!!cfg.net && h.idx === 1);
@@ -1536,7 +1536,8 @@ function createSim(H, cfg) {
     // unprotected, perfect pace and angle mostly bought it errors)
     const Q = QUAL[q], sure = q === 'ultra' || q === 'mega' || (q === 'perfect' && (isMe(h) ? Math.random() < 0.8 : cfg.diff === 3 && Math.random() < 0.55));
     // slice and drop shots are rated on their own (touch and feel), from either wing; volleys and overheads on the net rating
-    const stat = type === 'drop' ? statFor(h, 'drop') : (volley || type === 'smash' || halfV) ? statFor(h, 'net') : type === 'slice' ? statFor(h, 'slice') : side > 0 ? statFor(h, 'fh') : statFor(h, 'bh'), k = rk(stat);
+    // (Shelton: his overheads are struck with a 95 volley rating, whatever his volley rating says)
+    const stat = type === 'drop' ? statFor(h, 'drop') : type === 'smash' && h.prof.key === 'she' && isMe(h) ? Math.max(95, statFor(h, 'net')) : (volley || type === 'smash' || halfV) ? statFor(h, 'net') : type === 'slice' ? statFor(h, 'slice') : side > 0 ? statFor(h, 'fh') : statFor(h, 'bh'), k = rk(stat);
     // the stroke's rating decides how hard and how accurate it is
     let err = Q.err * (0.75 + 0.55 * power) * Math.max(0.32, 1 - 0.22 * k);
     let sp = (P0.s0 + P0.s1 * power) * Q.sp * (1 + 0.05 * k);
