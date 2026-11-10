@@ -4324,13 +4324,19 @@ const STROKES_COMMON = {
   // the head (elbow at shoulder height); the racket drops behind the back as the legs load; a scissor-kick jump
   // (back leg springs up, front leg kicks forward); contact at full stretch in front of the hitting shoulder;
   // pronation out and down across the body; land on the front foot
-  oh: [[0, { sy: -1.35, hy: -0.95, cr: 0.1, tl: 0.3, sp: -0.12, rh: [0.4, 1.58, -0.14], rt: [0.0, 0.9, -0.44], rn: [-0.95, 0.1, -0.2], rp: [1, -0.1, -0.6], lg: 0, lh: [-0.02, 2.0, 0.52], fL: [-0.06, 0.24], fR: [0.3, -0.28], aL: 0.7, aR: 1.25 }],
-       [0.2, { sy: -1.4, tl: 0.36, sp: -0.16, cr: 0.16, rh: [0.38, 1.6, -0.18], rt: [-0.05, 0.6, -0.8], rn: [-0.95, 0.15, -0.1], lh: [-0.04, 2.05, 0.52] }],
-       [0.3, { sy: -1.1, tl: 0.32, sp: -0.14, cr: 0.1, lift: 0.04, rh: [0.33, 1.72, -0.08], rt: [0.05, -0.92, -0.38], rn: [-0.9, 0.0, 0.42], rp: [1, 0.6, 0.2], lh: [-0.1, 1.85, 0.48], airR: 0.12 }],
-       [0.42, { sy: -0.3, hy: -0.45, tl: 0.02, sp: 0.05, cr: 0.0, lift: 0.1, rh: [0.22, 2.1, 0.34], rt: [0.05, 0.97, 0.22], rn: [0, 0.15, 1], rp: [1, -0.2, -0.3], lh: [-0.25, 1.38, 0.22], airR: 0.3, airL: 0.04 }],
-       [0.54, { sy: 0.2, hy: -0.05, sp: 0.15, lift: 0.06, rh: [0.22, 1.8, 0.66], rt: [0.5, 0.2, 0.84], rn: [0.75, -0.5, -0.4], rp: [1, -0.6, -0.3], lh: [-0.32, 1.2, 0.15], airR: 0.2, fR: [0.15, 0.1] }],
-       [0.75, { sy: 0.6, hy: 0.3, sp: 0.18, cr: 0.1, lift: 0.0, rh: [-0.08, 1.15, 0.55], rt: [-0.3, -0.45, 0.84], rn: [0.5, -0.7, -0.5], rp: [1, -1, -0.5], airR: 0.06, fL: [-0.08, 0.3], fR: [0.2, 0.2] }],
-       [1, { sy: 0.8, hy: 0.4, sp: 0.12, cr: 0.12, rh: [-0.3, 0.92, 0.35], rt: [-0.35, -0.6, -0.7], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], lh: [-0.35, 1.1, 0.1], lg: 0.5, airR: 0, fR: [0.18, 0.15], hlR: 0.5 }]],
+  // (v144: the set-up is held at a proper trophy - hand above the shoulder, elbow up, racket tip up behind the head,
+  //  off hand pointing at the ball - instead of halfway through the racket drop with the racket flat out to the side;
+  //  then the racket drops down the back as the legs push, a scissor-kick jump to contact at full stretch, pronation,
+  //  and the racket finishes down across the body by the opposite hip)
+  oh: [[0, { sy: -1.3, hy: -0.9, cr: 0.1, tl: 0.28, sp: -0.12, rh: [0.32, 1.48, -0.06], rt: [0.08, 0.95, -0.25], rn: [-0.95, 0.1, -0.2], rp: [1, -0.1, -0.6], lg: 0, lh: [0.0, 1.92, 0.5], fL: [-0.06, 0.26], fR: [0.3, -0.3], aL: 0.7, aR: 1.25 }],
+       [0.12, { sy: -1.4, hy: -0.95, tl: 0.34, sp: -0.15, cr: 0.15, rh: [0.38, 1.64, -0.16], rt: [-0.04, 0.86, -0.5], rn: [-0.95, 0.12, -0.15], lh: [-0.02, 2.06, 0.52] }],
+       [0.25, { sy: -1.42, hy: -0.95, tl: 0.36, sp: -0.16, cr: 0.19, rh: [0.38, 1.63, -0.18], rt: [-0.05, 0.8, -0.6], rn: [-0.95, 0.15, -0.1], lh: [-0.03, 2.06, 0.52] }],
+       [0.33, { sy: -1.05, hy: -0.75, tl: 0.3, sp: -0.12, cr: 0.08, lift: 0.08, rh: [0.31, 1.72, -0.06], rt: [0.06, -0.92, -0.38], rn: [-0.9, 0.0, 0.42], rp: [1, 0.6, 0.2], lh: [-0.12, 1.78, 0.46], airR: 0.16 }],
+       [0.42, { sy: -0.3, hy: -0.42, tl: 0.02, sp: 0.06, cr: 0.0, lift: 0.19, rh: [0.2, 2.13, 0.36], rt: [0.05, 0.97, 0.25], rn: [0, 0.15, 1], rp: [1, -0.2, -0.3], lh: [-0.28, 1.34, 0.18], airR: 0.36, airL: 0.1 }],
+       [0.52, { sy: 0.22, hy: -0.05, sp: 0.16, lift: 0.12, rh: [0.24, 1.76, 0.68], rt: [0.55, 0.15, 0.82], rn: [0.75, -0.5, -0.4], rp: [1, -0.6, -0.3], lh: [-0.34, 1.18, 0.12], airR: 0.24, airL: 0.04, fR: [0.15, 0.1] }],
+       [0.66, { sy: 0.55, hy: 0.25, sp: 0.18, cr: 0.12, lift: 0.0, rh: [0.0, 1.2, 0.58], rt: [-0.35, -0.6, 0.72], rn: [0.5, -0.7, -0.5], rp: [1, -1, -0.5], lh: [-0.36, 1.1, 0.1], airR: 0.08, fL: [-0.08, 0.3], fR: [0.2, 0.2] }],
+       [0.8, { sy: 0.78, hy: 0.38, sp: 0.13, cr: 0.14, rh: [-0.26, 0.95, 0.38], rt: [-0.4, -0.7, -0.6], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], airR: 0, fR: [0.18, 0.15] }],
+       [1, { sy: 0.8, hy: 0.4, sp: 0.12, cr: 0.12, rh: [-0.3, 0.94, 0.35], rt: [-0.35, -0.6, -0.7], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], lh: [-0.35, 1.1, 0.1], lg: 0.5, airR: 0, fR: [0.18, 0.15], hlR: 0.5 }]],
 };
 
 // ---------------- serves, one per player ----------------
