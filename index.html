@@ -4392,8 +4392,12 @@ const STYLE_DEFS = {
            [0.42, { sy: 0.0, hy: 0.4, cr: 0.11, px: 0.0, pz: 0.05, rh: [0.44, 1.0, 0.52], rt: [0.97, 0.03, 0.22], rn: [-0.15, 0.05, 1], lh: [-0.15, 1.2, 0.3] }],
            [0.5, { sy: 0.4, hy: 0.55, rh: [0.3, 1.14, 0.82], rt: [0.55, 0.32, 0.77], rn: [-0.75, 0.15, 0.62], lh: [-0.26, 1.16, 0.22] }],
            [0.58, { sy: 0.78, hy: 0.68, rh: [0.1, 1.24, 0.76], rt: [-0.55, 0.3, 0.78], rn: [-0.7, -0.35, -0.6], lh: [-0.3, 1.14, 0.2], hlR: 0.5 }],
-           [0.68, { sy: 1.05, hy: 0.8, rh: [-0.1, 1.36, 0.58], rt: [-0.8, 0.35, -0.48], rn: [-0.3, -0.85, 0.42], lg: 0.15, hlR: 0.7 }],
-           [1, { sy: 1.35, hy: 0.92, cr: 0.08, rh: [-0.3, 1.26, 0.38], rt: [-0.55, 0.05, -0.83], rn: [0, -0.95, 0.25], lg: 0.55, gp: 0.33, hlR: 0.85, aR: 0.2 }]],
+           // (v146: the finish he's known for - the forearm turned over, the elbow up in front at chest height, the racket
+           //  coming round the left side and coming to rest behind the left shoulder, the left hand catching the throat,
+           //  balanced up on the back toe with the head still on the contact point; it used to wrap tight round his head)
+           [0.68, { sy: 1.05, hy: 0.8, pz: 0.04, rh: [-0.12, 1.3, 0.5], rt: [-0.85, 0.2, -0.48], rn: [-0.3, -0.85, 0.42], lg: 0.15, hlR: 0.7 }],
+           [0.82, { sy: 1.28, hy: 0.88, pz: 0.05, rh: [-0.26, 1.3, 0.36], rt: [-0.45, -0.35, -0.82], rn: [0.05, -0.95, 0.3], lh: [-0.24, 1.3, 0.34], lg: 0.45, hlR: 0.85 }],
+           [1, { sy: 1.35, hy: 0.92, cr: 0.08, pz: 0.04, rh: [-0.28, 1.26, 0.32], rt: [-0.4, -0.45, -0.8], rn: [0.05, -0.95, 0.25], lh: [-0.22, 1.28, 0.3], lg: 0.55, gp: 0.33, hlR: 0.85, aR: 0.2 }]],
       // one-handed backhand (Federer; coaching breakdowns): a compact unit turn with BOTH hands on the racket at chest
       // height, tip up and the face slightly closed, the shoulders turned past side-on with the chin on the front
       // shoulder; the left hand pushes the racket back, then lets go as the head drops into the slot below the ball;
@@ -4406,10 +4410,13 @@ const STYLE_DEFS = {
            [0.24, { sy: 1.82, hy: 0.96, cr: 0.17, rh: [-0.42, 0.96, -0.3], rt: [-0.3, -0.32, -0.9], rn: [0.3, -0.35, 0.89], lg: 0, lh: [-0.32, 1.02, -0.18] }],
            [0.33, { sy: 1.58, hy: 0.82, rh: [-0.37, 0.92, 0.1], rt: [-0.62, -0.3, -0.72], rn: [0.12, -0.2, 0.97], lh: [-0.26, 1.06, -0.36] }],
            [0.42, { sy: 1.32, hy: 0.66, cr: 0.13, rh: [-0.2, 0.99, 0.5], rt: [-0.96, 0.05, 0.26], rn: [0.2, 0.05, 0.98], lh: [-0.3, 1.1, -0.6] }],
-           [0.52, { sy: 1.22, hy: 0.62, rh: [-0.06, 1.16, 0.72], rt: [-0.8, 0.3, 0.52], rn: [0.55, 0.1, 0.83], lh: [-0.28, 1.15, -0.55] }],
-           [0.6, { sy: 1.18, rh: [0.04, 1.36, 0.7], rt: [-0.5, 0.65, 0.57], rn: [0.8, 0.1, 0.58] }],
-           [0.72, { sy: 1.12, rh: [0.15, 1.62, 0.54], rt: [-0.12, 0.95, 0.3], rn: [0.9, 0.05, 0.42], lh: [-0.32, 1.18, -0.56] }],
-           [1, { sy: 1.08, hy: 0.6, cr: 0.08, rh: [0.22, 1.82, 0.34], rt: [0.2, 0.86, -0.46], rn: [0.85, 0.1, 0.5], lh: [-0.34, 1.18, -0.55], hlL: 0.5 }]],
+           [0.52, { sy: 1.22, hy: 0.62, rh: [-0.04, 1.08, 0.8], rt: [-0.8, 0.28, 0.53], rn: [0.55, 0.1, 0.83], lh: [-0.32, 1.14, -0.55] }],
+           [0.6, { sy: 1.18, rh: [0.07, 1.24, 0.8], rt: [-0.42, 0.55, 0.72], rn: [0.8, 0.1, 0.58], lh: [-0.4, 1.14, -0.55] }],
+           // (v146: the arm finishes up and OUT at about 45 degrees with the tip up - not straight up over his head - the
+           //  chest still side-on and the left arm stretched back: the wings)
+           [0.72, { sy: 1.12, rh: [0.22, 1.48, 0.64], rt: [0.12, 0.82, 0.56], rn: [0.9, 0.05, 0.42], lh: [-0.45, 1.15, -0.55] }],
+           [0.86, { sy: 1.1, hy: 0.62, rh: [0.32, 1.56, 0.46], rt: [0.28, 0.8, -0.52], rn: [0.88, 0.1, 0.46], lh: [-0.5, 1.13, -0.52] }],
+           [1, { sy: 1.08, hy: 0.6, cr: 0.08, rh: [0.32, 1.55, 0.4], rt: [0.25, 0.75, -0.6], rn: [0.85, 0.1, 0.5], lh: [-0.52, 1.12, -0.5], hlL: 0.5 }]],
       // Federer's slice (the best in the game): unit turn with the racket set at shoulder height behind the left
       // shoulder, face open, left hand on the throat; a long high-to-low knife through the ball, contact in front of
       // the front foot, then a long extension along the line with the face still open; the left arm goes back.
@@ -4803,16 +4810,19 @@ const STYLE_DEFS = {
            [0.68, { sy: 1.15, hy: 0.82, lift: 0.05, airR: 0.03, airL: 0.01, rh: [-0.12, 1.42, 0.46], rt: [-0.8, 0.3, -0.52], rn: [-0.4, -0.3, -0.86] }],
            [1, { sy: 1.38, hy: 0.9, cr: 0.1, lift: 0, airR: 0, airL: 0, rh: [-0.28, 1.36, 0.3], rt: [-0.25, -0.55, -0.8], rn: [-0.2, 0.3, -0.93], lg: 0.3, gp: 0.3, hlR: 0.75 }]], // (hand by the far shoulder, racket down the back)
       // two-hander with a bubble loop: the hands rise behind into a circle, drop under the ball, then a high finish
-      bh: [[0, { sy: 1.5, hy: 0.85, cr: 0.15, rh: [-0.34, 1.0, -0.3], rt: [-0.28, 0.42, -0.86], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.32, -0.04], fR: [0.08, 0.18], aL: -0.6, aR: -0.2 }],
-           [0.12, { sy: 1.6, rh: [-0.4, 1.08, -0.34], rt: [-0.3, 0.25, -0.92], rn: [0.75, 0.0, 0.66] }],
-           [0.18, { sy: 1.58, rh: [-0.42, 1.16, -0.34], rt: [-0.3, 0.05, -0.95], rn: [0.55, -0.2, 0.8] }], // (the bubble: the head circles up and back before dropping)
-           [0.24, { sy: 1.45, hy: 0.8, cr: 0.17, rh: [-0.42, 0.92, -0.26], rt: [-0.25, -0.5, -0.83], rn: [0.35, -0.25, 0.9] }],
-           [0.33, { sy: 1.1, hy: 0.62, rh: [-0.32, 0.86, 0.14], rt: [-0.7, -0.3, -0.65], rn: [0.15, -0.12, 0.98] }],
-           [0.42, { sy: 0.78, hy: 0.42, cr: 0.15, rh: [-0.2, 0.96, 0.5], rt: [-0.92, 0.06, 0.3], rn: [0.12, -0.06, 1] }],
-           [0.53, { sy: 0.36, hy: 0.22, rh: [-0.04, 1.12, 0.76], rt: [-0.72, 0.3, 0.62], rn: [0.6, 0.05, 0.8] }],
-           [0.63, { sy: 0.1, rh: [0.1, 1.2, 0.7], rt: [-0.35, 0.55, 0.76], rn: [0.85, 0.05, 0.52] }],
-           [0.74, { sy: -0.2, hy: -0.1, rh: [0.24, 1.3, 0.52], rt: [0.66, 0.5, 0.56], rn: [0.7, -0.35, -0.6] }],
-           [1, { sy: -0.62, hy: -0.32, cr: 0.1, rh: [0.38, 1.34, 0.26], rt: [0.3, -0.15, -0.94], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
+      // (v146: a lower, wider base; the loop and drop as before; contact further out in front; then the hands push out
+      //  along the line before rising, and the finish wraps over the right shoulder with the hands at shoulder height -
+      //  it used to throw both hands up past his face)
+      bh: [[0, { sy: 1.5, hy: 0.85, cr: 0.2, rh: [-0.34, 1.0, -0.3], rt: [-0.28, 0.42, -0.86], rn: [0.9, 0, 0.42], lg: 1, gp: 0.14, fL: [-0.34, -0.04], fR: [0.1, 0.18], aL: -0.6, aR: -0.2 }],
+           [0.12, { sy: 1.6, cr: 0.21, rh: [-0.42, 1.08, -0.34], rt: [-0.3, 0.25, -0.92], rn: [0.75, 0.0, 0.66] }],
+           [0.18, { sy: 1.58, rh: [-0.44, 1.14, -0.34], rt: [-0.3, 0.05, -0.95], rn: [0.55, -0.2, 0.8] }], // (the bubble: the head circles up and back before dropping)
+           [0.24, { sy: 1.45, hy: 0.8, cr: 0.23, rh: [-0.44, 0.9, -0.26], rt: [-0.25, -0.5, -0.83], rn: [0.35, -0.25, 0.9] }],
+           [0.33, { sy: 1.1, hy: 0.62, cr: 0.2, rh: [-0.36, 0.86, 0.16], rt: [-0.7, -0.3, -0.65], rn: [0.15, -0.12, 0.98] }],
+           [0.42, { sy: 0.76, hy: 0.42, cr: 0.16, rh: [-0.24, 0.97, 0.56], rt: [-0.92, 0.06, 0.32], rn: [0.12, -0.06, 1] }],
+           [0.52, { sy: 0.36, hy: 0.22, lift: 0.04, rh: [-0.12, 1.08, 0.86], rt: [-0.5, 0.28, 0.82], rn: [0.7, 0.1, 0.7] }],
+           [0.62, { sy: 0.02, hy: 0.06, lift: 0.04, rh: [0.06, 1.24, 0.8], rt: [-0.15, 0.5, 0.85], rn: [0.9, 0.1, 0.4] }],
+           [0.74, { sy: -0.35, hy: -0.15, lift: 0.01, rh: [0.2, 1.4, 0.52], rt: [0.45, 0.4, -0.8], rn: [0.85, 0.2, 0.5] }],
+           [1, { sy: -0.65, hy: -0.32, cr: 0.11, rh: [0.3, 1.4, 0.26], rt: [0.45, -0.2, -0.87], rn: [0.88, 0.2, 0.43], hlL: 0.5 }]],
       srv: serveKeys({ stance: 0, rock: 0.04, knee: 0.33, turn: 1.3, arch: 0.42, toss: 2.22, tipBack: 0, compact: 1, troHi: -0.06, drop: 0.9, leap: 0.26, land: 0.6, kick: 0.32 }),
     } },
   // ---------------- CPU (fixed, tidy all-court style with a two-handed backhand) ----------------
