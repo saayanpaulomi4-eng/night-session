@@ -1780,7 +1780,8 @@ function createSim(H, cfg) {
       if (a.kind !== k && !(a.kind === 'oh' && k === 'oh')) a.blendFrom = a.kind;
       const base = k === 'oh' ? 1.7 : k[0] === 'v' ? 2.4 : k[0] === 'd' ? 1.3 : k[0] === 's' ? 1.5 : k === 'fh' || k === 'bh' ? 1.55 : 1.7; // the finish is held long enough to read (a drop shot's finish is short)
       const inRate = a.fwd ? Math.max(a.rate, a.fwdRate || 0) : base;
-      a.kind = k; a.fwd = false; a.cap = 1; a.active = true; a.baseRate = base;
+      const finK = h.prof && h.prof.key === 'fed' && (k === 'fh' || k === 'bh' || k[0] === 'v') ? 0.84 : 1;
+      a.kind = k; a.fwd = false; a.cap = 1; a.active = true; a.baseRate = base * finK;
       // if the swing is running late, catch up quickly but continuously instead of snapping to the contact pose;
       // otherwise the racket carries the speed it came in with and only then settles to the finish pace
       if (a.s < 0.3) a.s = 0.3;
@@ -4442,7 +4443,7 @@ const STYLE_DEFS = {
   // head stays on the contact point. One-handed backhand: left hand on the throat until late, chest sideways,
   // arms spread at the finish. Serve: platform stance, toss across toward the sideline, deep knee bend, shallow
   // racket drop, land on the front foot with the back leg kicking up.
-  fed: { hand: 1, oneHand: true, headLock: 0.5, reach: { fh: { tb: 0.9, ct: 0.96, ex: 0.97 }, bh: { tb: 0.86, ct: 0.97, ex: 0.97 } }, split: 1.0, bounce: 0.026, drive: 0.02,
+  fed: { hand: 1, oneHand: true, headLock: 0.5, keepTiming: ['vfh', 'vbh'], reach: { fh: { tb: 0.9, ct: 0.96, ex: 0.97 }, bh: { tb: 0.86, ct: 0.97, ex: 0.97 } }, split: 1.0, bounce: 0.026, drive: 0.02,
     ready: { cr: 0.15, sp: 0.14, rh: [0.12, 0.98, 0.37], fL: [-0.26, 0.04], fR: [0.26, 0] },
     keys: {
       // Federer forehand (slow-motion breakdowns): a quiet unit turn, the left arm straight across pointing at the ball
@@ -4456,14 +4457,21 @@ const STYLE_DEFS = {
            [0.24, { sy: -1.2, hy: -0.55, cr: 0.14, rh: [0.5, 1.0, -0.24], rt: [0.2, -0.7, -0.68], rn: [0.05, -0.3, 0.95], lh: [0.62, 1.24, 0.56] }],
            [0.34, { sy: -0.55, hy: 0.0, rh: [0.5, 0.95, 0.12], rt: [0.35, -0.45, -0.82], rn: [-0.1, 0.0, 1], lh: [0.28, 1.2, 0.52] }],
            [0.42, { sy: 0.0, hy: 0.4, cr: 0.11, px: 0.0, pz: 0.05, rh: [0.44, 1.0, 0.52], rt: [0.97, 0.03, 0.22], rn: [-0.15, 0.05, 1], lh: [-0.15, 1.2, 0.3] }],
-           [0.5, { sy: 0.4, hy: 0.55, rh: [0.3, 1.14, 0.82], rt: [0.55, 0.32, 0.77], rn: [-0.75, 0.15, 0.62], lh: [-0.26, 1.16, 0.22] }],
-           [0.58, { sy: 0.78, hy: 0.68, rh: [0.1, 1.24, 0.76], rt: [-0.55, 0.3, 0.78], rn: [-0.7, -0.35, -0.6], lh: [-0.3, 1.14, 0.2], hlR: 0.5 }],
+           // (v148: after contact the racket goes on OUT toward the target, tip up at about 45 degrees, before the
+           //  forearm turns over - it used to shoot straight up over his head - then the wiper comes across in front
+           //  of the face at head height)
+           [0.5, { sy: 0.42, hy: 0.55, rh: [0.26, 1.16, 0.88], rt: [0.32, 0.56, 0.76], rn: [-0.75, 0.15, 0.62], lh: [-0.26, 1.16, 0.22] }],
+           [0.58, { sy: 0.74, hy: 0.66, rh: [0.06, 1.28, 0.76], rt: [-0.42, 0.62, 0.66], rn: [-0.7, -0.35, -0.6], lh: [-0.3, 1.18, 0.24], rp: [0.4, -0.2, 1], hlR: 0.5 }],
            // (v146: the finish he's known for - the forearm turned over, the elbow up in front at chest height, the racket
            //  coming round the left side and coming to rest behind the left shoulder, the left hand catching the throat,
            //  balanced up on the back toe with the head still on the contact point; it used to wrap tight round his head)
-           [0.68, { sy: 1.05, hy: 0.8, pz: 0.04, rh: [-0.12, 1.3, 0.5], rt: [-0.85, 0.2, -0.48], rn: [-0.3, -0.85, 0.42], lg: 0.15, hlR: 0.7 }],
-           [0.82, { sy: 1.28, hy: 0.88, pz: 0.05, rh: [-0.26, 1.3, 0.36], rt: [-0.45, -0.35, -0.82], rn: [0.05, -0.95, 0.3], lh: [-0.24, 1.3, 0.34], lg: 0.45, hlR: 0.85 }],
-           [1, { sy: 1.35, hy: 0.92, cr: 0.08, pz: 0.04, rh: [-0.28, 1.26, 0.32], rt: [-0.4, -0.45, -0.8], rn: [0.05, -0.95, 0.25], lh: [-0.22, 1.28, 0.3], lg: 0.55, gp: 0.33, hlR: 0.85, aR: 0.2 }]],
+           // (v148: the finish he's known for, done properly - the ELBOW UP in front of the chin pointing at the
+           //  target, the hand by the left ear, the racket head resting behind the left shoulder (not hanging down by
+           //  the hip), the left hand catching the throat; the chest only just past square to the net, balanced over
+           //  the front leg up on the back toe, and held there a beat)
+           [0.68, { sy: 0.98, hy: 0.78, pz: 0.05, rh: [-0.14, 1.42, 0.52], rt: [-0.8, 0.28, -0.52], rn: [-0.3, -0.85, 0.42], rp: [0.3, 0.25, 1], lh: [-0.3, 1.3, 0.3], lg: 0.15, hlR: 0.7 }],
+           [0.82, { sy: 1.08, hy: 0.84, pz: 0.06, rh: [-0.2, 1.5, 0.36], rt: [-0.48, -0.04, -0.88], rn: [0.05, -0.97, 0.22], rp: [0.15, 0.4, 1], lh: [-0.32, 1.42, 0.18], lg: 0.45, hlR: 0.85 }],
+           [1, { sy: 1.1, hy: 0.86, cr: 0.09, pz: 0.05, rh: [-0.2, 1.47, 0.33], rt: [-0.44, -0.1, -0.89], rn: [0.05, -0.97, 0.22], rp: [0.15, 0.4, 1], lh: [-0.31, 1.4, 0.17], lg: 0.55, gp: 0.33, hlR: 0.85, aR: 0.2 }]],
       // one-handed backhand (Federer; coaching breakdowns): a compact unit turn with BOTH hands on the racket at chest
       // height, tip up and the face slightly closed, the shoulders turned past side-on with the chin on the front
       // shoulder; the left hand pushes the racket back, then lets go as the head drops into the slot below the ball;
@@ -4477,12 +4485,15 @@ const STYLE_DEFS = {
            [0.33, { sy: 1.58, hy: 0.82, rh: [-0.37, 0.92, 0.1], rt: [-0.62, -0.3, -0.72], rn: [0.12, -0.2, 0.97], lh: [-0.26, 1.06, -0.36] }],
            [0.42, { sy: 1.32, hy: 0.66, cr: 0.13, rh: [-0.2, 0.99, 0.5], rt: [-0.96, 0.05, 0.26], rn: [0.2, 0.05, 0.98], lh: [-0.3, 1.1, -0.6] }],
            [0.52, { sy: 1.22, hy: 0.62, rh: [-0.04, 1.08, 0.8], rt: [-0.8, 0.28, 0.53], rn: [0.55, 0.1, 0.83], lh: [-0.32, 1.14, -0.55] }],
-           [0.6, { sy: 1.18, rh: [0.07, 1.24, 0.8], rt: [-0.42, 0.55, 0.72], rn: [0.8, 0.1, 0.58], lh: [-0.4, 1.14, -0.55] }],
+           [0.6, { sy: 1.18, rh: [0.14, 1.28, 0.86], rt: [-0.2, 0.68, 0.7], rn: [0.85, 0.1, 0.5], lh: [-0.42, 1.15, -0.56] }], // (v148: out along the line before up)
            // (v146: the arm finishes up and OUT at about 45 degrees with the tip up - not straight up over his head - the
            //  chest still side-on and the left arm stretched back: the wings)
-           [0.72, { sy: 1.12, rh: [0.22, 1.48, 0.64], rt: [0.12, 0.82, 0.56], rn: [0.9, 0.05, 0.42], lh: [-0.45, 1.15, -0.55] }],
-           [0.86, { sy: 1.1, hy: 0.62, rh: [0.32, 1.56, 0.46], rt: [0.28, 0.8, -0.52], rn: [0.88, 0.1, 0.46], lh: [-0.5, 1.13, -0.52] }],
-           [1, { sy: 1.08, hy: 0.6, cr: 0.08, rh: [0.32, 1.55, 0.4], rt: [0.25, 0.75, -0.6], rn: [0.85, 0.1, 0.5], lh: [-0.52, 1.12, -0.5], hlL: 0.5 }]],
+           // (v148: measured, the old finish folded the arm - elbow down by the shoulder, forearm and racket straight
+           //  up past the face. Now the arm stays LONG and finishes out at about 45 degrees up and toward the target,
+           //  the racket carrying on up its line, the left arm stretched back the other way: the wings)
+           [0.72, { sy: 1.12, rh: [0.36, 1.56, 0.76], rt: [0.24, 0.9, 0.36], rn: [0.92, 0.0, 0.38], rp: [1, -0.2, 0.3], lh: [-0.48, 1.16, -0.58] }],
+           [0.86, { sy: 1.1, hy: 0.62, rh: [0.46, 1.67, 0.64], rt: [0.34, 0.9, -0.16], rn: [0.92, -0.12, 0.36], rp: [1, -0.2, 0.3], lh: [-0.56, 1.16, -0.56] }],
+           [1, { sy: 1.08, hy: 0.6, cr: 0.09, rh: [0.46, 1.66, 0.6], rt: [0.32, 0.88, -0.26], rn: [0.92, -0.12, 0.36], rp: [1, -0.2, 0.3], lh: [-0.58, 1.15, -0.54], hlL: 0.5 }]],
       // Federer's slice (the best in the game): unit turn with the racket set at shoulder height behind the left
       // shoulder, face open, left hand on the throat; a long high-to-low knife through the ball, contact in front of
       // the front foot, then a long extension along the line with the face still open; the left arm goes back.
@@ -4495,6 +4506,22 @@ const STYLE_DEFS = {
             [0.72, { sy: 1.12, cr: 0.2, rh: [0.06, 1.12, 0.84], rt: [-0.48, 0.3, 0.82], rn: [0.2, 0.85, 0.48], lh: [-0.44, 1.12, -0.64] }],
             [1, { sy: 1.06, hy: 0.6, cr: 0.15, rh: [0.08, 1.18, 0.74], rt: [-0.46, 0.4, 0.79], rn: [0.2, 0.85, 0.48], lh: [-0.44, 1.13, -0.62] }]],
       srv: serveKeys({ stance: 0, knee: 0.24, turn: 1.4, arch: 0.4, toss: 2.14, tipBack: 0.1, drop: 0.8, leap: 0.12, land: 0.72, kick: 0.34 }),
+      // (v148) Federer's volleys: the racket set early beside the head with the wrist laid back and the head UP, the
+      // face a touch open, the free hand out toward the ball; a short firm punch that moves with the body as the
+      // opposite foot steps in, met well in front; the racket stays pointed at the target for a beat (the "stick"),
+      // then eases back up to ready. No swing behind him - all the pace is the step and the punch.
+      vfh: [[0, { sy: -0.75, hy: -0.38, cr: 0.2, sp: 0.12, rh: [0.42, 1.3, 0.2], rt: [0.36, 0.9, -0.22], rn: [-0.55, 0.2, 0.81], lh: [0.2, 1.28, 0.52], lg: 0.4, gp: 0.3, fL: [-0.22, 0.06], fR: [0.24, -0.02], aR: 0.6 }],
+            [0.25, { sy: -0.78, cr: 0.21, rh: [0.46, 1.32, 0.15], rt: [0.42, 0.86, -0.28], lh: [0.14, 1.26, 0.5], lg: 0, fL: [-0.2, 0.3] }],
+            [0.42, { sy: -0.38, hy: -0.16, cr: 0.23, pz: 0.1, rh: [0.4, 1.13, 0.6], rt: [0.6, 0.55, 0.58], rn: [-0.2, 0.36, 0.91], lh: [-0.12, 1.18, 0.34], fL: [-0.16, 0.56], aL: 0.25 }],
+            [0.56, { sy: -0.26, hy: -0.1, pz: 0.14, rh: [0.34, 1.05, 0.8], rt: [0.5, 0.5, 0.71], rn: [-0.2, 0.45, 0.87], lh: [-0.18, 1.16, 0.3] }],
+            [0.76, { sy: -0.26, pz: 0.14, rh: [0.33, 1.06, 0.78], rt: [0.48, 0.54, 0.69], rn: [-0.22, 0.44, 0.87] }],
+            [1, { sy: -0.3, cr: 0.17, pz: 0.06, rh: [0.24, 1.15, 0.52], rt: [0.25, 0.75, 0.61], rn: [-0.6, 0.2, 0.77], lh: [0.0, 1.15, 0.4], lg: 0.3 }]],
+      vbh: [[0, { sy: 0.98, hy: 0.52, cr: 0.2, sp: 0.12, rh: [-0.28, 1.3, 0.2], rt: [-0.38, 0.9, -0.2], rn: [0.45, 0.25, 0.86], lg: 1, gp: 0.3, fL: [-0.24, 0.0], fR: [0.22, 0.06], aL: -0.6 }],
+            [0.25, { sy: 1.0, cr: 0.21, rh: [-0.32, 1.32, 0.14], rt: [-0.44, 0.86, -0.26], fR: [0.14, 0.3] }],
+            [0.42, { sy: 0.52, hy: 0.32, cr: 0.23, pz: 0.1, rh: [-0.3, 1.13, 0.58], rt: [-0.62, 0.55, 0.56], rn: [0.25, 0.36, 0.9], lg: 0, lh: [-0.3, 1.12, -0.28], fR: [0.06, 0.56], aR: -0.3 }],
+            [0.56, { sy: 0.44, hy: 0.28, pz: 0.14, rh: [-0.26, 1.05, 0.78], rt: [-0.55, 0.5, 0.67], rn: [0.25, 0.45, 0.86], lh: [-0.4, 1.12, -0.46] }],
+            [0.76, { sy: 0.44, pz: 0.14, rh: [-0.25, 1.06, 0.76], rt: [-0.53, 0.54, 0.65], rn: [0.26, 0.44, 0.86], lh: [-0.42, 1.12, -0.46] }],
+            [1, { sy: 0.32, cr: 0.17, pz: 0.06, rh: [-0.18, 1.15, 0.5], rt: [-0.3, 0.7, 0.62], rn: [0.6, 0.2, 0.77], lg: 0.5, lh: [0.08, 1.15, 0.3] }]],
     } },
   // ---------------- NADAL (left-handed) ----------------
   // Low, wide base and constant bounce; big looping takeback with the racket high and the wrist laid back; open
@@ -4999,7 +5026,7 @@ for (const k in STYLES) {
     K[li][1] = Object.assign({}, K[li][1], { rt: slerpDir(K[li][1].rt, K[ni][1].rt, E[j], [0, 0, 0]) });
   });
 }
-for (const k in STYLES) { const st = STYLES[k]; st.warp = {}; st.warpA = {}; for (const kind of ['fh', 'bh', 'sfh', 'sbh', 'dfh', 'dbh', 'vfh', 'vbh']) { const w = buildWarp(st, kind); if (w) st.warp[kind] = w; } }
+for (const k in STYLES) { const st = STYLES[k]; st.warp = {}; st.warpA = {}; for (const kind of ['fh', 'bh', 'sfh', 'sbh', 'dfh', 'dbh', 'vfh', 'vbh']) { if (st.keepTiming && st.keepTiming.includes(kind)) continue; /* (timed as drawn: re-pacing by distance skipped the held 'stick' of Federer's volleys) */ const w = buildWarp(st, kind); if (w) st.warp[kind] = w; } }
 // how far each takeback may travel round its loop while the ball is still coming (see updateAnims): up to the point
 // where that player's racket head starts to point down into the slot - some players drop it early, and holding a
 // dropped racket by the feet for half a second looks wrong
@@ -6029,9 +6056,12 @@ const LOOKS = {
   // Sinner: tall and slim, curly ginger hair, dark green shirt and black shorts
   sin:  { face: { nose: 1.12, noseW: 0.95, jaw: 0.96, chin: 1.05, stubble: 0.08, eye: 0x5b7c8a }, skin: 0xe9c4a6, shirt: 0x1f4a3a, shorts: 0x15171b, collar: 0xe8ece9, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x2fbf71, hair: 0xb4532a, hairStyle: 'curly', curlBig: 0.6, headwear: 'none', racket: 0x2f2f33, height: 1.032, sleeves: true,
           build: { arm: 0.86, fore: 0.9, leg: 0.92, chest: 0.89, waist: 0.85, shorts: 0.42, sleeve: 0.46 } },
-  // Alcaraz: athletic build with strong legs, short dark brown hair, white shirt with green trim, black shorts
-  alc:  { face: { nose: 1.0, noseW: 1.05, jaw: 1.04, brow: 1.1, stubble: 0.14, eye: 0x3b2616 }, skin: 0xd5a07a, shirt: 0xf4f6f2, shorts: 0x16181c, collar: 0x2bb673, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x2bb673, hair: 0x2b1d14, hairStyle: 'crop', headwear: 'none', racket: 0xf0d43a, height: 0.99, sleeves: true,
-          build: { arm: 1.08, fore: 1.06, leg: 1.12, chest: 1.06, waist: 0.97, shorts: 0.38, sleeve: 0.4 } },
+  // Alcaraz: 1.83 m and powerfully built - big shoulders and arms, thick thighs - Mediterranean tan, short dark-brown
+  // hair with a little texture on top, thick dark brows; his 2026 look: a sleeveless white Nike-style top with a bold
+  // diagonal sweep of green edged in black across the lower half, black shorts, a yellow-and-black Babolat-style frame
+  // (generic face, build, colouring and kit only - no facial likeness)
+  alc:  { face: { nose: 1.0, noseW: 1.06, jaw: 1.06, chin: 1.02, brow: 1.4, stubble: 0.16, eye: 0x3b2616 }, skin: 0xcf9870, shirt: 0xf5f6f2, print: 2, printC: 0x1f9e5c, shorts: 0x15171a, collar: 0x15171a, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x1f9e5c, hair: 0x281a12, hairStyle: 'crop', headwear: 'none', racket: 0xf0d43a, height: 0.99, sleeves: false,
+          build: { arm: 1.16, fore: 1.1, racketArm: 1.03, leg: 1.16, chest: 1.12, waist: 0.97, shorts: 0.36 } },
   // Wawrinka: stocky and powerful, short dark hair, navy shirt and red-checked shorts
   waw:  { face: { nose: 1.12, noseW: 1.1, jaw: 1.12, chin: 1.1, stubble: 0.45, eye: 0x5a6a5a }, skin: 0xdcae8a, shirt: 0x24345a, shorts: 0xa8243a, collar: 0xffffff, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x24345a, hair: 0x2a1f18, hairStyle: 'crop', headwear: 'none', racket: 0x1f3d8a, height: 0.99, sleeves: true,
           build: { arm: 1.16, fore: 1.12, racketArm: 1.04, leg: 1.14, chest: 1.12, waist: 1.08, shorts: 0.4, sleeve: 0.42 } },
@@ -7392,7 +7422,15 @@ function mhMaterial(look) {
           float armT = vReg.x * 2.5; float trimS = uCut.z > 0.5 ? 0.0 : smoothstep(uCut.x - 0.06 - e * 2.0, uCut.x - 0.06 + e * 2.0, armT) * smoothstep(0.3, 0.6, vReg.y) * mk.x;
           // a speckled print (On's "concrete" pattern): small dark flecks, denser toward the chest, over the shirt colour
           vec3 shirtC = uShirt;
-          if (uPrint > 0.0) {
+          if (uPrint > 1.5) {
+            // a bold diagonal sweep: the lower half of the top in the print colour, edged with a thin black line,
+            // rising toward the left side, and a second, thinner band above it
+            float dg = vBind.y - 0.32 * vBind.x;
+            float lo = smoothstep(1.105, 1.095, dg), edge = smoothstep(0.009, 0.004, abs(dg - 1.1));
+            float band = smoothstep(0.012, 0.008, abs(dg - 1.165));
+            shirtC = mix(shirtC, uPrintC, max(lo, band));
+            shirtC = mix(shirtC, vec3(0.05, 0.055, 0.06), edge);
+          } else if (uPrint > 0.0) {
             // (value noise, so the flecks are soft irregular specks rather than square pixels)
             vec3 q = vBind * 230.0, fq = floor(q), t = fract(q); t = t * t * (3.0 - 2.0 * t);
             #define H3(v) fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453)
