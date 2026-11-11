@@ -4878,7 +4878,8 @@ const STYLE_DEFS = {
   // RIGHT ear (runFin). One-handed backhand: classic and compact, closed stance, straight arm, moderate finish. Serve:
   // platform stance, deep knees and a big arch, a loose, deep racket drop down the right side of the body (tip pointing
   // at the court), contact at full stretch, and he lands well inside the baseline already moving in to volley.
-  pete: { hand: 1, oneHand: true, headLock: 0.35, runFin: true, reach: { fh: { tb: 0.88, ct: 0.95, ex: 0.95 }, bh: { tb: 0.86, ct: 0.97, ex: 0.96 } }, split: 1.0, bounce: 0.026, drive: 0.04,
+  // (v161 keepTiming: the serve-and-volleyer's classic volleys, timed as drawn)
+  pete: { hand: 1, oneHand: true, headLock: 0.35, runFin: true, keepTiming: ['vfh', 'vbh'], reach: { fh: { tb: 0.88, ct: 0.95, ex: 0.95 }, bh: { tb: 0.86, ct: 0.97, ex: 0.96 } }, split: 1.0, bounce: 0.026, drive: 0.04,
     ready: { cr: 0.15, sp: 0.15, rh: [0.13, 0.94, 0.36], rt: [-0.2, 0.38, 0.9], fL: [-0.27, 0.04], fR: [0.27, 0] }, // (v160: the racket held low in front, head forward)
     keys: {
       fh: [[0, { sy: -1.4, hy: -0.75, cr: 0.13, px: 0.06, rh: [0.42, 1.42, -0.26], rt: [0.15, 0.78, -0.6], rn: [0.3, -0.6, 0.74], lg: 0, lh: [0.14, 1.3, 0.6], fL: [-0.22, 0.12], fR: [0.3, -0.06], aL: 0.4, aR: 0.85 }],
@@ -5103,6 +5104,10 @@ for (const p of ['nole', 'mur', 'sin', 'alc', 'zve']) {
   const d = STYLE_DEFS[p]; d.alt = Object.assign({}, d.alt, { fh: revFin() });
   d.altW = (kind, by, flat, run) => kind === 'fh' ? (run - 2.8) / 1.6 : 0;
 }
+// (v161) Sampras volleyed like Federer - the racket set early beside the head with the wrist laid back and the head up,
+// a short firm punch that moves with the step in, met well in front, and the racket held pointing at the target for a
+// beat - so he shares Federer's volleys instead of the generic ones
+STYLE_DEFS.pete.keys.vfh = STYLE_DEFS.fed.keys.vfh; STYLE_DEFS.pete.keys.vbh = STYLE_DEFS.fed.keys.vbh;
 STYLE_DEFS.cus = STYLE_DEFS.cpu; // the custom player plays the tidy all-court style with a two-handed backhand
 for (const k in STYLE_DEFS) for (const kind in STROKES_COMMON) if (!STYLE_DEFS[k].keys[kind]) STYLE_DEFS[k].keys[kind] = STROKES_COMMON[kind];
 // Alcaraz hides his drop shot behind his forehand: the same big, closed-face takeback, and the face only opens up
@@ -5713,8 +5718,9 @@ function syncAthlete0(h, Mo, dt) {
         const by = a.cp ? a.cp.y : h.plan && h.plan.spot && sim.incomingTo(h) ? h.plan.spot.y : 1;
         const flat = a.cp ? !!a.flat : h.idx === 0 && h.chKey === 'flat';
         const tw = Math.max(0, Math.min(1, st.altW(a.kind, by, flat, a.cp ? a.runIn || 0 : spd)));
-        Mo.altS = Mo.altS === undefined || a.s < 0.2 ? tw : Mo.altS + (tw - Mo.altS) * Math.min(1, dt * 14);
-        ALT_W = Mo.altS;
+        // (a new stroke - including one that only starts at the strike, late, at s 0.3 - takes its own weight at once)
+        Mo.altS = Mo.altS === undefined || a.s < 0.2 || a.s < (Mo.altPrevS || 0) - 0.05 ? tw : Mo.altS + (tw - Mo.altS) * Math.min(1, dt * 14);
+        Mo.altPrevS = a.s; ALT_W = Mo.altS;
       } else ALT_W = 0;
       Mo.prepT = 1; sampleStroke(st, a.kind, a.s, T);
       // the stroke can change type at contact (a slice that becomes a drop shot, a takeback read as a forehand
