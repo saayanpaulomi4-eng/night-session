@@ -221,7 +221,7 @@ h2{font-family:var(--display);font-weight:800;font-size:clamp(40px,9vw,64px);lin
 .chips button:disabled{opacity:.3;cursor:default}
 @media (max-width:640px){.dteams{grid-template-columns:1fr}.dvs{justify-self:center}}
 .epic .fmt{font-size:12px;color:var(--optic);letter-spacing:.08em;text-transform:uppercase}
-.epic .go{justify-self:start;margin-top:4px;font-size:16px;padding:10px 16px}
+.epic .epic-go{justify-self:start;margin-top:4px;font-size:16px;padding:10px 16px}
 .cta{background:var(--optic);color:#0b1322;font-family:var(--display);font-weight:800;font-size:22px;letter-spacing:.12em;text-transform:uppercase;border:0;border-radius:6px;padding:14px 18px;cursor:pointer;transition:transform .12s,box-shadow .2s}
 .cta:hover{box-shadow:0 0 30px rgba(217,242,62,.35)}
 .cta:active{transform:scale(.98)}
@@ -8655,7 +8655,7 @@ function renderEpics() {
         ${e.swap ? `<div class="side" role="group" aria-label="Play as"><span>Play as</span>${[e.you, e.opp].map((k, j) => `<button type="button" data-side="${i}:${j}" class="${(epicSide[e.id] === 1 ? 1 : 0) === j ? 'on' : ''}" aria-pressed="${(epicSide[e.id] === 1 ? 1 : 0) === j}">${P[k].name}</button>`).join('')}</div>` : ''}
         <div class="vs">You · ${P[x.you].name} <i>VS</i> CPU · ${P[x.opp].name}</div>
         <p class="story">${e.story} <b>${e.real}.</b></p><div class="fmt">${settings.epicLen ? 'Quick: one set · tiebreak at 6–6' : e.format}</div>
-        <button class="cta go" data-go="${i}">Play this epic</button></div></div>`;
+        <button class="cta epic-go" data-go="${i}">Play this epic</button></div></div>`;
   }).join('');
   host.querySelectorAll('.epic').forEach((el, i) => drawEpicCourt(el.querySelector('canvas'), EPICS[i].colors));
 }
@@ -8664,7 +8664,7 @@ function showEpics() {
   $('hud').hidden = true; $('touch').hidden = true; $('fade').classList.remove('on');
   sim.S.phase = 'menu'; cfg.practice = false; cfg.doubles = false; doublesMode = false; setDoublesView(null); machine.group.visible = false; models[1].root.visible = true; if (models.ump) models.ump.root.visible = true;
   $('epics').hidden = false; renderEpics(); previewEpic(epicSel);
-  setTimeout(() => { const b = $('epicList').querySelector('.go'); if (b) b.focus(); }, 0);
+  setTimeout(() => { const b = $('epicList').querySelector('.epic-go'); if (b) b.focus(); }, 0);
 }
 function previewEpic(i) { const e = epicFor(EPICS[i]); applySurface(e.surface); applyVenue(e.venue); setOppModel(e.opp); setPlayerModel(e.you); }
 $('toEpics').addEventListener('click', () => { AU.ui(); showEpics(); }, L);
