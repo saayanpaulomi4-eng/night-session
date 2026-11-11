@@ -2516,7 +2516,8 @@ function createSim(H, cfg) {
     afterStrike(h, Object.assign({}, sk.info));
     // the ball has been in flight since they struck it: catch up to now (a few hundredths of a second, normally)
     let rem = clamp(S.t - sk.t, 0, 0.6);
-    S.lateEst = S.lateEst === undefined ? Math.min(0.25, rem) : S.lateEst * 0.7 + Math.min(0.25, rem) * 0.3;
+    const rl = Math.min(0.3, rem); S.lateEst = S.lateEst === undefined ? rl : S.lateEst * 0.7 + rl * 0.3;
+    S.lateDev = S.lateDev === undefined ? 0.02 : S.lateDev * 0.8 + Math.abs(rl - S.lateEst) * 0.2;
     while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
     for (const a of P) if (a !== h) a.prevF = null;
   }
@@ -3199,7 +3200,7 @@ function hostDisp(rdt, b) {
   // (how late their strikes have been landing; nothing to allow for while the ball goes the other way)
   let Lt = 0, rate = 1;
   if (S.rally.lastHitter === 0) {
-    Lt = Math.min(0.22, Math.max(0.03, (S.lateEst === undefined ? 0.06 : S.lateEst) + 0.02));
+    Lt = Math.min(0.3, Math.max(0.03, (S.lateEst === undefined ? 0.06 : S.lateEst) + 1.5 * (S.lateDev || 0.02) + 0.02)); // (v150: room for the connection's unevenness too)
     const tRem = Math.abs(b.vz) > 1 ? Math.max(0, (b.z - P1.pos.z) / -b.vz) : 0.5;
     if (L < Lt) rate = clamp(1 - (Lt - L) / Math.max(0.2, tRem), 0.6, 1); else rate = clamp(1 + (L - Lt) * 4, 1, 1.5);
   } else {
@@ -5342,11 +5343,25 @@ function updateFeet(h, Mo, spec, dt, stroke) {
   }
   // the trailing foot drags: while the other foot is still in the air and the body runs on past a planted foot,
   // that foot rides up onto its toes and slides along behind (a toe drag), instead of the leg locking out straight
+  // (v150: ...it USED to. A planted foot dragged along the court behind the body - on average 30 cm/s of sliding,
+  //  2-3 m/s while it happened - which is what made all the movement look floaty and jelly. A planted foot now
+  //  never moves: when the body gets as far past it as a leg comfortably reaches, it pushes off and takes its next
+  //  step - with both feet briefly in the air, as in real running - instead of skating)
   for (let i = 0; i < 2; i++) {
     const F = feet[i]; F.dg = (F.dg || 0) * Math.max(0, 1 - dt * 8); if (F.swing || !feet[1 - i].swing) continue;
     rootLocalToWorld2(Mo, i === 0 ? -0.1 : 0.1, 0, _fw.h || (_fw.h = new THREE.Vector2()));
-    const dx = F.p.x - _fw.h.x, dz = F.p.y - _fw.h.y, reach = Math.hypot(dx, dz), lim = stroke || spd > 0.3 ? 0.38 : 0.46;
-    if (reach > lim) { const k = lim / reach; F.p.x = _fw.h.x + dx * k; F.p.y = _fw.h.y + dz * k; F.dg = Math.min(1, F.dg + dt * 14); }
+    const dx = F.p.x - _fw.h.x, dz = F.p.y - _fw.h.y, reach = Math.hypot(dx, dz), lim = stroke || spd > 0.3 ? 0.4 : 0.46;
+    if (reach > lim) {
+      F.swing = true; F.t = 0; F.from.copy(F.p); F.dg = 0;
+      if (Mo.gaitOn && moving) {
+        const per = Mo.gaitPer || 0.22; F.g = Math.min(1, Math.max(0, (spd - 2.2) / 2.2));
+        F.dur = per * (0.95 + 0.43 * F.g); F.gait = true; F.to.set(0, 0); gaitSpot(h, Mo, i, F.dur, spd, F.to);
+        Mo.gaitNext = 1 - i; Mo.gaitT = 0;
+      } else {
+        F.gait = false; F.g = 0; F.dur = Math.max(0.12, Math.min(0.18, 0.1 + reach * 0.12)); F.to.copy(D[i]);
+        if (moving) { F.to.x += vx * F.dur; F.to.y += vz * F.dur; }
+      }
+    }
   }
   for (let i = 0; i < 2; i++) {
     const F = feet[i], far = F.p.distanceTo(D[i]);
@@ -8249,7 +8264,9 @@ function updateCamera(dt) {
     if (tz > p0.pos.z + 1.5) { fz = Math.min(19, tz + 1.0); fx = p0.pos.x + ((p0.plan.fb ? p0.plan.fb.x : p0.plan.x) - p0.pos.x) * 0.6; }
   }
   if (!_camFocus.init) { _camFocus.x = fx; _camFocus.z = fz; _camFocus.init = true; }
-  const kf = 1 - Math.exp(-5 * dt); _camFocus.x += (fx - _camFocus.x) * kf; _camFocus.z += (fz - _camFocus.z) * kf;
+  // (v150: one quick, critically damped follow instead of two slow lags stacked - the view used to trail the player
+  //  by about half a second and drift on after every stop, so the whole picture swam)
+  const kf = 1 - Math.exp(-12 * dt); _camFocus.x += (fx - _camFocus.x) * kf; _camFocus.z += (fz - _camFocus.z) * kf;
   const p = { x: _camFocus.x, z: _camFocus.z };
   const k = 1 - Math.exp(-3.2 * dt);
   let tx, ty, tz, lx, ly, lz;
@@ -8263,11 +8280,18 @@ function updateCamera(dt) {
     tx = p.x * 0.25; ty = portrait ? 11 : 8.6; tz = (portrait ? 24 : 27.5) + (p.z - 12) * 0.3;
     lx = p.x * 0.15 + b.x * 0.05; ly = 0; lz = (portrait ? 1.5 : 2.6) + (p.z - 12) * 0.25;
   }
-  camPos.x += (tx - camPos.x) * k; camPos.y += (ty - camPos.y) * k; camPos.z += (tz - camPos.z) * k;
+  const cw = camMode === 'player' ? 7 : 4.5, cv = updateCamera.v || (updateCamera.v = { px: 0, py: 0, pz: 0, lx: 0, ly: 0, lz: 0 });
+  // (led by the player's speed, so at a steady run the view keeps pace instead of trailing behind; the spring still
+  //  smooths every start, stop and turn)
+  if (camMode === 'player' && sim.S.phase === 'rally') { const ld = 0.7 * 2 / cw; tx += p0.vel.x * 0.7 * ld; tz += p0.vel.z * ld; lx += p0.vel.x * 0.5 * ld; lz += p0.vel.z * ld; }
+  if (dt > 0 && dt < 0.2) {
+    camPos.x = spring(camPos.x, cv.px, tx, cw, dt); cv.px = _spV; camPos.y = spring(camPos.y, cv.py, ty, cw, dt); cv.py = _spV; camPos.z = spring(camPos.z, cv.pz, tz, cw, dt); cv.pz = _spV;
+  } else { camPos.set(tx, ty, tz); cv.px = cv.py = cv.pz = 0; }
   // lift the view a little to keep lobs and overheads in frame
   const hi = sim.S.phase === 'rally' || sim.S.phase === 'toss' ? Math.max(0, Math.min(1.8, (b.y - 2.6) * 0.38)) : 0;
   camLift += (hi - camLift) * (1 - Math.exp(-2.4 * dt));
-  camLook.x += (lx - camLook.x) * k; camLook.y += (ly - camLook.y) * k; camLook.z += (lz - camLook.z) * k;
+  if (dt > 0 && dt < 0.2) { camLook.x = spring(camLook.x, cv.lx, lx, cw, dt); cv.lx = _spV; camLook.y = spring(camLook.y, cv.ly, ly, cw, dt); cv.ly = _spV; camLook.z = spring(camLook.z, cv.lz, lz, cw, dt); cv.lz = _spV; }
+  else { camLook.set(lx, ly, lz); cv.lx = cv.ly = cv.lz = 0; }
   camera.position.copy(camPos); camera.position.y += camLift * 0.35;
   camLookT.copy(camLook); camLookT.y += camLift;
   if (shake > 0) { camera.position.x += (Math.random() - 0.5) * shake; camera.position.y += (Math.random() - 0.5) * shake; shake = Math.max(0, shake - dt * 0.8); }
@@ -9695,14 +9719,17 @@ function gvTick(now, Td, dt) {
   if (sv && ((sv.launched && (!GV.sk || GV.sk.k !== sv.k || GV.sk.wc !== Infinity)) || (!sv.launched && now - sv.at > 2600))) GV.sv = null;
   // how far ahead the ball runs as it reaches you: the time a press takes to get to the host (and be acted on)
   // (one way across, and a little to spare - the host draws its ball a touch behind to cover the odd late one)
-  const ahead = Math.max(0, Math.min(300, NET.rtt * 0.5 + 30)); GV.ahead += (ahead - GV.ahead) * Math.min(1, dt * 2);
+  const ahead = Math.max(0, Math.min(320, NET.rtt * 0.5 + Math.max(30, 10 + (NET.delay - 40) * 0.8))); // (v150: plus the connection's unevenness, so an unlucky late delivery still beats the ball to your racket on the host) GV.ahead += (ahead - GV.ahead) * Math.min(1, dt * 2);
   const Ta = Td + NET.delay + GV.ahead; GV.lastTa = Ta; // (now + off + ahead)
   // the clock: from the opponent's racket to yours it runs from Td up to Ta, and back again on the way out
   const wOf = (r, bz) => {
     if (r.ph !== 'rally' && r.ph !== 'dead') return 0;
     const zMe = P0.pos.z - CF, zOp = P1.pos.z + CF, span = Math.max(4, zMe - zOp);
-    if (r.lh === 1) return Math.max(0, Math.min(1, (bz - zOp) / span));
-    if (r.lh === 0) return 1 - Math.max(0, Math.min(1, (zMe - bz) / span));
+    // (v150: all the catching up is done on the far half - the opponent's shot runs a little quick over there and
+    //  then crosses into your half at its true speed, so you time it exactly as you would against the computer;
+    //  your own shot leaves at true speed and only eases once it's well over the net)
+    if (r.lh === 1) return Math.max(0, Math.min(1, (bz - zOp) / (span * 0.45)));
+    if (r.lh === 0) return 1 - Math.max(0, Math.min(1, (zMe - bz - span * 0.45) / (span * 0.55)));
     return 0;
   };
   let tau = GV.tau === null ? Td : GV.tau + dt * 1000;
@@ -9711,6 +9738,9 @@ function gvTick(now, Td, dt) {
   if (GV.tau !== null) {
     // (it speeds up and slows down gently - never faster than 1.6x or slower than 0.45x real time - and never runs backwards)
     const d = dt * 1000; tau = Math.max(GV.tau + 0.45 * d, Math.min(GV.tau + 1.6 * d, tau));
+    // (v150: once the opponent's ball is on your half the clock runs at exactly real time - small wobbles in the
+    //  clock sync are let go rather than chased, so the ball you are timing moves at its true, steady speed)
+    { const r9 = gvRallyAt(GV.tau); if (r9.ph === 'rally' && r9.lh === 1 && GV.disp && GV.disp.z > 0 && Math.abs(tau - (GV.tau + d)) < 45) tau = GV.tau + d; }
     // the ball is only flown on past the host's newest picture while it is coming to you (nothing but your own swing
     // can change it then) or flying from your own strike; anything else - the opponent's swing or serve, the end of a
     // point - isn't known until the host shows it, so the clock waits for it rather than guess
