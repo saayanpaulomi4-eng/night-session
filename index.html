@@ -431,7 +431,7 @@ kbd.wide{min-width:52px}
 .dbody .labGrid{grid-template-columns:1fr}
 /* shorter laptop screens: tighter card */
 @media (max-height:700px) and (min-width:861px){.card{gap:9px;padding:14px 16px}.card h2{font-size:42px}.bars{gap:5px}.bar b{font-size:18px}.sigline{font-size:13px}.go .cta{padding:10px 16px;font-size:21px}.mode small{display:none}.roster button{padding:5px 10px;font-size:16px}}
-@media (max-width:1180px) and (min-width:861px){.selbot{grid-template-columns:minmax(0,1fr) minmax(200px,260px)}.setup .seg button{font-size:14px;padding:8px 4px}}
+@media (max-width:1180px) and (min-width:861px){.selbot{grid-template-columns:minmax(200px,260px) minmax(0,1fr);grid-template-areas:"setup setup" "play modes";align-items:stretch}.setup .seg button{font-size:14px;padding:8px 4px}.go .cta{font-size:21px;padding:10px 14px}.mode small{display:none}} /* (v158: Play no longer sits on top of the Court buttons) */
 /* phones / portrait: player on top, a strip of players, then the card; play and modes stay pinned at the bottom */
 @media (max-width:860px),(orientation:portrait){
   #menu{overflow-y:auto}
@@ -459,13 +459,13 @@ kbd.wide{min-width:52px}
 @media (max-height:500px) and (orientation:landscape){
   #menu{overflow-y:auto}
   .sel{height:auto;min-height:100%;grid-template-columns:minmax(0,1fr) minmax(280px,.9fr);grid-template-rows:auto auto auto auto;grid-template-areas:"top top" "stage card" "list list" "bot bot";gap:8px 14px;padding-bottom:0}
-  .stagezone{height:calc(100vh - 140px)}
+  .stagezone{height:calc(100vh - var(--goH,66px) - 64px)}
   .plist{grid-area:stage;align-self:end;z-index:1;background:none;border:0;padding:0 0 4px}
   .plhead{display:none}
   .plist .roster{flex-direction:row;overflow-x:auto;gap:6px}
   .roster button{width:auto;grid-template-columns:10px auto;gap:7px;padding:7px 11px;font-size:15px;border-color:var(--line);background:rgba(9,15,28,.7)}
   .roster button small{display:none}
-  .card{max-height:calc(100vh - 140px);padding:12px 14px;gap:8px}.card h2{font-size:34px}.bars{gap:4px}.bar b{font-size:17px}
+  .card{max-height:calc(100vh - var(--goH,66px) - 64px);padding:12px 14px;gap:8px}.card h2{font-size:34px}.bars{gap:4px}.bar b{font-size:17px}
   .go .cta,.go .modes{grid-area:auto}
   .sel{padding-bottom:calc(66px + env(safe-area-inset-bottom,0px))}
   .selbot{grid-template-columns:1fr;grid-template-areas:"setup";padding-top:8px}
@@ -493,13 +493,21 @@ kbd.wide{min-width:52px}
   .card{max-height:none}
   .plist{background:none}
   .topbtn span{display:none}.topbtn{padding:8px 10px}
-  .go{background:linear-gradient(0deg,var(--night) calc(100% - 14px),rgba(6,10,19,0))}
+  .go{background:var(--night)}
 }
+/* (v158) the pinned Play bar is measured (--goH) and the menu scrolls in the space above it - the player card and
+   the match setup used to slide underneath it and be covered */
+@media (max-width:860px),(orientation:portrait),(max-height:500px) and (orientation:landscape){
+  #menu{bottom:var(--goH,0px)}
+  .sel{padding-bottom:12px}
+  .go{background:var(--night);box-shadow:0 -1px 0 var(--line)}
+}
+@media (max-height:500px) and (orientation:landscape) and (max-width:760px){.setup{grid-template-columns:1fr 1fr}.setup .opt:last-child{grid-column:1/-1}.go .cta{font-size:16px;white-space:nowrap;padding:8px 6px}.go{grid-template-columns:minmax(128px,.8fr) 3fr}.mode b{font-size:11.5px;letter-spacing:.03em}} /* (v158: small phones sideways) */
 @media (max-height:500px) and (orientation:landscape){
-  .selbot{background:none;border:0;border-radius:0;padding:8px 0 0;margin-top:28px} /* (starts below the fold, not half-hidden behind the Play bar) */
+  .selbot{background:none;border:0;border-radius:0;padding:8px 0 0;margin-top:0}
   .plist{background:none;align-self:end}
-  .card{max-height:calc(100vh - 140px);overflow-y:auto}
-  .go{background:linear-gradient(0deg,var(--night) calc(100% - 10px),rgba(6,10,19,0));padding-top:12px}
+  .card{max-height:calc(100vh - var(--goH,66px) - 64px);overflow-y:auto}
+  .go{background:var(--night);padding-top:10px}
 }
 </style>
 
@@ -5390,7 +5398,13 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     if (stroke && spd > 0.3) { const ld = Math.min(0.2, spd * 0.07) / spd; for (const d of D) { d.x += vx * ld; d.y += vz * ld; } }
   }
   // first frame / teleports: snap
-  for (let i = 0; i < 2; i++) { const F = feet[i]; if (!F.init || F.p.distanceTo(D[i]) > 2.4) { F.p.copy(D[i]); F.to.copy(D[i]); F.swing = false; F.init = true; } }
+  // (v158: a teleport is any jump of the body no one could run in one frame - a new point setting the players at the
+  //  baseline, a side change. Before, only jumps over 2.4 m snapped the feet; anything shorter left them where they
+  //  were and they slid or stepped across to the body, legs splayed off to the side, at the start of every point)
+  const tp = Mo.tpX !== undefined && Math.hypot(h.pos.x - Mo.tpX, h.pos.z - Mo.tpZ) > Math.max(0.35, 14 * dt + 0.15);
+  Mo.tpX = h.pos.x; Mo.tpZ = h.pos.z;
+  if (tp) { Mo.dropS = undefined; Mo.slS = 0; Mo.slV = 0; Mo.lgS = 0; Mo.lgV = 0; Mo.pvx = undefined; Mo.gaitOn = false; for (const F of feet) { F.hr = 0; F.dg = 0; F.lift = 0; } }
+  for (let i = 0; i < 2; i++) { const F = feet[i]; if (tp || !F.init || F.p.distanceTo(D[i]) > 2.4) { F.p.copy(D[i]); F.to.copy(D[i]); F.from.copy(D[i]); F.swing = false; F.t = 0; F.init = true; } }
   // ---- running gait: a real stride rhythm once the player is truly running ----
   // Steps come on a beat that quickens with speed (about 3.6 steps a second at a jog, 4.6 at a sprint) and alternate
   // feet every beat; each foot lands a little ahead of where the body will be, on its own side of the line of travel,
@@ -8690,7 +8704,7 @@ function openSettings(on) {
   if (on) { AU.ui && AU.ui(); setTimeout(() => $('setClose').focus(), 30); } else $('setOpen').focus();
 }
 $('setOpen').addEventListener('click', () => openSettings(true), L);
-function menuRowH() { const z = $('avatarZone'), s = document.querySelector('.sel'); if (!z || !s) return; const h = z.getBoundingClientRect().height; if (h > 0) s.style.setProperty('--rowH', Math.floor(h) + 'px'); }
+function menuRowH() { const z = $('avatarZone'), s = document.querySelector('.sel'); if (!z || !s) return; { const g = document.querySelector('#menu .go'), fx = g && getComputedStyle(g).position === 'fixed'; document.documentElement.style.setProperty('--goH', fx ? Math.ceil(g.getBoundingClientRect().height) + 'px' : '0px'); } const h = z.getBoundingClientRect().height; if (h > 0) s.style.setProperty('--rowH', Math.floor(h) + 'px'); }
 window.addEventListener('resize', menuRowH, L); setTimeout(menuRowH, 50); setTimeout(menuRowH, 600);
 $('setClose').addEventListener('click', () => openSettings(false), L);
 $('setDrawer').addEventListener('click', e => { if (e.target === $('setDrawer')) openSettings(false); }, L);
