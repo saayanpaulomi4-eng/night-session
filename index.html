@@ -2306,22 +2306,34 @@ function createSim(H, cfg) {
     return (f < 0 && closing > 0.5) ? -f / closing : Infinity;
   }
   // Exact time until the ball reaches h's contact plane, following bounces and spin (cached per sim step).
-  const tcCache = { t: -1, idx: -1, v: Infinity };
+  const tcCache = { t: -1, idx: -1, v: Infinity, p: null, px: 0, pz: 0 };
   function timeToCrossExact(h) {
-    if (tcCache.t === S.t && tcCache.idx === h.idx) return tcCache.v;
-    let v = Infinity;
+    if (tcCache.t === S.t && tcCache.idx === h.idx && tcCache.px === h.pos.x && tcCache.pz === h.pos.z) return tcCache.v;
+    let v = Infinity, cp = null;
     const planeZ = h.pos.z + h.fwd * CF;
     if ((ball.z - planeZ) * h.side < 0 && ball.vz * h.side > 0.3) {
       const s = Object.assign({}, ball), dt = 1 / 240;
+      let lx = s.x, ly = s.y, lz = s.z;
       for (let t = dt; t < 2.5; t += dt) {
         stepBall(s, dt, null);
         if (s.bounces >= 2 || s.vz * h.side <= 0) break;
-        if ((s.z - planeZ) * h.side >= 0) { if (s.y > 0.04 && s.y <= 3.05) v = t; break; } // too high to hit: no cue
+        if ((s.z - planeZ) * h.side >= 0) {
+          if (s.y > 0.04 && s.y <= 3.05) {
+            v = t;
+            // (where it crosses: the point the ball will be struck at if the player stays where they are)
+            const u = Math.abs(s.z - lz) > 1e-6 ? Math.max(0, Math.min(1, (planeZ - lz) / (s.z - lz))) : 1;
+            cp = { x: lx + (s.x - lx) * u, y: ly + (s.y - ly) * u, z: planeZ };
+          }
+          break;
+        } // too high to hit: no cue
+        lx = s.x; ly = s.y; lz = s.z;
       }
     }
-    tcCache.t = S.t; tcCache.idx = h.idx; tcCache.v = v;
+    tcCache.t = S.t; tcCache.idx = h.idx; tcCache.v = v; tcCache.p = cp; tcCache.px = h.pos.x; tcCache.pz = h.pos.z;
     return v;
   }
+  // (v162) the point h's contact plane will meet the ball (null if it won't come within reach of the plane)
+  function crossPointExact(h) { timeToCrossExact(h); return tcCache.p; }
 
   // online: a friend moves on their own screen (no waiting on the network to see their own player respond); we are
   // told where they are and how fast they're going, and follow that - flown on by how old the news is
@@ -2732,7 +2744,7 @@ function createSim(H, cfg) {
   return {
     S, P, P4, ball, cfg, DIFFS, LENS, NAME, SHOT, SERVE, R, PROFILES, SURFACES, ABILITY, abilityActive, statFor,
     _dbg: { computePlan, doStrike, doServe, afterStrike, onEvent },
-    newMatch, setDrill, MACHINE, DRILLS, update, shotDown, shotUp, chargeInfo, timeToCrossExact, aimPreview, predict, timeToCross, incomingTo, teamInc,
+    newMatch, setDrill, MACHINE, DRILLS, update, shotDown, shotUp, chargeInfo, timeToCrossExact, crossPointExact, aimPreview, predict, timeToCross, incomingTo, teamInc,
     setInput(x, z, ax, az) { S.input.x = x; S.input.z = z; S.aim.x = ax === undefined ? x : ax; S.aim.z = az === undefined ? z : az; },
     setInput2(x, z, ax, az) { S.input2.x = x; S.input2.z = z; S.aim2.x = ax; S.aim2.z = az; },
     setRemoteMove(x, z, vx, vz, pe, age, as) { S.remMove = { x, z, vx, vz, pe, age, as, t: S.t }; },
@@ -5018,7 +5030,7 @@ const STYLE_DEFS = {
   // Serve: compact - he lifts the elbow to shoulder height right away with the racket arm held LOW at the trophy;
   // an early, deep knee bend released fast into a huge jump, contact at full stretch before he starts to fall, and
   // a landing about 30 cm inside the baseline.
-  she: { hand: -1, waitUp: 0.15, headLock: 0.22, reach: { fh: { tb: 0.82, ct: 0.94, ex: 0.95 }, bh: { tb: 0.84, ct: 0.94, ex: 0.94 } }, split: 1.15, bounce: 0.03, drive: 0.1,
+  she: { hand: -1, waitUp: 0.15, headLock: 0.22, reach: { fh: { tb: 0.82, ct: 0.94, ex: 0.95 }, bh: { tb: 0.84, ct: 0.94, ex: 0.94 } }, split: 1.15, bounce: 0.03, drive: 0.1, driveBh: 0.035, // (v162: the jump is his forehand's; the two-hander stays on the court - it rose 21 cm, like the forehand)
     ready: { cr: 0.15, sp: 0.12, rh: [0.12, 0.98, 0.37], lg: 1, gp: 0.14, fL: [-0.28, 0.04], fR: [0.28, 0] },
     keys: {
       fh: [[0, { sy: -1.55, hy: -0.8, cr: 0.13, px: 0.07, rh: [0.42, 1.2, -0.28], rt: [0.22, 0.72, -0.66], rn: [0.3, -0.5, 0.81], lg: 0.4, gp: 0.33, lh: [0.55, 1.3, 0.55], fL: [-0.24, 0.08], fR: [0.33, -0.04], aL: 0.35, aR: 0.8 }],
@@ -5042,9 +5054,9 @@ const STYLE_DEFS = {
            [0.24, { sy: 1.45, hy: 0.8, cr: 0.23, rh: [-0.44, 0.9, -0.26], rt: [-0.25, -0.5, -0.83], rn: [0.35, -0.25, 0.9] }],
            [0.33, { sy: 1.1, hy: 0.62, cr: 0.2, rh: [-0.36, 0.86, 0.16], rt: [-0.7, -0.3, -0.65], rn: [0.15, -0.12, 0.98] }],
            [0.42, { sy: 0.76, hy: 0.42, cr: 0.16, rh: [-0.24, 0.97, 0.56], rt: [-0.92, 0.06, 0.32], rn: [0.12, -0.06, 1] }],
-           [0.52, { sy: 0.36, hy: 0.22, lift: 0.04, rh: [-0.12, 1.08, 0.86], rt: [-0.5, 0.28, 0.82], rn: [0.7, 0.1, 0.7] }],
-           [0.62, { sy: 0.02, hy: 0.06, lift: 0.04, rh: [0.06, 1.24, 0.8], rt: [-0.15, 0.5, 0.85], rn: [0.9, 0.1, 0.4] }],
-           [0.74, { sy: -0.35, hy: -0.15, lift: 0.01, rh: [0.2, 1.4, 0.52], rt: [0.45, 0.4, -0.8], rn: [0.85, 0.2, 0.5], rp: [0.25, -0.35, 1] }],
+           [0.52, { sy: 0.36, hy: 0.22, lift: 0.02, rh: [-0.12, 1.08, 0.86], rt: [-0.5, 0.28, 0.82], rn: [0.7, 0.1, 0.7] }],
+           [0.62, { sy: 0.02, hy: 0.06, lift: 0.02, rh: [0.06, 1.24, 0.8], rt: [-0.15, 0.5, 0.85], rn: [0.9, 0.1, 0.4] }],
+           [0.74, { sy: -0.35, hy: -0.15, lift: 0.0, rh: [0.2, 1.4, 0.52], rt: [0.45, 0.4, -0.8], rn: [0.85, 0.2, 0.5], rp: [0.25, -0.35, 1] }],
            [1, { sy: -0.65, hy: -0.32, cr: 0.11, rh: [0.30, 1.46, 0.10], rt: [0.45, -0.2, -0.87], rn: [0.88, 0.2, 0.43], rp: [0.25, -0.35, 1], hlL: 0.5 }]],
       srv: serveKeys({ stance: 0, rock: 0.04, knee: 0.33, turn: 1.3, arch: 0.42, toss: 2.22, tipBack: 0, compact: 1, troHi: -0.06, drop: 0.9, leap: 0.26, land: 0.6, kick: 0.32 }),
       oh: ohKeysFor({ leap: 1.5, fold: 1.3 }), // (v152: their own overhead)
@@ -5466,7 +5478,24 @@ function keepSides(Mo, feet, i, h) {
 }
 function updateFeet(h, Mo, spec, dt, stroke) {
   const feet = Mo.feet, D = _fw.d, vx = h.vel.x, vz = h.vel.z, spd = Math.hypot(vx, vz);
-  const moving = spd > 0.45 && (!stroke || spd > 1.4);
+  // (v162) Braking. The body stops in a quarter of a second, and the feet used to find out only once it had: it
+  // arrived first and the legs shuffled in under it afterwards - 0.3 s and one or two steps after every stop, the hips
+  // up to 30 cm off the middle of the feet - the slippery, jelly look. Now the slowing is read from the velocity, the
+  // point where the body will come to rest is worked out (v^2 / 2a), and the stopping steps go THERE, timed to land as
+  // the body arrives, the second foot already on its way while the first is still in the air.
+  if (Mo.fpv === undefined || !(dt > 0)) { Mo.fpv = [vx, vz]; Mo.fa = [0, 0]; }
+  if (dt > 0) {
+    const ax = Math.max(-40, Math.min(40, (vx - Mo.fpv[0]) / dt)), az = Math.max(-40, Math.min(40, (vz - Mo.fpv[1]) / dt)), kf = Math.min(1, dt * 22); // (smoothed: an online opponent's velocity arrives in steps)
+    Mo.fpv[0] = vx; Mo.fpv[1] = vz; Mo.fa[0] += (ax - Mo.fa[0]) * kf; Mo.fa[1] += (az - Mo.fa[1]) * kf;
+  }
+  const apar = spd > 0.25 ? (Mo.fa[0] * vx + Mo.fa[1] * vz) / spd : 0;
+  const brk = spd > 0.25 && apar < -4 ? Math.min(1, (-apar - 4) / 8) : 0; Mo.brk = brk;
+  const tStop = brk > 0 ? spd / Math.max(6, -apar) : 0, dStop = brk > 0 ? Math.min(1.2, spd * tStop * 0.5) : 0;
+  // (only for the short stops - the quick adjustments that make up most of a rally. Out of a full sprint the body
+  //  needs about 0.8 m to stop, a foot sent there makes a lunge that pulls the hips down 20 cm in three frames; those
+  //  stops keep their plant step and recovery step)
+  const braking = brk > 0.3 && tStop < 0.3 && dStop < 0.42;
+  const moving = spd > 0.45 && (!stroke || spd > 1.4) && !braking;
   // a real run (not a shuffle): fewer, longer strides with a flight phase - about five steps a second, each foot
   // planted while the body travels over it - instead of a frantic ten-steps-a-second patter
   const g = moving ? smooth(Math.max(0, Math.min(1, (spd - 2.2) / 2.2))) : 0;
@@ -5483,11 +5512,16 @@ function updateFeet(h, Mo, spec, dt, stroke) {
     // (a stroke's stance a little narrower than authored: with the knee bend now lighter, the full-width split stances
     //  left the legs locked straight - the "stretched" look at contact)
     const nw = stroke ? 0.82 : 1;
-    rootLocalToWorld2(Mo, spec.fL[0] * nw, spec.fL[1] * nw, D[0]); rootLocalToWorld2(Mo, spec.fR[0] * nw, spec.fR[1] * nw, D[1]);
+    // (v162: a far ball - the stance goes over to it with the hips, so the feet step across instead of the legs
+    //  stretching out to the side; see the reach shift)
+    const sR = (Mo.shR || 0) * (Mo.shK || 0), sF = (Mo.shF || 0) * (Mo.shK || 0);
+    rootLocalToWorld2(Mo, spec.fL[0] * nw + sR, spec.fL[1] * nw + sF, D[0]); rootLocalToWorld2(Mo, spec.fR[0] * nw + sR, spec.fR[1] * nw + sF, D[1]);
     // moving during a stroke (sliding into the ball, pushing off into the recovery): the stance travels with the body,
     // a little ahead of it, so the feet keep stepping under the hips instead of staying planted while the body glides
     // away from them (the legs stretched out straight on every assisted forehand and volley)
-    if (stroke && spd > 0.3) { const ld = Math.min(0.2, spd * 0.07) / spd; for (const d of D) { d.x += vx * ld; d.y += vz * ld; } }
+    // (v162: braking, the stance is set where the body will come to rest)
+    if (braking) { const ux = vx / spd, uz = vz / spd, ds = Math.min(0.35, dStop); for (const d of D) { d.x += ux * ds; d.y += uz * ds; } }
+    else if (stroke && spd > 0.3) { const ld = Math.min(0.2, spd * 0.07) / spd; for (const d of D) { d.x += vx * ld; d.y += vz * ld; } }
   }
   // first frame / teleports: snap
   // (v158: a teleport is any jump of the body no one could run in one frame - a new point setting the players at the
@@ -5495,7 +5529,7 @@ function updateFeet(h, Mo, spec, dt, stroke) {
   //  were and they slid or stepped across to the body, legs splayed off to the side, at the start of every point)
   const tp = Mo.tpX !== undefined && Math.hypot(h.pos.x - Mo.tpX, h.pos.z - Mo.tpZ) > Math.max(0.35, 14 * dt + 0.15);
   Mo.tpX = h.pos.x; Mo.tpZ = h.pos.z;
-  if (tp) { Mo.dropS = undefined; Mo.slS = 0; Mo.slV = 0; Mo.lgS = 0; Mo.lgV = 0; Mo.pvx = undefined; Mo.gaitOn = false; for (const F of feet) { F.hr = 0; F.dg = 0; F.lift = 0; } }
+  if (tp) { Mo.dropS = undefined; Mo.slS = 0; Mo.slV = 0; Mo.lgS = 0; Mo.lgV = 0; Mo.pvx = undefined; Mo.gaitOn = false; Mo.shR = Mo.shF = Mo.shRV = Mo.shFV = 0; for (const F of feet) { F.hr = 0; F.dg = 0; F.lift = 0; } }
   for (let i = 0; i < 2; i++) { const F = feet[i]; if (tp || !F.init || F.p.distanceTo(D[i]) > 2.4) { F.p.copy(D[i]); F.to.copy(D[i]); F.from.copy(D[i]); F.swing = false; F.t = 0; F.init = true; } }
   // ---- running gait: a real stride rhythm once the player is truly running ----
   // Steps come on a beat that quickens with speed (about 3.6 steps a second at a jog, 4.6 at a sprint) and alternate
@@ -5537,12 +5571,12 @@ function updateFeet(h, Mo, spec, dt, stroke) {
       }
     }
   } else if (Mo.gaitOn) Mo.gaitOn = false;
-  const thr = moving ? Math.max(0.12, Math.min(0.3, spd * 0.06)) * (1 - g) + Math.max(0.3, Math.min(0.6, spd * 0.1)) * g : stroke ? (spd > 0.3 ? 0.1 : 0.07) : 0.09;
+  const thr = moving ? Math.max(0.12, Math.min(0.3, spd * 0.06)) * (1 - g) + Math.max(0.3, Math.min(0.6, spd * 0.1)) * g : braking ? 0.06 : stroke ? (spd > 0.3 ? 0.1 : 0.07) : 0.09;
   // never a stretched leg: a planted foot that has ended up further from its hip than a comfortable stride (the body
   // slid on, or the stance target moved) steps back under the body straight away, even mid-stroke
   if (!Mo.gaitOn) for (let i = 0; i < 2; i++) {
     const F = feet[i]; if (F.swing) continue;
-    rootLocalToWorld2(Mo, i === 0 ? -0.1 : 0.1, 0, _fw.h || (_fw.h = new THREE.Vector2()));
+    rootLocalToWorld2(Mo, (i === 0 ? -0.1 : 0.1) + (spec.px || 0), spec.pz || 0, _fw.h || (_fw.h = new THREE.Vector2())); // (from the hips where they are)
     const reach = Math.hypot(F.p.x - _fw.h.x, F.p.y - _fw.h.y);
     if (reach > (stroke || spd > 0.3 ? 0.4 : 0.5) && !feet[1 - i].swing) { F.swing = true; F.t = 0; F.from.copy(F.p); F.to.copy(D[i]); F.dur = Math.max(0.12, Math.min(0.2, 0.08 + reach * 0.16)); F.gait = false; F.g = 0; break; }
   }
@@ -5554,7 +5588,7 @@ function updateFeet(h, Mo, spec, dt, stroke) {
   //  step - with both feet briefly in the air, as in real running - instead of skating)
   for (let i = 0; i < 2; i++) {
     const F = feet[i]; F.dg = (F.dg || 0) * Math.max(0, 1 - dt * 8); if (F.swing || !feet[1 - i].swing) continue;
-    rootLocalToWorld2(Mo, i === 0 ? -0.1 : 0.1, 0, _fw.h || (_fw.h = new THREE.Vector2()));
+    rootLocalToWorld2(Mo, (i === 0 ? -0.1 : 0.1) + (spec.px || 0), spec.pz || 0, _fw.h || (_fw.h = new THREE.Vector2()));
     const dx = F.p.x - _fw.h.x, dz = F.p.y - _fw.h.y, reach = Math.hypot(dx, dz), lim = stroke || spd > 0.3 ? 0.4 : 0.46;
     if (reach > lim) {
       F.swing = true; F.t = 0; F.from.copy(F.p); F.dg = 0;
@@ -5574,17 +5608,21 @@ function updateFeet(h, Mo, spec, dt, stroke) {
   }
   const busy = f => f.swing;
   const anySwing = busy(feet[0]) || busy(feet[1]);
-  if (!anySwing && !Mo.gaitOn) {
+  // (v162: braking, the second foot may leave once the first is well on its way, so both are down as the body stops)
+  const overlap = braking && !(feet[0].swing && feet[1].swing) && [0, 1].every(k => !feet[k].swing || feet[k].t / feet[k].dur > 0.35);
+  if ((!anySwing || overlap) && !Mo.gaitOn) {
     const e0 = feet[0].p.distanceTo(D[0]), e1 = feet[1].p.distanceTo(D[1]);
     let i = e0 >= e1 ? 0 : 1;
     // moving off: the foot on the side you're going to steps first (an open step), unless the other is far behind
-    if (moving) { const pj = k => (feet[k].p.x - h.pos.x) * vx + (feet[k].p.y - h.pos.z) * vz, ld = pj(0) >= pj(1) ? 0 : 1, eL = ld === 0 ? e0 : e1, eO = ld === 0 ? e1 : e0; if (eL > thr * 0.5 && eO < eL * 1.6) i = ld; }
+    // (v162: much more readily - a quick move to the side used to start with the far foot closing in, the body already
+    //  gliding off over the other one)
+    if (moving) { const pj = k => (feet[k].p.x - h.pos.x) * vx + (feet[k].p.y - h.pos.z) * vz, ld = pj(0) >= pj(1) ? 0 : 1, eL = ld === 0 ? e0 : e1, eO = ld === 0 ? e1 : e0; if (eL > thr * 0.3 && eO < eL * 2.5) i = ld; }
     if (feet[i].swing) i = 1 - i;
     const e = i === 0 ? e0 : e1;
-    if (e > thr && !feet[i].swing && (Mo.stepCool <= 0 || moving)) {
+    if (e > thr && !feet[i].swing && (Mo.stepCool <= 0 || moving || braking)) {
       const F = feet[i];
       F.swing = true; F.t = 0; F.from.copy(F.p);
-      F.dur = moving ? Math.max(0.11, 0.24 - spd * 0.022) * (1 - g) + Math.max(0.22, Math.min(0.3, 0.2 + spd * 0.017)) * g : Math.max(0.11, Math.min(0.2, 0.1 + e * 0.22));
+      F.dur = braking ? Math.max(0.1, Math.min(0.2, tStop + 0.03)) : moving ? Math.max(0.11, 0.24 - spd * 0.022) * (1 - g) + Math.max(0.22, Math.min(0.3, 0.2 + spd * 0.017)) * g : Math.max(0.11, Math.min(0.2, 0.1 + e * 0.22));
       F.g = g;
       F.to.copy(D[i]); if (moving) { F.to.x += vx * F.dur; F.to.y += vz * F.dur; }
       Mo.stepCool = moving ? 0 : 0.04;
@@ -5635,6 +5673,7 @@ function strideSwing(Mo, h, spd, dt) {
 // ---------- the per-frame solve ----------
 const _cc = new THREE.Vector3(), _cw = new THREE.Vector3(), _cv = new THREE.Vector3();
 const _sv = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), pole: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler() };
+const _shT = [0, 0, 0, 0]; // (the reach shift's targets: standing [right, forward], on the run [right, forward])
 // The game's swing clock can jump a few hundredths in one frame (a late swing catching up at the strike, a swing
 // re-timed to the ball); the body follows its own copy of it, which may run ahead at up to 1.7x the swing's pace to
 // catch up, so the racket never skips forward between two frames.
@@ -5907,14 +5946,19 @@ function syncAthlete0(h, Mo, dt) {
   }
   // ---- 2. reach: bend the swing path toward where the ball really is ----
   let lunge = 0;
+  const shT = _shT; shT[0] = shT[1] = shT[2] = shT[3] = 0;
   if (swinging && a.kind !== 'srv') {
     const des0 = st.contact[a.kind];
     // (where this stroke meets the ball differs a little between stroke types: slide to the new one, don't jump)
     if (des0) { if (!Mo.desS) Mo.desS = des0.slice(); else for (let j = 0; j < 3; j++) Mo.desS[j] += (des0[j] - Mo.desS[j]) * Math.min(1, dt * 10); }
     const des = des0 ? Mo.desS : null;
     let cw = null;
-    if (!a.prep && a.cp && a.s >= 0.36) cw = a.cp;
-    else if (h.plan && h.plan.spot && sim.incomingTo(h)) cw = h.plan.spot;
+    // (v162) aimed at where the ball will really meet the player's contact plane - the point every ball is struck at -
+    //  and not at the planned spot. A player who isn't standing on that spot (most of the time) had the reach aimed up
+    //  to a metre or two away, and when the ball was struck, or the plan was redone mid-swing, the target jumped to the
+    //  ball and the hips lurched 25-30 cm in four frames over planted feet. (A tweener still chases its own spot.)
+    if (!a.prep && a.cp) cw = a.cp;
+    else if (sim.incomingTo(h)) { const twS = h.plan && h.plan.spot && h.plan.spot.tweener; cw = (!twS && sim.crossPointExact(h)) || (h.plan && h.plan.spot) || null; }
     if (des && cw) {
       // the target slides (planned spot -> actual contact point) on a spring instead of switching in one frame
       if (!Mo.cwS || Mo.cwKind !== a.kind || Mo.cwStale) { Mo.cwS = { x: cw.x, y: cw.y, z: cw.z, vx: 0, vy: 0, vz: 0 }; Mo.cwKind = a.kind; Mo.cwStale = false; }
@@ -5938,18 +5982,40 @@ function syncAthlete0(h, Mo, dt) {
       // (more of a far ball is taken by moving the body over to it and less by stretching the arm out on its own -
       //  the arm reaching for every ball alone was a big part of the rubbery look at contact)
       T.rh[0] += dr * wh * 0.5; T.rh[1] += (du + knees) * wu; T.rh[2] += df * wh * 0.6;
-      T.px += dr * 0.5 * w; T.pz += df * 0.35 * w;
+      // (v162) ...and the body goes over to a far ball WITH its feet: the shift is set from the set-up on (as soon as
+      //  the ball's line is known), the feet step across under it, it is held through the shot and let go at the end
+      //  of the finish. The hips used to slide up to 35 cm sideways over planted feet during the forward swing - the
+      //  stretched, rubbery legs on every wide forehand and volley. Running into the ball the feet are on their
+      //  stride, so there only a little of it goes to the hips, around contact (see below).
+      const wS = a.prep ? 1 : a.s < 0.8 ? 1 : 1 - smooth(Math.min(1, (a.s - 0.8) / 0.2));
+      shT[0] = Math.max(-0.32, Math.min(0.32, dr * 0.5)) * wS; shT[1] = Math.max(-0.14, Math.min(0.14, df * 0.35)) * wS;
+      shT[2] = dr * 0.25 * w; shT[3] = df * 0.15 * w;
       if (a.kind === 'oh' && du > 0.25) T.lift += Math.min(0.32, (du - 0.25) * 0.8) * w;
       // wide balls: step out with the near foot (Djokovic slides into a split)
       lunge = Math.abs(dr) * w;
       const sp = st.split;
-      if (dr > 0.12) { T.fR[0] += Math.min(0.22, (dr - 0.12) * 0.55 * sp) * wk; T.cr += Math.min(0.05, (dr - 0.12) * 0.14 * sp) * wk; }
-      if (dr < -0.12) { T.fL[0] -= Math.min(0.22, (-dr - 0.12) * 0.55 * sp) * wk; T.cr += Math.min(0.05, (-dr - 0.12) * 0.14 * sp) * wk; }
+      // (v162: the body steps over to the ball now, so the near foot only reaches out further for the very wide ones)
+      if (dr > 0.3) { T.fR[0] += Math.min(0.14, (dr - 0.3) * 0.45 * sp) * wk; T.cr += Math.min(0.05, (dr - 0.12) * 0.14 * sp) * wk; }
+      else if (dr > 0.12) T.cr += Math.min(0.05, (dr - 0.12) * 0.14 * sp) * wk;
+      if (dr < -0.3) { T.fL[0] -= Math.min(0.14, (-dr - 0.3) * 0.45 * sp) * wk; T.cr += Math.min(0.05, (-dr - 0.12) * 0.14 * sp) * wk; }
+      else if (dr < -0.12) T.cr += Math.min(0.05, (-dr - 0.12) * 0.14 * sp) * wk;
     }
   }
   if (!swinging) { Mo.cwStale = true; Mo.desS = null; }
+  {
+    // the reach shift eases in and out (about a third of a second); standing, it moves the stance too (updateFeet)
+    const kS = 1 - smooth(Math.max(0, Math.min(1, (spd - 1.0) / 0.4)));
+    Mo.shR = spring(Mo.shR || 0, Mo.shRV || 0, shT[0] * kS + shT[2] * (1 - kS), 9, dt); Mo.shRV = _spV;
+    Mo.shF = spring(Mo.shF || 0, Mo.shFV || 0, shT[1] * kS + shT[3] * (1 - kS), 9, dt); Mo.shFV = _spV;
+    Mo.shK = kS;
+    T.px += Mo.shR; T.pz += Mo.shF;
+    // (standing, the whole player steps over - hands too - so the stroke keeps its shape instead of the takeback being
+    //  squeezed against a body that moved under it; the hand still reaches the rest of the way at contact)
+    const sR = Mo.shR * kS, sF = Mo.shF * kS;
+    T.rh[0] += sR; T.rh[2] += sF; T.lh[0] += sR; T.lh[2] += sF;
+  }
   // leg drive through contact (Nadal jumps into his forehand)
-  if (swinging && !a.prep && (a.kind === 'fh' || a.kind === 'bh') && a.s > 0.3 && a.s < 0.75) T.lift += Math.sin((a.s - 0.3) / 0.45 * Math.PI) * st.drive;
+  if (swinging && !a.prep && (a.kind === 'fh' || a.kind === 'bh') && a.s > 0.3 && a.s < 0.75) T.lift += Math.sin((a.s - 0.3) / 0.45 * Math.PI) * (a.kind === 'bh' && st.driveBh !== undefined ? st.driveBh : st.drive);
   // split step when the opponent strikes
   const hopArc = h.hop > 0 ? Math.sin((1 - h.hop / 0.22) * Math.PI) : 0;
   T.lift += hopArc * 0.07;
@@ -6013,7 +6079,12 @@ function syncAthlete0(h, Mo, dt) {
   // path is already smooth) so the strings are square to the ball at contact instead of still pointing back
   const zone = swinging && !a.prep ? (a.kind === 'srv' ? Math.exp(-Math.pow((a.s - 0.58) / 0.1, 2)) : Math.exp(-Math.pow((a.s - 0.4) / 0.13, 2))) : 0;
   const wZone = w + (118 - w) * zone;
-  for (const key of SC) { const r = spring(S[key], V[key], T[key], FAST_KEYS[key] ? Math.max(w, wFast) : key === 'sy' || key === 'hy' ? wZone : w, dt); S[key] = r; V[key] = _spV; }
+  // (v162: the hips' sideways and forward travel on softer springs through a swing: the weight going from the back leg
+  //  to the front through contact was a 1.5-1.8 m/s flick over planted feet, in about four frames)
+  // (and a groundstroke's leg drive rises and lands over a few frames more: Shelton's rose 4.5-5.5 cm a frame off
+  //  planted feet, 6-9 g, worst on a quick or late swing - a pop, not a jump. Serves and smashes keep their quick leap.)
+  const softLift = swinging && !a.prep && a.kind !== 'srv' && a.kind !== 'oh' && a.kind !== 'tw';
+  for (const key of SC) { const r = spring(S[key], V[key], T[key], FAST_KEYS[key] ? (softLift && (key === 'lift' || key === 'airL' || key === 'airR') ? 26 : Math.max(w, wFast)) : key === 'sy' || key === 'hy' ? wZone : key === 'px' || key === 'pz' ? Math.min(w, 26) : w, dt); S[key] = r; V[key] = _spV; }
   for (const key of V3K) {
     // racket tip / face / elbow directions: when the target is far round (over ~100 degrees), steer through a
     // midway direction so the racket turns along a real arc instead of flipping through the middle
@@ -6035,15 +6106,23 @@ function syncAthlete0(h, Mo, dt) {
   // ---- 4. root ----
   const baseYaw = h.team === 0 ? Math.PI : 0;
   let runYaw = 0;
+  // (v162) Only a real run turns the hips into it. A quick move of half a metre to the side touches 3 m/s for a
+  // moment, and the body used to twist 20 degrees toward it and straight back on every one; players shuffle those
+  // facing the net. How long the player has been running decides it (about a fifth of a second, then it ramps in).
+  Mo.runT = spd > 2.0 ? (Mo.runT || 0) + dt : Math.max(0, (Mo.runT || 0) - dt * 2);
+  const runIntent = smooth(Math.max(0, Math.min(1, (Mo.runT - 0.12) / 0.2)));
   if (swinging && a.kind === 'tw') runYaw = (Mo.yaw || 0) >= 0 ? Math.PI : -Math.PI; // tweener: back to the net
   else if ((!swinging || a.prep || a.s > 0.7) && spd > 2.0) {
     // running: the hips turn into the run (crossover running, the way players actually cover a court); short moves
     // stay a side shuffle facing the net; a recovery that starts in the finish turns as the finish ends
     let diff = wrapPi(Math.atan2(h.vel.x, h.vel.z) - baseYaw);
     if (Math.abs(diff) > 2.6) diff = (Mo.yaw || -0.1) < 0 ? -Math.abs(diff) : Math.abs(diff);
-    runYaw = Math.max(-1.3, Math.min(1.3, diff * 0.82)) * Math.min(1, (spd - 2.0) / 1.8) * (a.prep ? 1 - setup : swinging ? Math.min(1, (a.s - 0.7) / 0.2) : 1);
+    runYaw = Math.max(-1.3, Math.min(1.3, diff * 0.82)) * Math.min(1, (spd - 2.0) / 1.8) * runIntent * (a.prep ? 1 - setup : swinging ? Math.min(1, (a.s - 0.7) / 0.2) : 1);
   }
-  Mo.yaw = spring(Mo.yaw, Mo.yawV || 0, runYaw, 9, dt); Mo.yawV = _spV;
+  // (v162: braking, the hips already turn back toward the net, so the player plants facing it instead of stopping
+  //  side-on and then pivoting round on the spot with a slow dragging step)
+  runYaw *= 1 - 0.75 * (Mo.brkS || 0);
+  Mo.yaw = spring(Mo.yaw, Mo.yawV || 0, runYaw, 9 + 5 * (Mo.brkS || 0), dt); Mo.yawV = _spV;
   Mo.root.position.set(h.pos.x, 0, h.pos.z);
   Mo.root.rotation.y = baseYaw + Mo.yaw;
   if (ULTRA) ultraBlob(h.idx, Mo);
@@ -6068,6 +6147,9 @@ function syncAthlete0(h, Mo, dt) {
     const maxHip = ay + Math.sqrt(Math.max(0.01, Lmax * Lmax - dh * dh));
     drop = Math.max(drop, HIP_Y + S.lift - maxHip);
   }
+  // (v162: stopping, the knees give a little and the hips sink to take the stop, instead of popping up)
+  Mo.brkS = (Mo.brkS || 0) + ((Mo.brk || 0) - (Mo.brkS || 0)) * Math.min(1, dt * ((Mo.brk || 0) > (Mo.brkS || 0) ? 14 : 5));
+  drop += 0.03 * Mo.brkS;
   // never sink into a split: a real player is at most in a deep athletic crouch
   drop = Math.min(drop, Math.min(0.17, S.cr * 0.7) + runCr + (swinging || spd > 0.4 ? 0.1 : 0.05));
   // the hips follow the legs on a spring, so steps and stance changes never jolt the body
@@ -6075,7 +6157,9 @@ function syncAthlete0(h, Mo, dt) {
   Mo.dropS = spring(Mo.dropS, Mo.dropV, drop, 40, dt); Mo.dropV = _spV; drop = Mo.dropS;
   // bob: up through the swing phase of each stride
   // (through a spring: the lifts of the two feet meet in a sharp V at each footfall, which read as a jolt per step)
-  const sl0 = Math.max(feet[0].lift, feet[1].lift) * 0.42 * runAmt;
+  // (v162: not while braking - the last stride's bob lifted the hips 2-3 cm just as the body stopped, then they sank
+  //  4 cm into the stance: a bounce at every stop)
+  const sl0 = Math.max(feet[0].lift, feet[1].lift) * 0.42 * runAmt * (1 - (Mo.brk || 0));
   Mo.slS = spring(Mo.slS || 0, Mo.slV || 0, sl0, 26, dt); Mo.slV = _spV;
   const strideLift = Math.max(0, Mo.slS);
   Mo.body.position.set(-S.px, S.lift - drop + strideLift, S.pz);
@@ -6092,10 +6176,15 @@ function syncAthlete0(h, Mo, dt) {
     if (Mo.pvx === undefined || dt <= 0) { Mo.pvx = vlx; Mo.pvz = vlz; Mo.alx = Mo.alz = Mo.alxV = Mo.alzV = 0; }
     const ax0 = Math.max(-30, Math.min(30, (vlx - Mo.pvx) / Math.max(dt, 1e-3))), az0 = Math.max(-30, Math.min(30, (vlz - Mo.pvz) / Math.max(dt, 1e-3)));
     Mo.pvx = vlx; Mo.pvz = vlz;
-    Mo.alx = spring(Mo.alx, Mo.alxV, ax0, 9, dt); Mo.alxV = _spV; Mo.alz = spring(Mo.alz, Mo.alzV, az0, 9, dt); Mo.alzV = _spV;
+    Mo.alx = spring(Mo.alx, Mo.alxV, ax0, 7, dt); Mo.alxV = _spV; Mo.alz = spring(Mo.alz, Mo.alzV, az0, 7, dt); Mo.alzV = _spV;
     const k0 = mood ? 0 : swinging && !a.prep ? 0.45 : 1; Mo.mkS = Mo.mkS === undefined ? k0 : Mo.mkS + (k0 - Mo.mkS) * Math.min(1, dt * 6); const k = Mo.mkS;
-    mPitch = k * (Math.max(-0.08, Math.min(0.1, Mo.alz * 0.009)) + 0.04 * Math.max(-0.5, Math.min(1, vlz / 5))); // (a burst leans into the push-off)
-    mRoll = k * (Math.max(-0.09, Math.min(0.09, -Mo.alx * 0.009)) + Math.max(-0.05, Math.min(0.05, -vlx * 0.012)));
+    // (v162: about half as much. With the game's quick starts and stops the old amounts tipped the upper body 7-8
+    //  degrees to one side and back on every short move to the side, and pitched it 18 degrees forward and back on
+    //  every start and stop - seen from behind, the torso sloshing about on the hips like jelly. Athletes keep the trunk
+    //  quiet and the head level; the legs do the work)
+    mPitch = k * (Math.max(-0.05, Math.min(0.06, Mo.alz * 0.005)) + 0.03 * Math.max(-0.5, Math.min(1, vlz / 5))); // (a burst leans into the push-off)
+    mRoll = k * (Math.max(-0.04, Math.min(0.04, -Mo.alx * 0.0035)) + Math.max(-0.025, Math.min(0.025, -vlx * 0.006)));
+    Mo.mRoll = mRoll;
   }
   Mo.torso.rotation.set(S.sp * 0.5 + drop * 0.6 + lean * 0.7 + mPitch, torsoYaw, mRoll);
   Mo.chest.rotation.set(S.sp * 0.5 + drop * 0.4, torsoYaw, S.tl);
@@ -6281,8 +6370,10 @@ function syncAthlete0(h, Mo, dt) {
   }
   Mo.headYaw = spring(Mo.headYaw, Mo.hyV || 0, wantYaw, 20, dt); Mo.hyV = _spV;
   Mo.headPitch = spring(Mo.headPitch, Mo.hpV || 0, wantPitch, 20, dt); Mo.hpV = _spV;
-  Mo.neck.rotation.set(Mo.headPitch * 0.35, Mo.headYaw * 0.4, 0);
-  Mo.headG.rotation.set(Mo.headPitch * 0.65, Mo.headYaw * 0.6, 0);
+  // (v162: the neck takes out the trunk's sideways lean from moving, so the head stays level while the body works)
+  const hRoll = -(Mo.mRoll || 0) * 0.45;
+  Mo.neck.rotation.set(Mo.headPitch * 0.35, Mo.headYaw * 0.4, hRoll);
+  Mo.headG.rotation.set(Mo.headPitch * 0.65, Mo.headYaw * 0.6, hRoll);
 }
 
 /* ---------------- athletes: skinned human rig ---------------- */
