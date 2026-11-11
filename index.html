@@ -1796,6 +1796,9 @@ function createSim(H, cfg) {
       if (a.s < 0.4) { a.boostTo = 0.48; a.rate = Math.max(base, (0.48 - a.s) / 0.07); } else { a.boostTo = 0; a.rate = Math.max(0.9, Math.min(3, inRate)); }
     }
     a.lat = (ball.x - h.pos.x) * h.right * h.hand; a.h = ball.y; a.reachT = 0.45; a.runIn = Math.hypot(h.vel.x, h.vel.z);
+    // (v164) how fast the run was carrying the player out toward the side the ball is struck on: the running finishes
+    //  (a reverse forehand, Sampras's, the hop-step) are for a ball you chase down - not for running round one
+    a.runSide = Math.max(0, h.vel.x * h.right * h.hand * (info.side > 0 ? 1 : -1));
     a.cp = { x: ball.x, y: ball.y, z: ball.z }; a.lock = 0.3;
     const pred = predict(ball);
     for (const o of oppsOf(h)) {
@@ -1930,7 +1933,13 @@ function createSim(H, cfg) {
         }
       }
     }
-    const lat = (spot.x - h.pos.x) * h.right * h.hand;
+    // (v164) for you, the side is judged from where you will come to rest - the run you are on carried to a stop
+    //  (v|v| / 2a at the 24 m/s2 you can brake with) - not from where you are this instant: running round your backhand
+    //  for an inside-out forehand (or round the forehand for an inside-out backhand) is a forehand from the moment you
+    //  can no longer stop short of the ball's line. Judged from your feet, the plan stayed a backhand until you were
+    //  past the ball, and holding the shot button had the assist drag you back to the backhand.
+    const lx = h.ai ? h.pos.x : h.pos.x + h.vel.x * Math.abs(h.vel.x) / 48;
+    const lat = (spot.x - lx) * h.right * h.hand;
     // forehand or backhand: a ball near the middle keeps the side already chosen for it (a clear margin is needed to
     // switch), so shuffling across the line of the ball doesn't flip the stroke back and forth
     const prevFh = h.plan && h.plan.shot === S.rally.shots && h.plan.spot && !h.plan.spot.overhead ? h.plan.fh : undefined;
@@ -2366,10 +2375,23 @@ function createSim(H, cfg) {
     // you run to the ball yourself. Holding a shot button only helps once you are close to where the ball will be
     // hit (within ASSIST_R): it slides you onto the spot, and once you are there you are set - planted until the
     // shot is played (the keys can't move you off it)
-    const swing = (p.charging || p.pending) && cfg.assist && inc && p.plan && !p.plan.netHit && !(p.plan.spot && p.plan.spot.tweener);
+    let swing = (p.charging || p.pending) && cfg.assist && inc && p.plan && !p.plan.netHit && !(p.plan.spot && p.plan.spot.tweener);
     if (!swing) p.set = false;
     const dSpot = swing ? Math.hypot(p.plan.x - p.pos.x, p.plan.z - p.pos.z) : Infinity;
     p.assist = 0;
+    // (v164) ...but it doesn't overrule the stick:
+    //  - steering away from the spot it would slide you to (not yet set there), you go where you steer;
+    //  - running round the ball for an inside-out shot: at the spot (or past it) and still pushing on across the line
+    //    of the ball, with the time to get round it, it lets you go - the stroke turns into the other wing once you can
+    //    no longer stop short of the ball (computePlan), and from then on it helps you to that spot instead. It used to
+    //    hold you on the backhand spot (or the forehand one) whatever you pushed.
+    if (swing && p.plan.spot && !p.plan.spot.overhead) {
+      const wx = inp.x * p.right, wz = -inp.z * p.fwd, wl = Math.hypot(wx, wz);
+      if (!p.set && dSpot > 0.3 && wl > 0.3 && (wx * (p.plan.x - p.pos.x) + wz * (p.plan.z - p.pos.z)) < -0.2 * wl * dSpot) swing = false;
+      const wing = p.plan.fh ? 1 : -1, push = inp.x * p.hand * wing, prog = (p.pos.x - p.plan.x) * p.right * p.hand * wing;
+      if (swing && push > 0.5 && prog > -0.2) { const tc = timeToCrossExact(p); if (isFinite(tc) && tc > (1.9 - Math.max(0, prog)) / Math.max(1, moveSpeed(p)) + 0.3) swing = false; }
+      if (!swing) p.set = false;
+    }
     if (swing && (p.set || dSpot < ASSIST_R)) {
       if (dSpot < 0.18) p.set = true;
       p.assist = p.set ? 2 : 1;
@@ -2417,7 +2439,15 @@ function createSim(H, cfg) {
   function prepKind(h) {
     const pl = incomingTo(h) ? h.plan : null;
     if (pl && pl.spot && pl.spot.tweener) return 'tw';
-    if (pl && pl.spot && pl.spot.overhead) return 'oh';
+    // (v164) for you, an overhead is prepared only if the ball will really come to you high enough for one where you
+    //  are standing (its height as it crosses your contact plane; over 1.6 m is struck as a smash): a lob that is an
+    //  overhead from the planned spot was prepared as one while you stood back and volleyed it, the racket coming
+    //  down from behind the head into a backhand volley (a little give either way, so it doesn't flicker)
+    if (pl && pl.spot && pl.spot.overhead) {
+      if (h.ai) return 'oh';
+      const cp = crossPointExact(h);
+      if (!cp || cp.y > (h.anim.kind === 'oh' && h.anim.prep ? 1.45 : 1.75)) return 'oh';
+    }
     const f = sideKind(h) === 'fh';
     if (pl && pl.spot && pl.spot.volley) return f ? 'vfh' : 'vbh';
     if (!h.ai && (h.chKey === 'slice' || h.chKey === 'drop')) return h.chKey === 'drop' ? (f ? 'dfh' : 'dbh') : (f ? 'sfh' : 'sbh');
@@ -2442,7 +2472,9 @@ function createSim(H, cfg) {
         else if ((h.charging || h.pending) && inc && a.prep && a.kind === 'oh' && tcH < 0.22) { a.prep = false; a.fwd = true; a.fwdRate = 0; a.cap = 0.455; a.rate = 2.1; }
         else if (h.charging && S.phase !== 'toss' && !a.fwd && !(a.active && !a.prep && a.s > 0.2)) { // (a swing already under way finishes before the next takeback)
           const k = prepKind(h);
-          if (!a.prep || !a.active || (a.kind !== k && !(inc && wingOf(a.kind) && wingOf(k) && wingOf(a.kind) !== wingOf(k) && tcH0(h) < 0.45))) startPrep(a, k);
+          // (v164: the takeback may still change wings until 0.3 s out - the forward swing starts at 0.26 - so a late run
+          //  round the ball is a forehand prepared as one, not a backhand takeback swapped for a forehand at contact)
+          if (!a.prep || !a.active || (a.kind !== k && !(inc && wingOf(a.kind) && wingOf(k) && wingOf(a.kind) !== wingOf(k) && tcH0(h) < 0.3))) startPrep(a, k);
         }
         else if (a.prep && !h.charging && !h.pending) { a.prep = false; a.cap = 1; a.rate = 2.2; } // swing through at nothing
       } else if (inc && h.plan && !h.plan.leave) {
@@ -3538,7 +3570,7 @@ const POST = (() => {
       }`, { tColor: { value: rt.texture }, tAO: { value: aoA.texture }, tBloom: { value: bu[0].texture }, tDepth: { value: rt.depthTexture }, tBlur: { value: bd[1].texture }, dof: { value: 0 }, focus: { value: 4 }, sharpen: { value: 0.5 }, texel: { value: new THREE.Vector2() }, projInv: { value: new THREE.Matrix4() },
       aoAmt: { value: 0 }, bloomAmt: { value: 0 }, haze: { value: 0 }, hazeStart: { value: 30 }, hazeK: { value: 0.03 }, hazeCol: { value: new THREE.Color() }, seed: { value: 0 }, dbg: { value: 0 } });
     let W = 0, H = 0;
-    const sz = new THREE.Vector2(), half = n => Math.max(1, Math.round(n));
+    const sz = new THREE.Vector2(), half = n => Math.max(1, Math.round(n)), hg0 = new THREE.Color(), _hgC = new THREE.Color();
     function ensure() {
       renderer.getDrawingBufferSize(sz);
       if (sz.x === W && sz.y === H) return;
@@ -3557,10 +3589,13 @@ const POST = (() => {
       ensure();
       const ac = renderer.autoClear, ex = renderer.toneMappingExposure, L = P.light || P.looks[window.__surfKey === 'indoor' ? 'indoor' : (typeof VENUE_NOW !== 'undefined' && VENUE_NOW && VENUE_NOW.night) ? 'night' : 'day'];
       // (the light balance of high graphics, laid over whatever the court or venue has set)
-      if (L) { key.intensity *= L.key; hemi.intensity *= L.hemi; fill.intensity *= L.fill; rim.intensity *= L.rim; renderer.toneMappingExposure *= L.exp; }
+      // (v164: and the light coming up off the court takes its colour - blue under a hard-court player, red-brown on clay)
+      const rimK = L ? L.rim * (P.menu ? 1.9 : 1) : 1; // (in the menu the player is lit from behind a little more, so they stand out from the stands)
+      if (L) { key.intensity *= L.key; hemi.intensity *= L.hemi; fill.intensity *= L.fill; rim.intensity *= rimK; renderer.toneMappingExposure *= L.exp;
+        hg0.copy(hemi.groundColor); if (typeof innerCourt !== 'undefined') hemi.groundColor.lerp(_hgC.copy(innerCourt.material.color).multiplyScalar(1.6), 0.5); }
       renderer.setRenderTarget(rt);
       if (!checked) { checked = true; const gl = renderer.getContext(); if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('post target incomplete'); }
-      try { r0(scene, cam); } finally { if (L) { key.intensity /= L.key; hemi.intensity /= L.hemi; fill.intensity /= L.fill; rim.intensity /= L.rim; renderer.toneMappingExposure = ex; } }
+      try { r0(scene, cam); } finally { if (L) { key.intensity /= L.key; hemi.intensity /= L.hemi; fill.intensity /= L.fill; rim.intensity /= rimK; renderer.toneMappingExposure = ex; hemi.groundColor.copy(hg0); } }
       renderer.autoClear = false;
       const pi = cam.projectionMatrixInverse;
       if (P.ao) {
@@ -3573,7 +3608,9 @@ const POST = (() => {
       if (P.bloom || dof) {
         const d = downMat.uniforms;
         d.tSrc.value = rt.texture; d.texel.value.set(1 / W, 1 / H); d.first.value = 1; d.threshold.value = dof ? -1 : 0.62; d.knee.value = dof ? 0.001 : 0.3; pass(downMat, bd[0]); d.first.value = 0;
-        for (let i = 1; i < (dof ? 2 : 5); i++) { d.tSrc.value = bd[i - 1].texture; d.texel.value.set(1 / bd[i - 1].width, 1 / bd[i - 1].height); pass(downMat, bd[i]); }
+        const dofLv = H > 1000 ? 2 : 1; // (the blur is a fixed number of pixels of a reduced copy: on a sharper screen, one more halving)
+        compMat.uniforms.tBlur.value = bd[dofLv].texture;
+        for (let i = 1; i < (dof ? dofLv + 1 : 5); i++) { d.tSrc.value = bd[i - 1].texture; d.texel.value.set(1 / bd[i - 1].width, 1 / bd[i - 1].height); pass(downMat, bd[i]); }
         if (!dof) {
           const u = upMat.uniforms;
           for (let i = 3; i >= 0; i--) { const low = i === 3 ? bd[4] : bu[i + 1]; u.tLow.value = low.texture; u.tHigh.value = bd[i].texture; u.texel.value.set(1 / low.width, 1 / low.height); pass(upMat, bu[i]); }
@@ -6093,6 +6130,7 @@ function strideSwing(Mo, h, spd, dt) {
 const _cc = new THREE.Vector3(), _cw = new THREE.Vector3(), _cv = new THREE.Vector3();
 const _sv = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), pole: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler() };
 const _shT = [0, 0, 0, 0]; // (the reach shift's targets: standing [right, forward], on the run [right, forward])
+const wingK = k => k === 'fh' || k === 'sfh' || k === 'dfh' || k === 'vfh' ? 1 : k === 'bh' || k === 'sbh' || k === 'dbh' || k === 'vbh' ? -1 : 0; // (1 forehand side, -1 backhand)
 // The game's swing clock can jump a few hundredths in one frame (a late swing catching up at the strike, a swing
 // re-timed to the ball); the body follows its own copy of it, which may run ahead at up to 1.7x the swing's pace to
 // catch up, so the racket never skips forward between two frames.
@@ -6175,7 +6213,8 @@ function syncAthlete0(h, Mo, dt) {
       if (st.altW && st.alt && st.alt[a.kind]) {
         const by = a.cp ? a.cp.y : h.plan && h.plan.spot && sim.incomingTo(h) ? h.plan.spot.y : 1;
         const flat = a.cp ? !!a.flat : h.idx === 0 && h.chKey === 'flat';
-        const tw = Math.max(0, Math.min(1, st.altW(a.kind, by, flat, a.cp ? a.runIn || 0 : spd)));
+        const sideV = Math.max(0, h.vel.x * h.right * h.hand * (wingK(a.kind) || 1));
+        const tw = Math.max(0, Math.min(1, st.altW(a.kind, by, flat, a.cp ? (a.runSide !== undefined ? a.runSide : a.runIn || 0) : sideV)));
         // (a new stroke - including one that only starts at the strike, late, at s 0.3 - takes its own weight at once)
         Mo.altS = Mo.altS === undefined || a.s < 0.2 || a.s < (Mo.altPrevS || 0) - 0.05 ? tw : Mo.altS + (tw - Mo.altS) * Math.min(1, dt * 14);
         Mo.altPrevS = a.s; ALT_W = Mo.altS;
@@ -6348,11 +6387,11 @@ function syncAthlete0(h, Mo, dt) {
     if (loA > 0) { T.cr += 0.06 * loA; T.sp += 0.1 * loA; T.rh[1] += (-0.16 * pre + 0.14 * post) * loA; }
     // Sampras's running forehand: on the run the finish comes up by the RIGHT ear instead of across the body
     if (st.runFin && a.kind === 'fh' && !a.prep && a.s > 0.46) {
-      const rA = Math.max(0, Math.min(1, ((a.runIn || 0) - 2.2) / 2.2)) * smooth(Math.min(1, (a.s - 0.46) / 0.2));
+      const rA = Math.max(0, Math.min(1, ((a.runSide !== undefined ? a.runSide : a.runIn || 0) - 2.2) / 2.2)) * smooth(Math.min(1, (a.s - 0.46) / 0.2));
       if (rA > 0) { const RH = [0.3, 1.7, 0.32], RT = [0.12, 0.92, -0.36]; for (let j = 0; j < 3; j++) { T.rh[j] += (RH[j] - T.rh[j]) * rA; T.rt[j] += (RT[j] - T.rt[j]) * rA; } T.sy += (0.45 - T.sy) * rA * 0.6; }
     }
     // on the run: open stance, and the momentum carries into a hop-step through the finish
-    const runIn = a.prep ? spd : (a.runIn || 0), runA = Math.max(0, Math.min(1, (runIn - 2.6) / 2.4));
+    const runIn = a.prep ? Math.max(0, h.vel.x * h.right * h.hand * (wingK(a.kind) || 1)) : (a.runSide !== undefined ? a.runSide : a.runIn || 0), runA = Math.max(0, Math.min(1, (runIn - 2.6) / 2.4));
     if (runA > 0) {
       T.fL[1] = T.fL[1] * (1 - 0.7 * runA); T.fR[1] = T.fR[1] * (1 - 0.7 * runA); T.hy *= 1 - 0.25 * runA;
       if (!a.prep && a.s > CONTACT_S && a.s < 0.85) T.lift += Math.sin((a.s - CONTACT_S) / (0.85 - CONTACT_S) * Math.PI) * 0.06 * runA;
@@ -6391,16 +6430,22 @@ function syncAthlete0(h, Mo, dt) {
       // players set the racket up high and let it fall below the ball just before swinging up
       // (v151: after contact the height correction lets go quickly, so the racket brushes UP from a low ball into the
       //  normal finish - it used to stay down at the ball's height and sweep across the waist first)
-      const wu = a.prep ? 0.22 : a.s < 0.3 ? 0.22 + (w - 0.22) * smooth(a.s / 0.3) : a.s > CONTACT_S ? Math.exp(-Math.pow((a.s - CONTACT_S) / 0.13, 2)) : w;
-      const wk = a.prep ? 0.7 : a.s < CONTACT_S ? 0.7 + 0.3 * a.s / CONTACT_S : Math.max(0, 1 - (a.s - CONTACT_S) / 0.4);
-      const knees = du < 0 ? Math.min(0.1, -du * 0.32) : 0;
+      // (v164) a volley is different: the racket is set at the height of the ball from the start - knees bent and the face
+      //  opened for a low one, up for a high one - then punched forward through it and held there; it used to be set
+      //  up beside the head whatever was coming and chopped down half a metre to a ball at the waist just before contact
+      const vol = a.kind === 'vfh' || a.kind === 'vbh';
+      const wu = vol ? (a.prep ? 0.85 : a.s <= CONTACT_S ? 0.85 + 0.15 * smooth(a.s / CONTACT_S) : a.s < 0.72 ? 1 : Math.max(0, 1 - smooth(Math.min(1, (a.s - 0.72) / 0.28))))
+        : a.prep ? 0.22 : a.s < 0.3 ? 0.22 + (w - 0.22) * smooth(a.s / 0.3) : a.s > CONTACT_S ? Math.exp(-Math.pow((a.s - CONTACT_S) / 0.13, 2)) : w;
+      const wk = a.prep ? (vol ? 1 : 0.7) : a.s < CONTACT_S ? (vol ? 1 : 0.7 + 0.3 * a.s / CONTACT_S) : Math.max(0, 1 - (a.s - CONTACT_S) / (vol ? 0.5 : 0.4));
+      const knees = vol ? (du < -0.15 ? Math.min(0.17, (-du - 0.15) * 0.45) : 0) : du < 0 ? Math.min(0.1, -du * 0.32) : 0;
       T.cr += knees * wk;
+      if (vol && du < -0.25) { const lv = Math.min(1, (-du - 0.25) / 0.45) * wu; T.rt[1] -= 0.5 * lv; T.rt[2] += 0.3 * lv; T.rn[1] += 0.25 * lv; T.rh[1] += 0.2 * lv; } // (a low volley: the face opens, the head comes down toward level - the hand a touch higher so the strings stay on the ball)
       // the hand only reaches for the ball in the last part of the swing; earlier, the body and feet take the
       // adjustment (players step and turn toward a wide ball rather than stretching the arm out in the takeback)
       const wh = a.prep ? 0.15 : Math.max(Math.exp(-Math.pow((a.s - CONTACT_S) / 0.16, 2)), 0.15 * (1 - smooth(Math.min(1, a.s / 0.3))));
       // (more of a far ball is taken by moving the body over to it and less by stretching the arm out on its own -
       //  the arm reaching for every ball alone was a big part of the rubbery look at contact)
-      T.rh[0] += dr * wh * 0.5; T.rh[1] += (du + knees) * wu; T.rh[2] += df * wh * 0.6;
+      T.rh[0] += dr * wh * 0.5; T.rh[1] += (du + (vol ? 0 : knees)) * wu; T.rh[2] += df * wh * 0.6;
       // (v162) ...and the body goes over to a far ball WITH its feet: the shift is set from the set-up on (as soon as
       //  the ball's line is known), the feet step across under it, it is held through the shot and let go at the end
       //  of the finish. The hips used to slide up to 35 cm sideways over planted feet during the forward swing - the
@@ -8127,6 +8172,17 @@ vec4 mhMask(vec4 r, vec3 p, float e) {
   float sock = onLeg * smoothstep(uCut.w - e * 2.0, uCut.w + e * 2.0, legT);
   return vec4(shirt, shorts, sock, collarBand);
 }`;
+const MH_FOLD_GLSL = `
+#ifdef MH_FOLDS
+float mhFoldH(vec3 v) { return fract(sin(dot(v, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float mhFoldN(vec3 q) { vec3 f = floor(q), t = fract(q); t = t * t * (3.0 - 2.0 * t);
+  float a0 = mix(mix(mhFoldH(f), mhFoldH(f + vec3(1,0,0)), t.x), mix(mhFoldH(f + vec3(0,1,0)), mhFoldH(f + vec3(1,1,0)), t.x), t.y);
+  float a1 = mix(mix(mhFoldH(f + vec3(0,0,1)), mhFoldH(f + vec3(1,0,1)), t.x), mix(mhFoldH(f + vec3(0,1,1)), mhFoldH(f + vec3(1,1,1)), t.x), t.y);
+  return mix(a0, a1, t.z); }
+vec3 mhFoldPerturb(vec3 sp, vec3 sn, vec2 dH, float fd) {
+  vec3 sx = dFdx(sp), sy = dFdy(sp), r1 = cross(sy, sn), r2 = cross(sn, sx); float det = dot(sx, r1) * fd;
+  return normalize(abs(det) * sn - sign(det) * (dH.x * r1 + dH.y * r2)); }
+#endif`;
 function mhMaterial(look) {
   const D = mhData(), F = faceOf(look), col = c => new THREE.Color(c);
   const B = Object.assign({ shorts: 0.36, sleeve: 0.42 }, look.build || {});
@@ -8137,8 +8193,11 @@ function mhMaterial(look) {
     uPrint: { value: look.print || 0 }, uPrintC: { value: col(look.printC === undefined ? 0x111111 : look.printC) },
     uFace: { value: new THREE.Vector4(Math.min(1, F.stubble * (F.beard ? 1.6 : 1)), F.brow || 1, F.beard ? 1 : 0, 0) },
     uEyeL: { value: new THREE.Vector3().fromArray(D.H.eyeL) }, uEyeR: { value: new THREE.Vector3().fromArray(D.H.eyeR) },
+    uFold: { value: 0.011 },
   };
   const m = new THREE.MeshStandardMaterial({ skinning: true, morphTargets: true, roughness: 0.6, metalness: 0, envMapIntensity: 0.45 });
+  // (v164) high graphics: soft folds in the shirt and shorts (MH_FOLDS, below)
+  if (POST.on) m.defines = Object.assign(m.defines || {}, { MH_FOLDS: '' });
   m.extensions = { derivatives: true };
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
@@ -8154,11 +8213,12 @@ function mhMaterial(look) {
         float gx = exp(-pow(position.x / 0.09, 2.0)), gy = smoothstep(0.78, 0.86, position.y) * smoothstep(1.04, 0.95, position.y);
         float fill = max(mk.y, mk.x) * gx * gy;
         transformed.z += fill * (position.z > 0.0 ? 0.04 : -0.02); transformed.y -= fill * 0.025 * smoothstep(0.95, 0.86, position.y); }`);
-    sh.fragmentShader = 'uniform vec3 uSkin, uShirt, uShorts, uSock, uTrim, uHair, uEyeL, uEyeR, uPrintC;\nuniform vec4 uFace;\nuniform float uPrint;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + sh.fragmentShader
+    sh.fragmentShader = 'uniform vec3 uSkin, uShirt, uShorts, uSock, uTrim, uHair, uEyeL, uEyeR, uPrintC;\nuniform vec4 uFace;\nuniform float uPrint, uFold;\nvarying vec4 vReg;\nvarying vec4 vPaint;\nvarying vec3 vBind;\n' + MH_GLSL + '\n' + MH_FOLD_GLSL + '\n' + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
-        float mhRough;
+        float mhRough, mhCloth;
         { float e = max(0.002, fwidth(vBind.y) * 0.75);
           vec4 mk = mhMask(vReg, vBind, e);
+          mhCloth = clamp(mk.x + mk.y, 0.0, 1.0);
           vec3 skin = uSkin;
           // the face: brows above each eye, stubble or a beard, lips
           if (vBind.y > 1.6) {
@@ -8210,11 +8270,23 @@ function mhMaterial(look) {
           c = mix(c, shirtC, mk.x); c = mix(c, uTrim, clamp(trimN + trimS + plk * mk.x, 0.0, 1.0));
           c = mix(c, uShorts, mk.y); c = mix(c, uSock, mk.z);
           mhRough = mix(0.5, 0.86, clamp(mk.x + mk.y + mk.z, 0.0, 1.0));
+          #ifdef MH_FOLDS
+          mhRough -= 0.06 * (1.0 - clamp(mk.x + mk.y + mk.z, 0.0, 1.0)); // (a touch of sheen on the skin, a match's sweat)
+          #endif
           diffuseColor.rgb = c; }`)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = mhRough;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        #ifdef MH_FOLDS
+        if (mhCloth > 0.01) {
+          // creases hanging down the shirt and gathered round the waist and in the shorts: two layers of smooth noise
+          // laid on the body's rest pose, so they stay put on the cloth as the body moves
+          float fh = mhFoldN(vBind * vec3(9.0, 3.2, 9.0)) * 0.62 + mhFoldN(vBind * vec3(5.0, 15.0, 5.0) + vec3(7.3, 1.1, 3.7)) * 0.38;
+          normal = mhFoldPerturb(-vViewPosition, normal, vec2(dFdx(fh), dFdy(fh)) * uFold * mhCloth, faceDirection);
+        }
+        #endif`)
       .replace('#include <lights_physical_pars_fragment>', SKIN_CHUNK === THREE.ShaderChunk.lights_physical_pars_fragment ? '#include <lights_physical_pars_fragment>' : SKIN_CHUNK);
   };
-  m.customProgramCacheKey = () => 'mh-body';
+  m.customProgramCacheKey = () => POST.on ? 'mh-body-f' : 'mh-body';
   return m;
 }
 // the eyes: two balls in the sockets, white with a coloured iris and a black pupil looking ahead
