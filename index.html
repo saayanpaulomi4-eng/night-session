@@ -5818,7 +5818,9 @@ function syncAthlete0(h, Mo, dt) {
   if (!swinging && !mood && spd < 0.35 && h.hop <= 0) {
     const ready = phase === 'rally' || phase === 'toss' || phase === 'feedWait' || (phase === 'serveReady' && sim.S.srvAth !== h.idx);
     // (a smooth bob on the toes: |sin| has a hard corner at the bottom of every bounce, a little jolt each time)
-    T.lift += ready ? Math.pow(Math.sin(Mo.idleT * 5.4), 2) * st.bounce * 1.15 : Math.sin(Mo.idleT * 2) * 0.004;
+    // (v154: a light, quick spring on the toes - half the old height, so the knees no longer pump up and down while
+    //  they wait, which read as wobbly legs)
+    T.lift += ready ? Math.pow(Math.sin(Mo.idleT * 5.4), 2) * st.bounce * 0.55 : Math.sin(Mo.idleT * 2) * 0.003;
   }
   // airborne: once the body rises more than a few centimetres the feet leave the court too; smaller bounces happen on the toes
   if (T.lift > 0.045) { const air = (T.lift - 0.045) * 0.95; T.airL += air; T.airR += air; }
@@ -5967,7 +5969,17 @@ function syncAthlete0(h, Mo, dt) {
     // (running, the push-off is right up on the toes - the ankle rises about 9 cm - so the back leg extends through
     //  the foot instead of locking straight with the foot flat)
     _sv.a.set(F.p.x, ANK + F.lift + air + heel * (spd > 2.2 && !F.swing ? 0.045 + 0.045 * Math.min(1, (spd - 2.2) / 2) : 0.045), F.p.y);
-    _sv.pole.set(side * kneeOut, 0, 1).normalize();
+    // (v154: the knee bends over its own TOES - mostly the foot's direction, a little of the hips' - instead of
+    //  straight ahead of the hips. When the hips turned (every stroke, every run turned across the court) the knees
+    //  twisted away from the feet: caving in, crossing, flipping between bowed and knock-kneed - the jelly legs)
+    {
+      const yl0 = -(i === 0 ? S.aL : S.aR);
+      _sv.pole.set(Math.sin(yl0) + side * kneeOut, 0, Math.cos(yl0)).transformDirection(Mo.root.matrixWorld);
+      _t.inv2 = _t.inv2 || new THREE.Matrix4(); _t.inv2.copy(Mo.body.matrixWorld).invert(); _sv.pole.transformDirection(_t.inv2);
+      _sv.pole.y = 0; if (_sv.pole.lengthSq() < 1e-6) _sv.pole.set(0, 0, 1); _sv.pole.normalize();
+      const pb = _t.pb || (_t.pb = new THREE.Vector3()); pb.set(side * kneeOut, 0, 1).normalize();
+      _sv.pole.multiplyScalar(0.75).addScaledVector(pb, 0.25).normalize();
+    }
     twoBone(Mo.body, L.hip, L.knee, THIGH, SHIN, _sv.a, _sv.pole, -1, 1, L.mem || (L.mem = {}), dt);
     // foot flat on the floor, toes turned out by the stance, heel lifting onto the toes
     const yawH = i === 0 ? S.aL : S.aR;          // handed yaw (+ toes toward racket side)
