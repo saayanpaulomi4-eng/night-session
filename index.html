@@ -4404,11 +4404,28 @@ const STROKES_COMMON = {
        [0.25, { sy: -1.42, hy: -0.95, tl: 0.36, sp: -0.16, cr: 0.19, rh: [0.38, 1.63, -0.18], rt: [-0.05, 0.8, -0.6], rn: [-0.95, 0.15, -0.1], lh: [-0.03, 2.06, 0.52] }],
        [0.33, { sy: -1.05, hy: -0.75, tl: 0.3, sp: -0.12, cr: 0.08, lift: 0.08, rh: [0.31, 1.72, -0.06], rt: [0.06, -0.92, -0.38], rn: [-0.9, 0.0, 0.42], rp: [1, 0.6, 0.2], lh: [-0.12, 1.78, 0.46], airR: 0.16 }],
        [0.42, { sy: -0.3, hy: -0.42, tl: 0.02, sp: 0.06, cr: 0.0, lift: 0.19, rh: [0.2, 2.13, 0.36], rt: [0.05, 0.97, 0.25], rn: [0, 0.15, 1], rp: [1, -0.2, -0.3], lh: [-0.28, 1.34, 0.18], airR: 0.36, airL: 0.1 }],
-       [0.52, { sy: 0.22, hy: -0.05, sp: 0.16, lift: 0.12, rh: [0.24, 1.76, 0.68], rt: [0.55, 0.15, 0.82], rn: [0.75, -0.5, -0.4], rp: [1, -0.6, -0.3], lh: [-0.34, 1.18, 0.12], airR: 0.24, airL: 0.04, fR: [0.15, 0.1] }],
-       [0.66, { sy: 0.55, hy: 0.25, sp: 0.18, cr: 0.12, lift: 0.0, rh: [0.0, 1.2, 0.58], rt: [-0.35, -0.6, 0.72], rn: [0.5, -0.7, -0.5], rp: [1, -1, -0.5], lh: [-0.36, 1.1, 0.1], airR: 0.08, fL: [-0.08, 0.3], fR: [0.2, 0.2] }],
-       [0.8, { sy: 0.78, hy: 0.38, sp: 0.13, cr: 0.14, rh: [-0.26, 0.95, 0.38], rt: [-0.4, -0.7, -0.6], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], airR: 0, fR: [0.18, 0.15] }],
-       [1, { sy: 0.8, hy: 0.4, sp: 0.12, cr: 0.12, rh: [-0.3, 0.94, 0.35], rt: [-0.35, -0.6, -0.7], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], lh: [-0.35, 1.1, 0.1], lg: 0.5, airR: 0, fR: [0.18, 0.15], hlR: 0.5 }]],
+       // (v152: the follow-through SNAPS down across the body - pronating, the chest folding over as the feet land -
+       //  and is then held. Filmed, the racket drifted down in front of the waist for the whole second half)
+       [0.49, { sy: 0.22, hy: -0.05, sp: 0.2, lift: 0.12, rh: [0.22, 1.72, 0.7], rt: [0.55, 0.15, 0.82], rn: [0.75, -0.5, -0.4], rp: [1, -0.6, -0.3], lh: [-0.34, 1.18, 0.12], airR: 0.24, airL: 0.04, fR: [0.15, 0.1] }],
+       [0.57, { sy: 0.6, hy: 0.26, sp: 0.28, cr: 0.14, lift: 0.02, rh: [-0.04, 1.12, 0.6], rt: [-0.4, -0.6, 0.69], rn: [0.5, -0.7, -0.5], rp: [1, -1, -0.5], lh: [-0.36, 1.1, 0.1], airR: 0.08, fL: [-0.08, 0.3], fR: [0.2, 0.2] }],
+       [0.66, { sy: 0.8, hy: 0.4, sp: 0.24, cr: 0.16, lift: 0, rh: [-0.3, 0.92, 0.38], rt: [-0.4, -0.7, -0.6], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], airR: 0, fR: [0.18, 0.15] }],
+       [0.84, { sy: 0.82, hy: 0.4, sp: 0.18, cr: 0.15, rh: [-0.31, 0.93, 0.36], rt: [-0.36, -0.62, -0.7], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], lh: [-0.35, 1.1, 0.1], airR: 0, fR: [0.18, 0.15] }],
+       [1, { sy: 0.78, hy: 0.38, sp: 0.12, cr: 0.12, rh: [-0.26, 0.96, 0.36], rt: [-0.3, -0.5, -0.8], rn: [0.3, -0.6, 0.7], rp: [1, -1, -0.5], lh: [-0.3, 1.1, 0.12], lg: 0.5, airR: 0, fR: [0.18, 0.15], hlR: 0.5 }]],
 };
+
+// (v152) each player's own overhead, from the shared one: leap = how high and explosively they jump into it (the
+// scissor kick scales with it), fold = how hard the body snaps over through the finish, wind = how early and high the
+// racket is set (a calm player sets it a touch later and lower)
+function ohKeysFor(o) {
+  const q = Object.assign({ leap: 1, fold: 1, wind: 1 }, o);
+  return STROKES_COMMON.oh.map(([s, k]) => {
+    const c = JSON.parse(JSON.stringify(k));
+    if (c.lift !== undefined) c.lift *= q.leap; if (c.airR !== undefined) c.airR *= q.leap; if (c.airL !== undefined) c.airL *= q.leap;
+    if (s >= 0.45 && c.sp !== undefined) c.sp *= q.fold; if (s >= 0.45 && c.sy !== undefined) c.sy *= 0.85 + 0.15 * q.fold;
+    if (s <= 0.25 && c.rh) c.rh[1] = 1.48 + (c.rh[1] - 1.48) * q.wind;
+    return [s, c];
+  });
+}
 
 // ---------------- serves, one per player ----------------
 // Every serve is built from the same six beats (set-up, wind-up, trophy, racket drop, contact, landing) but shaped by
@@ -4422,7 +4439,7 @@ const STROKES_COMMON = {
 //   land    how far into the court the front foot lands     kick  back leg kicking up behind on landing
 function serveKeys(o) {
   const q = Object.assign({ stance: 0, rock: 0, knee: 0.22, turn: 1.3, arch: 0.36, toss: 2.12, tipBack: 0.15, compact: 0, drop: 0.7, leap: 0.12, land: 0.72, kick: 0.2, sideTilt: 0 }, o);
-  const fL0 = [-0.12, 0.22], fR0 = [0.25, -0.25];
+  const fL0 = [-0.09, 0.18], fR0 = [0.21, -0.19]; // (v152: about shoulder width - it was a lunge)
   const fRt = [fR0[0] + (0.02 - fR0[0]) * q.stance, fR0[1] + (0.08 - fR0[1]) * q.stance];
   const nrm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
   const tipT = nrm([-0.08 + (-0.12 + 0.08) * q.tipBack, 0.92 + (0.35 - 0.92) * q.tipBack, -0.38 + (-0.92 + 0.38) * q.tipBack]);
@@ -4434,7 +4451,10 @@ function serveKeys(o) {
   k.push([0.22, { sy: -0.75 - q.turn * 0.45, hy: -0.75, cr: 0.05 + q.knee * 0.35, sp: q.rock * 0.25 - q.arch * 0.2, pz: -q.rock * 0.3, tl: q.arch * 0.4, rh: wr, rt: wt, rn: [-0.9, 0.2, -0.3], lg: 0, lh: [-0.18, 1.55 + (q.toss - 1.55) * 0.55, 0.33], fL: fL0, fR: [fR0[0] + (fRt[0] - fR0[0]) * 0.45, fR0[1] + (fRt[1] - fR0[1]) * 0.45], aR: 1.0 }]);
   k.push([0.4, { sy: -0.75 - q.turn * 0.55, hy: -0.95, tl: q.arch * 1.15 + q.sideTilt, sp: -q.arch * 0.55, cr: q.knee, rh: [0.38, 1.6, -0.15], rt: tipT, rn: [-0.9, 0.2, -0.3], rp: [1, 0, -0.3], lg: 0, lh: [-0.15, q.toss, 0.35], fL: fL0, fR: fRt, aR: 0.8, hlR: 0.3 + 0.4 * q.stance, _tro: { tip: tipT, hi: (q.toss - 2.12) * 0.25 + (q.troHi || 0) } }]);
   k.push([0.5, { sy: -0.75 - q.turn * 0.25, tl: q.arch * 0.85, sp: -q.arch * 0.4, cr: q.knee * 0.5, rh: [0.31, 1.7, -0.08], rt: dropT, rn: [-0.9, 0, 0.3], lh: [-0.1, 1.62 + (q.toss - 2.12) * 0.2, 0.35], fL: fL0, fR: fRt, hlR: 0.8, _drop: dropT }]);
-  k.push([0.6, { sy: -0.35, hy: -0.45, tl: 0.05, sp: 0.04, cr: -0.03, lift: q.leap, rh: [0.2, 2.1 + q.leap * 0.25, 0.3], rt: [0.05, 0.98, 0.15], rn: [0, 0.15, 1], rp: [1, -0.4, -0.3], lh: [-0.25, 1.3, 0.2], fL: fL0, fR: fRt, hlL: 0.8, hlR: 1 }]);
+  // (v152: contact is the whole body stretched up in one line - legs driven straight, up off the court, the
+  //  shoulders cartwheeled so the hitting shoulder is high, the arm reaching nearly straight up just in front of the
+  //  head. Filmed, it was knees still bent, shoulders level and the arm out at about 60 degrees)
+  k.push([0.6, { sy: -0.35, hy: -0.45, tl: -0.3, sp: 0.06, cr: -0.07, lift: q.leap * 1.15, rh: [0.16, 2.22 + q.leap * 0.3, 0.24], rt: [0.04, 0.99, 0.12], rn: [0, 0.15, 1], rp: [1, -0.4, -0.3], lh: [-0.22, 1.18, 0.24], fL: fL0, fR: fRt, hlL: 1, hlR: 1 }]);
   k.push([0.75, { sy: 0.1, hy: -0.1, tl: -0.1, sp: 0.15, cr: 0.06, lift: q.leap * 0.35, rh: [0.05, 1.55, 0.72], rt: [-0.4, 0.2, 0.9], rn: [0.6, -0.5, 0.6], rp: [1, -1, -0.5], fL: [-0.1, q.land], fR: [0.15, -0.3 - q.kick * 0.4], airR: q.kick, hlL: 0 }]);
   k.push([1, { sy: 0.9, hy: 0.5, tl: 0, sp: 0.1, cr: 0.1, lift: 0, rh: [-0.35, 0.82, 0.35], rt: [-0.3, -0.5, -0.8], rn: [0.5, -0.6, 0.6], lg: 0.7, gp: 0.3, fL: [-0.1, q.land], fR: [0.12, 0.2 + (q.land - 0.72) * 0.5], airR: 0, hlR: 0.4 }]);
   return k;
@@ -4495,9 +4515,14 @@ const STYLE_DEFS = {
            // (v148: measured, the old finish folded the arm - elbow down by the shoulder, forearm and racket straight
            //  up past the face. Now the arm stays LONG and finishes out at about 45 degrees up and toward the target,
            //  the racket carrying on up its line, the left arm stretched back the other way: the wings)
-           [0.72, { sy: 1.12, rh: [0.36, 1.56, 0.76], rt: [0.24, 0.9, 0.36], rn: [0.92, 0.0, 0.38], rp: [1, -0.2, 0.3], lh: [-0.48, 1.16, -0.58] }],
-           [0.86, { sy: 1.1, hy: 0.62, rh: [0.46, 1.67, 0.64], rt: [0.34, 0.9, -0.16], rn: [0.92, -0.12, 0.36], rp: [1, -0.2, 0.3], lh: [-0.56, 1.16, -0.56] }],
-           [1, { sy: 1.08, hy: 0.6, cr: 0.09, rh: [0.46, 1.66, 0.6], rt: [0.32, 0.88, -0.26], rn: [0.92, -0.12, 0.36], rp: [1, -0.2, 0.3], lh: [-0.58, 1.15, -0.54], hlL: 0.5 }]],
+           // (v152: the chest stays CLOSED - side-on, the head still at the contact point - while the arm carries on
+           //  out and up; the racket keeps travelling over until it points up and back, then the arm relaxes and
+           //  lowers a little. It used to shoot up and freeze like a statue for the last 40% while the chest swung
+           //  open to the net)
+           [0.72, { sy: 1.24, hy: 0.7, rh: [0.34, 1.5, 0.78], rt: [0.2, 0.9, 0.38], rn: [0.92, 0.0, 0.38], rp: [1, -0.2, 0.3], lh: [-0.46, 1.1, -0.52] }],
+           [0.84, { sy: 1.24, hy: 0.68, rh: [0.44, 1.6, 0.66], rt: [0.32, 0.92, -0.2], rn: [0.92, -0.12, 0.36], rp: [1, -0.2, 0.3], lh: [-0.54, 1.06, -0.54] }],
+           [0.93, { sy: 1.22, hy: 0.66, rh: [0.44, 1.58, 0.6], rt: [0.28, 0.8, -0.52], rn: [0.92, -0.12, 0.36], rp: [1, -0.4, 0.2], lh: [-0.5, 1.02, -0.48] }],
+           [1, { sy: 1.18, hy: 0.62, cr: 0.1, rh: [0.4, 1.5, 0.56], rt: [0.22, 0.7, -0.68], rn: [0.92, -0.12, 0.36], rp: [1, -0.6, 0.1], lh: [-0.44, 1.0, -0.4], hlL: 0.5 }]],
       // Federer's slice (the best in the game): unit turn with the racket set at shoulder height behind the left
       // shoulder, face open, left hand on the throat; a long high-to-low knife through the ball, contact in front of
       // the front foot, then a long extension along the line with the face still open; the left arm goes back.
@@ -4510,6 +4535,7 @@ const STYLE_DEFS = {
             [0.72, { sy: 1.12, cr: 0.2, rh: [0.06, 1.12, 0.84], rt: [-0.48, 0.3, 0.82], rn: [0.2, 0.85, 0.48], lh: [-0.44, 1.12, -0.64] }],
             [1, { sy: 1.06, hy: 0.6, cr: 0.15, rh: [0.08, 1.18, 0.74], rt: [-0.46, 0.4, 0.79], rn: [0.2, 0.85, 0.48], lh: [-0.44, 1.13, -0.62] }]],
       srv: serveKeys({ stance: 0, knee: 0.24, turn: 1.4, arch: 0.4, toss: 2.14, tipBack: 0.1, drop: 0.8, leap: 0.12, land: 0.72, kick: 0.34 }),
+      oh: ohKeysFor({ leap: 0.8, fold: 0.9, wind: 0.95 }), // (v152: their own overhead)
       // (v148) Federer's volleys: the racket set early beside the head with the wrist laid back and the head UP, the
       // face a touch open, the free hand out toward the ball; a short firm punch that moves with the body as the
       // opposite foot steps in, met well in front; the racket stays pointed at the target for a beat (the "stick"),
@@ -4548,6 +4574,7 @@ const STYLE_DEFS = {
            [0.62, { sy: -0.3, hy: 0.0, rh: [0.0, 1.3, 0.6], rt: [-0.2, 0.75, 0.6], rn: [0.9, 0.1, 0.4] }],
            [1, { sy: -1.0, hy: -0.45, cr: 0.1, rh: [0.28, 1.55, 0.05], rt: [0.0, -0.4, -0.9], rn: [0.9, 0.2, -0.3], hlL: 0.6 }]],
       srv: serveKeys({ stance: 0.15, knee: 0.13, turn: 1.0, arch: 0.24, toss: 2.04, tipBack: 0.45, drop: 0.45, leap: 0.05, land: 0.5, kick: 0.1 }),
+      oh: ohKeysFor({ leap: 1.1, fold: 1.15 }), // (v152: their own overhead)
     } },
   // ---------------- DJOKOVIC ----------------
   // Balanced, compact and elastic: open-stance forehand from a low base, compact takeback, finish over the left
@@ -4580,6 +4607,7 @@ const STYLE_DEFS = {
            [0.72, { sy: -0.15, hy: -0.08, rh: [0.22, 1.42, 0.56], rt: [0.62, 0.66, 0.42], rn: [0.7, -0.35, -0.6] }], // (round the right side, not straight up)
            [1, { sy: -0.6, hy: -0.3, cr: 0.1, rh: [0.4, 1.44, 0.32], rt: [0.3, 0.2, -0.93], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
       srv: serveKeys({ stance: 1, knee: 0.31, turn: 1.25, arch: 0.38, toss: 2.12, tipBack: 0.15, drop: 1, leap: 0.14, land: 0.78, kick: 0.2 }),
+      oh: ohKeysFor({ leap: 1.0, fold: 1.0 }), // (v152: their own overhead)
     } },
   // ---------------- KYRGIOS ----------------
   // Casual, slightly hunched posture and a narrow base with little bounce. Forehand: weight on the back leg, wrist
@@ -4610,6 +4638,7 @@ const STYLE_DEFS = {
            [0.62, { sy: -0.12, hy: 0.04, rh: [0.06, 1.16, 0.72], rt: [-0.42, 0.42, 0.8], rn: [0.85, 0.1, 0.5] }],
            [1, { sy: -0.7, hy: -0.3, cr: 0.08, rh: [0.25, 1.38, 0.25], rt: [0.15, 0.2, -0.97], rn: [0.9, 0.2, -0.3], hlL: 0.3 }]],
       srv: serveKeys({ stance: 1, rock: -0.1, knee: 0.15, turn: 1.0, arch: 0.26, toss: 1.95, tipBack: 0.35, compact: 1, drop: 0.35, leap: 0.07, land: 0.62, kick: 0.12 }),
+      oh: ohKeysFor({ leap: 1.25, fold: 1.2 }), // (v152: their own overhead)
     } },
   // ---------------- SINNER ----------------
   // Forehand: wrist set early, low racket tip "inverted" (face down) for a long path and big lag, steps onto the
@@ -4639,6 +4668,7 @@ const STYLE_DEFS = {
            [0.74, { sy: -0.15, hy: -0.08, rh: [0.24, 1.42, 0.56], rt: [0.62, 0.66, 0.42], rn: [0.7, -0.35, -0.6] }], // (round the right side, not straight up)
            [1, { sy: -0.58, hy: -0.3, cr: 0.1, rh: [0.4, 1.46, 0.32], rt: [0.32, 0.22, -0.92], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
       srv: serveKeys({ stance: 1, knee: 0.29, turn: 1.2, arch: 0.36, toss: 2.1, tipBack: 0.25, compact: 1, drop: 0.85, leap: 0.16, land: 0.8, kick: 0.22 }),
+      oh: ohKeysFor({ leap: 1.05, fold: 1.0 }), // (v152: their own overhead)
     } },
   // ---------------- ALCARAZ ----------------
   // Explosive and compact: open stance from a low, springy base, a short high takeback, huge hip-shoulder separation
@@ -4679,6 +4709,7 @@ const STYLE_DEFS = {
            [0.82, { sy: -0.75, hy: -0.35, lift: 0.01, airL: 0, rh: [0.26, 1.44, 0.3], rt: [0.5, -0.1, -0.86], rn: [0.8, 0.25, 0.55] }],
            [1, { sy: -0.95, hy: -0.45, cr: 0.11, lift: 0, rh: [0.28, 1.42, 0.2], rt: [0.45, -0.25, -0.86], rn: [0.85, 0.2, 0.45], hlL: 0.5 }]],
       srv: serveKeys({ stance: 0.55, knee: 0.25, turn: 1.25, arch: 0.4, toss: 2.14, tipBack: 0.2, drop: 0.8, leap: 0.17, land: 0.85, kick: 0.26 }),
+      oh: ohKeysFor({ leap: 1.4, fold: 1.2 }), // (v152: their own overhead)
     } },
   // ---------------- WAWRINKA ----------------
   // One-handed backhand: smaller loop, racket kept close to the body with a low left elbow and the tip upright;
@@ -4705,6 +4736,7 @@ const STYLE_DEFS = {
            [0.76, { sy: -0.25, hy: 0.0, lift: 0.03, rh: [0.25, 1.9, 0.2], rt: [0.3, 0.85, -0.42], rn: [0.85, 0.1, 0.5], lh: [-0.46, 1.12, -0.6] }],
            [1, { sy: -0.4, hy: -0.1, cr: 0.09, lift: 0, rh: [0.32, 1.95, -0.08], rt: [0.45, 0.45, -0.77], rn: [0.85, 0.1, 0.5], lh: [-0.44, 1.12, -0.58], hlL: 0.5 }]],
       srv: serveKeys({ stance: 0, knee: 0.22, turn: 1.6, arch: 0.4, toss: 2.15, tipBack: 0.1, drop: 0.85, leap: 0.1, land: 0.7, kick: 0.24 }),
+      oh: ohKeysFor({ leap: 1.0, fold: 1.25 }), // (v152: their own overhead)
     } },
   // ---------------- DEL POTRO ----------------
   // Forehand (Yandell, Tactical Tennis): eastern grip; early unit turn (shoulders 90-110 degrees) with the left arm
@@ -4733,6 +4765,7 @@ const STYLE_DEFS = {
            [0.58, { sy: 0.1, hy: 0.12, rh: [0.0, 1.12, 0.66], rt: [-0.35, 0.3, 0.88], rn: [0.85, 0.1, 0.5] }],
            [1, { sy: -0.4, hy: -0.15, cr: 0.09, rh: [0.18, 1.3, 0.38], rt: [0.0, 0.45, -0.88], rn: [0.92, 0.15, -0.3], hlL: 0.25 }]],
       srv: serveKeys({ stance: 0, knee: 0.14, turn: 1.2, arch: 0.28, toss: 2.2, tipBack: 0.3, drop: 0.6, leap: 0.07, land: 0.62, kick: 0.14 }),
+      oh: ohKeysFor({ leap: 0.85, fold: 1.1, wind: 1.05 }), // (v152: their own overhead)
     } },
   // ---------------- ZVEREV ----------------
   // Backhand (Tennis.com freeze-frame, Tennisplayer forum): continental bottom hand / eastern top hand, set almost
@@ -4761,11 +4794,16 @@ const STYLE_DEFS = {
            [0.25, { sy: 1.45, hy: 0.78, cr: 0.24, rh: [-0.5, 0.92, -0.3], rt: [-0.22, -0.14, -0.96], rn: [0.35, -0.2, 0.9] }],
            [0.34, { sy: 1.08, hy: 0.6, rh: [-0.5, 0.9, 0.16], rt: [-0.74, -0.04, -0.67], rn: [0.15, -0.12, 0.98] }],
            [0.42, { sy: 0.78, hy: 0.42, cr: 0.18, rh: [-0.4, 0.96, 0.62], rt: [-0.9, 0.06, 0.32], rn: [0.12, -0.06, 1] }],
-           [0.53, { sy: 0.38, hy: 0.24, rh: [-0.2, 1.1, 0.92], rt: [-0.6, 0.3, 0.74], rn: [0.6, 0.05, 0.8] }],
-           [0.64, { sy: 0.08, rh: [0.1, 1.32, 0.78], rt: [-0.3, 0.75, 0.59], rn: [0.85, 0.05, 0.52] }],
-           [0.76, { sy: -0.25, hy: -0.1, rh: [0.3, 1.48, 0.55], rt: [0.6, 0.68, 0.42], rn: [0.7, -0.35, -0.6] }],
-           [1, { sy: -0.7, hy: -0.35, cr: 0.12, rh: [0.45, 1.5, 0.3], rt: [0.3, 0.25, -0.92], rn: [0.92, 0.3, -0.1], hlL: 0.5 }]],
+           // (v152: filmed, both arms shot straight up past his face and he finished with his hands behind his head.
+           //  Now the arms stay long out along the line - his trademark extension - and the racket then wraps round
+           //  the RIGHT shoulder, hands at shoulder height, tip pointing back at the fence)
+           [0.53, { sy: 0.38, hy: 0.24, rh: [-0.16, 1.06, 0.96], rt: [-0.48, 0.28, 0.83], rn: [0.6, 0.05, 0.8] }],
+           [0.64, { sy: 0.06, hy: 0.1, rh: [0.08, 1.2, 0.88], rt: [-0.06, 0.6, 0.8], rn: [0.85, 0.05, 0.52] }],
+           [0.76, { sy: -0.28, hy: -0.1, rh: [0.26, 1.34, 0.62], rt: [0.55, 0.55, -0.62], rn: [0.7, -0.35, -0.6], rp: [1, -0.6, -0.2] }],
+           [0.88, { sy: -0.55, hy: -0.28, rh: [0.34, 1.38, 0.38], rt: [0.42, 0.12, -0.9], rn: [0.92, 0.3, -0.1], rp: [1, -0.8, -0.2] }],
+           [1, { sy: -0.62, hy: -0.32, cr: 0.12, rh: [0.35, 1.37, 0.33], rt: [0.38, 0.02, -0.93], rn: [0.92, 0.3, -0.1], rp: [1, -0.8, -0.2], hlL: 0.5 }]],
       srv: serveKeys({ stance: 0.7, knee: 0.24, turn: 1.3, arch: 0.42, toss: 2.36, tipBack: 0.15, drop: 0.85, leap: 0.19, land: 0.82, kick: 0.22 }),
+      oh: ohKeysFor({ leap: 1.0, fold: 1.0, wind: 1.05 }), // (v152: their own overhead)
     } },
   // ---------------- SAMPRAS ----------------
   // Eastern-grip forehand with a HIGH racket preparation and a big loop (gravity adds pace), contact in front, finish
@@ -4792,6 +4830,7 @@ const STYLE_DEFS = {
            [0.6, { sy: 0.78, hy: 0.55, rh: [0.02, 1.36, 0.7], rt: [-0.4, 0.55, 0.73], rn: [0.85, 0.15, 0.5], lh: [-0.46, 1.1, -0.6] }],
            [1, { sy: 0.72, hy: 0.55, cr: 0.09, rh: [0.18, 1.65, 0.32], rt: [0.25, 0.85, -0.45], rn: [0.85, 0.1, 0.5], lh: [-0.44, 1.12, -0.58], hlL: 0.4 }]],
       srv: serveKeys({ stance: 0, rock: 0.12, knee: 0.31, turn: 1.55, arch: 0.46, toss: 2.2, tipBack: 0.05, drop: 1, leap: 0.22, land: 0.98, kick: 0.36 }),
+      oh: ohKeysFor({ leap: 1.4, fold: 1.15 }), // (v152: their own overhead)
     } },
   // ---------------- MURRAY ----------------
   // (coaching breakdowns of his strokes) Low, wide, bouncy base - the great mover and counter-puncher.
@@ -4842,6 +4881,7 @@ const STYLE_DEFS = {
             [0.72, { sy: 1.12, cr: 0.27, rh: [0.06, 1.0, 0.88], rt: [-0.46, 0.24, 0.85], rn: [0.2, 0.85, 0.48], lh: [-0.5, 1.1, -0.7] }],
             [1, { sy: 1.06, hy: 0.6, cr: 0.2, rh: [0.1, 1.06, 0.8], rt: [-0.44, 0.32, 0.84], rn: [0.2, 0.85, 0.48], lh: [-0.5, 1.12, -0.68] }]],
       srv: serveKeys({ stance: 1, knee: 0.24, turn: 1.28, arch: 0.32, toss: 2.2, tipBack: 0.25, drop: 0.8, leap: 0.13, land: 0.76, kick: 0.22 }),
+      oh: ohKeysFor({ leap: 1.0, fold: 1.05 }), // (v152: their own overhead)
     } },
   // ---------------- FRITZ ----------------
   // (tennis.com Tech Talk, Punto de Break, CPTA, Brain Game Tennis, tennis.com Forehand tips with Fritz)
@@ -4883,9 +4923,13 @@ const STYLE_DEFS = {
            [0.42, { sy: 0.78, hy: 0.64, cr: 0.12, rh: [-0.18, 0.98, 0.54], rt: [-0.93, 0.05, 0.3], rn: [0.1, -0.05, 1] }],
            // long, flat extension: both arms out, the racket pointed at the target
            [0.55, { sy: 0.4, hy: 0.5, rh: [-0.02, 1.06, 0.9], rt: [-0.5, 0.12, 0.86], rn: [0.8, 0.05, 0.6] }],
-           [0.7, { sy: 0.05, hy: 0.36, rh: [0.18, 1.36, 0.66], rt: [0.6, 0.66, 0.45], rn: [0.75, -0.35, -0.56] }],
-           [1, { sy: -0.35, hy: 0.22, cr: 0.1, rh: [0.34, 1.55, 0.32], rt: [0.3, 0.3, -0.9], rn: [0.92, 0.3, -0.1], hlL: 0.35 }]],
+           // (v152: then round the right shoulder at shoulder height - it used to finish with the hands up behind
+           //  his head)
+           [0.66, { sy: 0.1, hy: 0.38, rh: [0.12, 1.2, 0.84], rt: [0.0, 0.58, 0.81], rn: [0.75, -0.35, -0.56] }],
+           [0.8, { sy: -0.18, hy: 0.28, rh: [0.28, 1.34, 0.54], rt: [0.55, 0.45, -0.7], rn: [0.85, 0.2, -0.45], rp: [1, -0.6, -0.2] }],
+           [1, { sy: -0.36, hy: 0.22, cr: 0.1, rh: [0.34, 1.38, 0.34], rt: [0.36, 0.05, -0.93], rn: [0.92, 0.3, -0.1], rp: [1, -0.8, -0.2], hlL: 0.35 }]],
       srv: serveKeys({ stance: 0, rock: 0.14, knee: 0.3, turn: 1.35, arch: 0.42, toss: 2.26, tipBack: 0.12, drop: 1, leap: 0.2, land: 0.95, kick: 0.34 }),
+      oh: ohKeysFor({ leap: 0.95, fold: 1.1 }), // (v152: their own overhead)
     } },
   // ---------------- SHELTON (left-handed) ----------------
   // (Mouratoglou, Macci, slow-motion clips) Explosive and athletic, an upright, springy base.
@@ -4926,6 +4970,7 @@ const STYLE_DEFS = {
            [0.74, { sy: -0.35, hy: -0.15, lift: 0.01, rh: [0.2, 1.4, 0.52], rt: [0.45, 0.4, -0.8], rn: [0.85, 0.2, 0.5] }],
            [1, { sy: -0.65, hy: -0.32, cr: 0.11, rh: [0.3, 1.4, 0.26], rt: [0.45, -0.2, -0.87], rn: [0.88, 0.2, 0.43], hlL: 0.5 }]],
       srv: serveKeys({ stance: 0, rock: 0.04, knee: 0.33, turn: 1.3, arch: 0.42, toss: 2.22, tipBack: 0, compact: 1, troHi: -0.06, drop: 0.9, leap: 0.26, land: 0.6, kick: 0.32 }),
+      oh: ohKeysFor({ leap: 1.5, fold: 1.3 }), // (v152: their own overhead)
     } },
   // ---------------- CPU (fixed, tidy all-court style with a two-handed backhand) ----------------
   cpu: { hand: 1, headLock: 0.16, split: 1.1, bounce: 0.026, drive: 0.02,
