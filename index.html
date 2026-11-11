@@ -4012,6 +4012,32 @@ VENUES.wim = {
     while (x < w) for (const [t, c] of items) { g.fillStyle = c; g.fillText(t, x, h / 2 + 2); x += g.measureText(t).width + 80; }
   },
 };
+// Rod Laver Arena, 29 January 2017: the night final under the lights (roof open), the blue Plexicushion court -
+// a deep blue inside the lines and a lighter blue around it - navy walls, a full summer crowd
+VENUES.ao17 = {
+  screen: 'ROD LAVER ARENA', wallH: 2.0, night: true,
+  court: { inner: 0x2a62b4, outer: 0x3d82c8, wear: 0xc9d8ee },
+  post: 0x16233f, chair: [0x16233f, 0x1d2e52], bench: [0x16233f, 0x1d2e52, 0x2fa3dc],
+  staff: { kidA: 0x2fa3dc, kidB: 0x2fa3dc, kidShorts: 0x16233f, judge: 0x16233f, judgeShorts: 0xe8eaee },
+  crowd: { seat: '#2a3f66', seatDark: '#1c2c4a', step: '#6f747b', riser: '#4f545b', hats: 0.12, shirts: ['#f3f1ea', '#eeeeea', '#1c2230', '#2f3b55', '#f6c453', '#3aa6b9', '#e05a7a', '#7fc06a', '#9aa8ba', '#c0392b', '#f4f4f0', '#6b7d96', '#e6cfc6', '#2fa3dc', '#f08a5d', '#3a3a3c'] },
+  wall: (g, w, h) => {
+    g.fillStyle = '#16233f'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#2fa3dc'; g.fillRect(0, 0, w, h * 0.05); g.fillRect(0, h * 0.95, w, h * 0.05);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#eef3fa'; g.font = `800 ${h * 0.26}px ${VFONT}`; g.fillText('AUSTRALIAN OPEN', w * 0.5, h * 0.5);
+    g.fillStyle = '#8fc7ea'; g.font = `600 ${h * 0.1}px ${VFONT}`; for (const x of [0.13, 0.87]) g.fillText('MELBOURNE 2017', w * x, h * 0.52);
+  },
+  board: (g, w, h) => {
+    g.fillStyle = '#1a2a4c'; g.fillRect(0, 0, w, h); g.textBaseline = 'middle'; g.font = `700 30px ${VFONT}`; let x = 20;
+    const items = [['ROD LAVER ARENA', '#eef3fa'], ['AO 2017', '#2fa3dc'], ['MELBOURNE PARK', '#b9cbe4']];
+    while (x < w) for (const [t, c] of items) { g.fillStyle = c; g.fillText(t, x, h / 2 + 2); x += g.measureText(t).width + 40; }
+  },
+  ad: (g, w, h) => {
+    g.fillStyle = '#16233f'; g.fillRect(0, 0, w, h); g.textBaseline = 'middle'; g.font = `700 38px ${VFONT}`; let x = 30;
+    const items = [['AUSTRALIAN OPEN', '#eef3fa'], ['MEN\'S SINGLES FINAL', '#2fa3dc'], ['ROD LAVER ARENA', '#b9cbe4']];
+    while (x < w) for (const [t, c] of items) { g.fillStyle = c; g.fillText(t, x, h / 2 + 2); x += g.measureText(t).width + 80; }
+  },
+};
 let VENUE_NOW = { key: 'default', screen: VENUES.default.screen };
 const venueKit = {};
 const vDefaults = { sign: signMat.map, board: boardMat.map, ad: adMat.map, crowd: crowdMat.map, crowd2: crowdMat2.map, crowdC: crowdMat.color.getHex(), crowd2C: crowdMat2.color.getHex() };
@@ -8195,6 +8221,9 @@ const EPIC_KITS = {
   // Wimbledon's all-white rule: Federer in white with gold trim, Nadal in white with a white bandana
   wim: { fed: { shirt: 0xf6f6f2, collar: 0xd2b46a, shorts: 0xf3f3ef, sock: 0xffffff, shoe: 0xf6f6f4, sole: 0xe8e8e4, band: 0xffffff },
          rafa: { shirt: 0xf6f6f2, shorts: 0xf3f3ef, sock: 0xffffff, shoe: 0xf6f6f4, sole: 0xe8e8e4, band: 0xf4f4f0 } },
+  // Melbourne 2017: Federer in white and black, Nadal in volt green with black shorts (colours approximate)
+  ao17: { fed: { shirt: 0xf6f6f2, collar: 0x16171a, shorts: 0x16171a, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x16171a, band: 0xffffff },
+          rafa: { shirt: 0xc8f03c, collar: 0x16171a, shorts: 0x16171a, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0xc8f03c, band: 0x16171a, sleeves: true } },
 };
 let KIT_NOW = null;
 const lookOf = key => KIT_NOW && KIT_NOW[key] ? Object.assign({}, LOOKS[key], KIT_NOW[key], { kitOf: key }) : LOOKS[key];
@@ -8590,6 +8619,10 @@ const EPICS = [
     meta: 'Final · Centre Court · 6 July 2008', format: 'Best of 5 · no tiebreak in the fifth set',
     story: 'Two rain delays, 4 h 48 min of tennis, finished at 9:16 pm as darkness fell. Nadal led by two sets; Federer saved a championship point at 8–7 in the fourth-set tiebreak with a backhand pass down the line.',
     real: 'Nadal won 6–4, 6–4, 6–7(5), 6–7(8), 9–7', colors: { wall: '#1d4a2e', out: '#4f8c37', inn: '#5a9a3e', sky: '#f0b884', accent: '#5b2a86' } },
+  { id: 'ao17', title: 'Australian Open 2017', year: 2017, venue: 'ao17', surface: 0, len: 6, you: 'fed', opp: 'rafa', swap: true, winner: 'fed',
+    meta: 'Final · Rod Laver Arena · 29 January 2017', format: 'Best of 5 · no tiebreak in the fifth set',
+    story: 'Both back from six months out injured, Federer seeded 17th. 3 h 38 min under the lights: Nadal broke early in the fifth and led 3–1, then Federer won the last five games and sealed his 18th major on a Hawk-Eye challenge.',
+    real: 'Federer won 6–4, 3–6, 6–1, 3–6, 6–3', colors: { wall: '#16233f', out: '#3d82c8', inn: '#2a62b4', sky: '#07101f', accent: '#2fa3dc' } },
 ];
 const epicStore = (() => { try { return JSON.parse(localStorage.getItem('night-session-epics') || '{}'); } catch (e) { return {}; } })();
 function markEpic(id, diff) { epicStore[id] = Math.max(epicStore[id] ?? -1, diff); try { localStorage.setItem('night-session-epics', JSON.stringify(epicStore)); } catch (e) {} renderEpics(); }
