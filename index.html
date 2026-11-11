@@ -4402,7 +4402,7 @@ const STROKES_COMMON = {
   oh: [[0, { sy: -1.3, hy: -0.9, cr: 0.1, tl: 0.28, sp: -0.12, rh: [0.32, 1.48, -0.06], rt: [0.08, 0.95, -0.25], rn: [-0.95, 0.1, -0.2], rp: [1, -0.1, -0.6], lg: 0, lh: [0.0, 1.92, 0.5], fL: [-0.06, 0.26], fR: [0.3, -0.3], aL: 0.7, aR: 1.25 }],
        [0.12, { sy: -1.4, hy: -0.95, tl: 0.34, sp: -0.15, cr: 0.15, rh: [0.38, 1.64, -0.16], rt: [-0.04, 0.86, -0.5], rn: [-0.95, 0.12, -0.15], lh: [-0.02, 2.06, 0.52] }],
        [0.25, { sy: -1.42, hy: -0.95, tl: 0.36, sp: -0.16, cr: 0.19, rh: [0.38, 1.63, -0.18], rt: [-0.05, 0.8, -0.6], rn: [-0.95, 0.15, -0.1], lh: [-0.03, 2.06, 0.52] }],
-       [0.33, { sy: -1.05, hy: -0.75, tl: 0.3, sp: -0.12, cr: 0.08, lift: 0.08, rh: [0.31, 1.72, -0.06], rt: [0.06, -0.92, -0.38], rn: [-0.9, 0.0, 0.42], rp: [1, 0.6, 0.2], lh: [-0.12, 1.78, 0.46], airR: 0.16 }],
+       [0.33, { sy: -1.05, hy: -0.75, tl: 0.3, sp: -0.12, cr: 0.08, lift: 0.08, rh: [0.3, 1.52, -0.22], rt: [0.06, -0.92, -0.38], rn: [-0.9, 0.0, 0.42], rp: [1, 0.9, -0.1], lh: [-0.12, 1.78, 0.46], airR: 0.16 }],
        [0.42, { sy: -0.3, hy: -0.42, tl: 0.02, sp: 0.06, cr: 0.0, lift: 0.19, rh: [0.2, 2.13, 0.36], rt: [0.05, 0.97, 0.25], rn: [0, 0.15, 1], rp: [1, -0.2, -0.3], lh: [-0.28, 1.34, 0.18], airR: 0.36, airL: 0.1 }],
        // (v152: the follow-through SNAPS down across the body - pronating, the chest folding over as the feet land -
        //  and is then held. Filmed, the racket drifted down in front of the waist for the whole second half)
@@ -4450,7 +4450,7 @@ function serveKeys(o) {
   const wr = q.compact ? [0.4, 1.32, -0.08] : [0.32, 0.86, -0.12], wt = q.compact ? nrm([0.0, 0.85, -0.5]) : nrm([0.2, -0.62, -0.76]);
   k.push([0.22, { sy: -0.75 - q.turn * 0.45, hy: -0.75, cr: 0.05 + q.knee * 0.35, sp: q.rock * 0.25 - q.arch * 0.2, pz: -q.rock * 0.3, tl: q.arch * 0.4, rh: wr, rt: wt, rn: [-0.9, 0.2, -0.3], lg: 0, lh: [-0.18, 1.55 + (q.toss - 1.55) * 0.55, 0.33], fL: fL0, fR: [fR0[0] + (fRt[0] - fR0[0]) * 0.45, fR0[1] + (fRt[1] - fR0[1]) * 0.45], aR: 1.0 }]);
   k.push([0.4, { sy: -0.75 - q.turn * 0.55, hy: -0.95, tl: q.arch * 1.15 + q.sideTilt, sp: -q.arch * 0.55, cr: q.knee, rh: [0.38, 1.6, -0.15], rt: tipT, rn: [-0.9, 0.2, -0.3], rp: [1, 0, -0.3], lg: 0, lh: [-0.15, q.toss, 0.35], fL: fL0, fR: fRt, aR: 0.8, hlR: 0.3 + 0.4 * q.stance, _tro: { tip: tipT, hi: (q.toss - 2.12) * 0.25 + (q.troHi || 0) } }]);
-  k.push([0.5, { sy: -0.75 - q.turn * 0.25, tl: q.arch * 0.85, sp: -q.arch * 0.4, cr: q.knee * 0.5, rh: [0.31, 1.7, -0.08], rt: dropT, rn: [-0.9, 0, 0.3], lh: [-0.1, 1.62 + (q.toss - 2.12) * 0.2, 0.35], fL: fL0, fR: fRt, hlR: 0.8, _drop: dropT }]);
+  k.push([0.5, { sy: -0.75 - q.turn * 0.25, tl: q.arch * 0.85, sp: -q.arch * 0.4, cr: q.knee * 0.5, rh: [0.3, 1.5, -0.24], rt: dropT, rn: [-0.9, 0, 0.3], rp: [1, 0.9, -0.1], lh: [-0.1, 1.62 + (q.toss - 2.12) * 0.2, 0.35], fL: fL0, fR: fRt, hlR: 0.8, _drop: dropT }]);
   // (v152: contact is the whole body stretched up in one line - legs driven straight, up off the court, the
   //  shoulders cartwheeled so the hitting shoulder is high, the arm reaching nearly straight up just in front of the
   //  head. Filmed, it was knees still bent, shoulders level and the arm out at about 60 degrees)
@@ -5258,6 +5258,26 @@ const _gm = new THREE.Matrix4(), _gq = new THREE.Quaternion(), _gv = new THREE.V
 function orientRacketHand(Mo, rtW, rnW) {
   orientBone(Mo.armR.hand, rtW, rnW, 1);
   if (Mo.grip) Mo.armR.hand.quaternion.multiply(Mo.grip.qInv);
+  wristLimit(Mo.armR.hand.quaternion);
+}
+// (v153) a real wrist: the hand can bend back or forward only so far from the line of the forearm (about 75-80
+// degrees), and the forearm can only turn the hand over so far. The racket's direction used to set the hand outright,
+// so in the serve's racket drop the wrist folded back 140-160 degrees and the racket stuck out of the fist at
+// impossible angles - the "weird grip". Past a comfortable range the bend now eases into a hard stop, and the racket
+// goes where the hand can actually hold it (the contact pass then lines the strings up with the ball)
+const _wq = { t: new THREE.Quaternion(), s: new THREE.Quaternion(), i: new THREE.Quaternion() };
+function wristLimit(q) {
+  const soft = (a, a0, a1) => a <= a0 ? a : a0 + (a1 - a0) * (1 - Math.exp(-(a - a0) / (a1 - a0)));
+  // twist about the forearm (the hand's own long axis), then the bend left over
+  const t = _wq.t.set(0, q.y, 0, q.w); if (t.lengthSq() < 1e-10) t.set(0, 0, 0, 1); t.normalize();
+  const sw = _wq.s.copy(q).multiply(_wq.i.copy(t).invert());
+  let ta = 2 * Math.atan2(t.y, t.w); if (ta > Math.PI) ta -= 2 * Math.PI; if (ta < -Math.PI) ta += 2 * Math.PI;
+  const tl = ta; // (the forearm's turn is left free: this rig's resting twist isn't anatomical neutral, and limiting it pinned the forearm)
+  if (sw.w < 0) { sw.x = -sw.x; sw.y = -sw.y; sw.z = -sw.z; sw.w = -sw.w; }
+  const sa = 2 * Math.acos(Math.min(1, sw.w)), sl = soft(sa, 1.05, 1.38);
+  if (sl < sa - 1e-4 && sa > 1e-4) { const k = Math.sin(sl / 2) / Math.sin(sa / 2); sw.x *= k; sw.y *= k; sw.z *= k; sw.w = Math.cos(sl / 2); }
+  if (Math.abs(tl - ta) > 1e-4) t.set(0, Math.sin(tl / 2), 0, Math.cos(tl / 2));
+  q.copy(sw).multiply(t);
 }
 // where the wrist must be so the racket held in the new fist sits where the old hand held it: the racket's frame in
 // the world (tip along -y, strings facing z) applied to the grip's offset
