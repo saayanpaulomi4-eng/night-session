@@ -2178,7 +2178,11 @@ function createSim(H, cfg) {
     if (remote(h)) {
       if (h.netPass === S.tossStart + ':' + S.rally.shots) return;
       if (netStrikeDue(h) && S.t >= h.netSk.t - 1e-4) { netStrikeApply(h); return; }
-      if ((h.charging || h.pending || netStrikeDue(h)) && !S.hold) { S.hold = { idx: h.idx, t: S.t, until: S.t + S.netHold }; return; }
+      // (v167: only a ball they can reach, and only once a shot. A lob they were running back under used to be stopped
+      //  every time our copy of them caught up with it - four waits of half a second in mid-air for one ball. One out of
+      //  reach flies on; their strike, when it comes, is played from the moment they made it)
+      const hk = S.tossStart + ':' + S.rally.shots;
+      if ((h.charging || h.pending || netStrikeDue(h)) && !S.hold && (h.pending || netStrikeDue(h) || (canReach(h, ball.x, ball.y) && h.netHeldK !== hk))) { h.netHeldK = hk; S.hold = { idx: h.idx, t: S.t, until: S.t + S.netHold }; return; }
       // (their screen shows this ball a little behind ours: a press may still be on its way - give it that long)
       if (!h.pending && S.netBehind > 0.02 && !S.hold && canReach(h, ball.x, ball.y) && h.netGrace !== S.rally.shots) { h.netGrace = S.rally.shots; S.hold = { idx: h.idx, t: S.t, until: S.t + Math.min(0.3, S.netBehind + 0.05), grace: true }; return; }
       if (!h.pending) return;
@@ -2551,6 +2555,7 @@ function createSim(H, cfg) {
     if (Math.abs(S.tossStart - sk.ts) > 0.02 || S.rally.shots !== sk.sh + 1 || S.rally.lastAth !== h.idx || !h.netFell || S.t - sk.t > 0.35 || ball.bounces) return false;
     sk.done = true; h.netFell = false;
     const B = sk.b;
+    netBridge(Math.max(sk.t - S.t, -(S.t - (h.netFellT === undefined ? S.t : h.netFellT))), B); S.btSk = S.bt; // (the record taken back to their strike - no further than the ball's last stop - as in netStrikeApply)
     Object.assign(ball, { x: B[0], y: B[1], z: B[2], vx: B[3], vy: B[4], vz: B[5], spin: B[7], g: B[9], mag: B[10], ax: B[11], ev: B[12], fh: B[13], kd: B[14], bounces: 0, rolling: false, netTouched: false, netHit: false, wall: false });
     let rem = clamp(S.t - sk.t, 0, 0.8);
     while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
@@ -2558,9 +2563,14 @@ function createSim(H, cfg) {
     return true;
   }
   function netStrikeApply(h) {
-    const sk = h.netSk; sk.done = true; S.hold = null; h.netFell = false;
+    const sk = h.netSk, hd0 = S.hold && !S.hold.serve && S.hold.idx === h.idx ? S.hold : null; sk.done = true; S.hold = null; h.netFell = false;
     if (sk.pass) { h.netPass = S.tossStart + ':' + S.rally.shots; return; } // (it went by them without a swing: on it goes)
     if (sk.miss) { whiff(h); S.rally.touched = true; return; }
+    // (v167: the ball was stopped where OUR copy of them meets it, but they struck it a moment earlier or later on their
+    //  own screen: the recorded flight is carried on to where they actually struck it - or taken back to there - so the
+    //  ball drawn a moment behind runs straight into their stroke. It used to jump the gap, up to a metre)
+    netBridge(sk.t - (hd0 ? hd0.t : S.t), sk.b);
+    S.btSk = S.bt; // (where their stroke begins in the record)
     const B = sk.b;
     Object.assign(ball, { x: B[0], y: B[1], z: B[2], vx: B[3], vy: B[4], vz: B[5], spin: B[7], g: B[9], mag: B[10], ax: B[11], ev: B[12], fh: B[13], kd: B[14],
       bounces: B[6] | 0, rolling: false, netTouched: false, netHit: false, wall: false });
@@ -2568,8 +2578,10 @@ function createSim(H, cfg) {
     afterStrike(h, Object.assign({}, sk.info));
     // the ball has been in flight since they struck it: catch up to now (a few hundredths of a second, normally)
     let rem = clamp(S.t - sk.t, 0, 0.6);
-    const rl = Math.min(0.5, rem); S.lateEst = S.lateEst === undefined ? rl : S.lateEst * 0.7 + rl * 0.3;
+    // (how far behind the drawn ball had to be for this one: from the earlier of the stop and their strike)
+    const rl = sk.relHold !== undefined ? sk.relHold : clamp(S.t - (hd0 ? Math.min(hd0.t, sk.t) : sk.t), 0, 0.5); S.lateEst = S.lateEst === undefined ? rl : S.lateEst * 0.7 + rl * 0.3;
     S.lateDev = S.lateDev === undefined ? 0.02 : S.lateDev * 0.8 + Math.abs(rl - S.lateEst) * 0.2;
+    const Ls = S.lates || (S.lates = []); Ls.push(rl); if (Ls.length > 9) Ls.shift();
     while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
     for (const a of P) if (a !== h) a.prevF = null;
   }
@@ -2578,14 +2590,25 @@ function createSim(H, cfg) {
     const hd = S.hold, h = P[hd.idx];
     if ((hd.serve ? S.phase !== 'toss' : S.phase !== 'rally') || !cfg.net) { S.hold = null; return; }
     if (hd.serve) { if (S.t >= hd.until || (!h.charging && !h.awaitPress)) S.hold = null; return; }
-    if (netStrikeDue(h)) { if (S.t >= h.netSk.t - 1e-4) netStrikeApply(h); else if (S.t >= hd.until + 0.3) resolveHold(); return; }
+    if (netStrikeDue(h)) {
+      if (S.t >= h.netSk.t - 1e-4) netStrikeApply(h);
+      else if (h.netSk.t - S.t < 0.35) {
+        // (v167: their strike is in, and they met the ball a moment after it got to our copy of them (running back for
+        //  it, say): it flies on to them rather than stand waiting for that moment - it used to stop dead for up to half
+        //  a second. Flown on from where it stopped, so it is back where it would have been, and struck there)
+        let r = Math.min(0.5, S.t - hd.t); S.hold = null; h.netSk.relHold = r;
+        while (r > 1e-6) { const st = Math.min(1 / 240, r); r -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
+      }
+      else if (S.t >= hd.until + 0.3) resolveHold();
+      return;
+    }
     if (hd.grace && !h.charging && !h.pending) { if (S.t >= hd.until) S.hold = null; return; } // (nothing came: the ball goes on by)
     if (hd.grace) hd.until = Math.max(hd.until, hd.t + S.netHold); // (a press came: wait for their strike as usual)
     if (S.t >= hd.until + (remote(h) && (h.charging || h.pending) ? 0.15 : 0) || (!h.charging && !h.pending)) resolveHold();
   }
   function resolveHold() {
     const hd = S.hold; S.hold = null; if (!hd) return;
-    const h = P[hd.idx]; if (remote(h)) h.netFell = true;
+    const h = P[hd.idx]; if (remote(h)) { h.netFell = true; h.netFellT = S.t; }
     let act = null;
     if (h.pending) act = { type: h.pending.type, power: h.pending.power, aim: h.pending.aim, e: (hd.t - h.pending.t) - SWING_DELAY };
     else if (h.charging && !remote(h)) { const ps = playerShot(hd.t, h.idx); act = { type: ps.type, power: ps.power, aim: ps.aim, e: -0.15 }; } // (a friend still holding: their screen decides - it went by there)
@@ -2595,11 +2618,30 @@ function createSim(H, cfg) {
   }
   // online host: the ball's flight is kept (on its own clock - which stands still while it waits at a friend's racket)
   // so the ball can be drawn a moment behind and never be seen to stop (see hostDisp)
-  function bRec(st) {
+  function bRec(st, b0) {
     if (!cfg.net) return;
+    const b = b0 || ball;
     S.bt = (S.bt || 0) + st; const Hh = S.bh || (S.bh = []);
-    Hh.push(S.bt, ball.x, ball.y, ball.z, ball.vx, ball.vy, ball.vz, ball.bounces, S.rally.shots);
+    Hh.push(S.bt, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.bounces, S.rally.shots);
     if (Hh.length > 9 * 480) Hh.splice(0, 9 * 60);
+  }
+  // (dtc > 0: the stopped ball flown on that long, into the record; dtc < 0: the record taken back that far. Either
+  //  way the end of it is eased onto where they struck it (B), so the record runs on into their strike without a step)
+  function netBridge(dtc, B) {
+    const Hh = S.bh; if (!Hh || Hh.length < 27 || !isFinite(dtc)) return;
+    const n0 = Hh.length / 9;
+    if (dtc > 0) {
+      const c = Object.assign({}, ball); let r = Math.min(dtc, 0.4);
+      while (r > 1e-6) { const st = Math.min(1 / 240, r); r -= st; stepBall(c, st, null); bRec(st, c); }
+    } else if (dtc < 0) {
+      const cut = S.bt + Math.max(dtc, -0.4); let n = n0;
+      while (n > 2 && Hh[(n - 1) * 9] > cut + 1e-6) { Hh.length -= 9; n--; }
+      S.bt = Hh[(n - 1) * 9];
+    }
+    const n = Hh.length / 9, L = (n - 1) * 9, ox = B[0] - Hh[L + 1], oy = B[1] - Hh[L + 2], oz = B[2] - Hh[L + 3];
+    if (Math.hypot(ox, oy, oz) > 1.5) return;
+    const T1 = Hh[L], T0 = T1 - Math.max(0.05, Math.min(0.15, Math.abs(dtc)));
+    for (let i = n - 1; i >= 0 && Hh[i * 9] > T0; i--) { const k = (Hh[i * 9] - T0) / (T1 - T0), w = k * k * (3 - 2 * k); Hh[i * 9 + 1] += ox * w; Hh[i * 9 + 2] = Math.max(0.033, Hh[i * 9 + 2] + oy * w); Hh[i * 9 + 3] += oz * w; }
   }
   function physics(dt) {
     const n = Math.max(1, Math.ceil(dt / (1 / 240))), h = dt / n;
@@ -3241,27 +3283,61 @@ const HBS = { prev: null, x: 0, y: 0, z: 0 }; // (online host: the drawn ball's 
 // online host: the friend's strike gets here a moment after they made it, and the ball would wait at their racket for
 // it. Instead the ball is drawn on a clock of its own that slows a touch as it flies to them - so it reaches their
 // racket just as their strike comes in - and runs a touch quick on its way back, so it is never behind when it's yours
-const HD = { td: null, o: {}, lag: 0 };
+// (v167: the friend's shots used to land ~0.2 s late, so the slowing needed was big - and it was all done on the far
+//  half, where the ball crawled at half speed. Now the friend's ball runs nearer our clock (see gvTick), their
+//  strikes land only about a one-way trip late, and the little slowing that's left is spread evenly over the whole
+//  flight from your racket to theirs - a steady pace, a touch slow, rather than a ball that brakes in mid-air; the
+//  catching up on their shot is spread the same way, done just before it reaches you)
+const HD = { td: null, o: {}, lag: 0, r: 1 };
+// (online) how long, in game seconds, the ball takes from where it is to cross z = zc going that way (flown with the
+// game's own physics, bounce and all); maxT if it never gets there (it dies, or turns back off the net)
+const _tpB = {};
+function netTPlane(b, zc, dir, maxT) {
+  if ((zc - b.z) * dir <= 0) return 0;
+  const s = gvCopy(b, _tpB), st = 1 / 120;
+  for (let t = st; t <= maxT + 1e-9; t += st) {
+    const pz = s.z; sim.stepBall(s, st, null);
+    if ((zc - s.z) * dir <= 0) return t - st * (1 - Math.max(0, Math.min(1, (zc - pz) / ((s.z - pz) || 1e-9))));
+    if (s.bounces >= 2 || s.rolling || s.vz * dir <= 0) return maxT;
+  }
+  return maxT;
+}
+// (how far behind to be as the ball reaches them: enough for three in four of their recent strikes to have come in by
+//  then, and a little more - a single very late one no longer slows your next few shots right down)
+function hostLt(S) {
+  const Ls = S.lates;
+  if (!Ls || Ls.length < 3) return Math.min(0.45, Math.max(0.03, (S.lateEst === undefined ? 0.06 : S.lateEst) + 1.5 * (S.lateDev || 0.02) + 0.01));
+  const s = Ls.slice().sort((a, b) => a - b);
+  return Math.min(0.45, Math.max(0.03, s[Math.floor(0.75 * (s.length - 1))] + 0.02));
+}
 function hostDisp(rdt, b) {
   const clamp = (v, a, c) => v < a ? a : v > c ? c : v;
   const S = sim.S, Hh = S.bh, n = Hh ? Hh.length / 9 : 0;
-  if (S.phase !== 'rally' || n < 3 || !isFinite(S.bt)) { HD.td = null; HD.lag = 0; return b; }
+  const live = S.phase === 'rally' || (S.phase === 'dead' && HD.td !== null);
+  if (!live || n < 3 || !isFinite(S.bt)) { HD.td = null; HD.lag = 0; HD.r = 1; return b; }
   const bt = S.bt;
   if (HD.td === null || HD.td > bt || bt - HD.td > 0.75) HD.td = bt;
-  const P1 = sim.P[1], P0 = sim.P[0], L = bt - HD.td;
-  // (how late their strikes have been landing; nothing to allow for while the ball goes the other way)
-  let Lt = 0, rate = 1;
-  if (S.rally.lastHitter === 0) {
-    Lt = Math.min(0.45, Math.max(0.03, (S.lateEst === undefined ? 0.06 : S.lateEst) + 1.5 * (S.lateDev || 0.02) + 0.02)); // (v150: room for the connection's unevenness too)
-    const tRem = Math.abs(b.vz) > 1 ? Math.max(0, (b.z - P1.pos.z) / -b.vz) : 0.5;
-    // (v151: the slowing is kept to the far half - the friend's side - so your own half always shows true speed)
-    const farT = Math.max(0.15, tRem - Math.max(0, b.z) / Math.max(1, -b.vz));
-    if (L < Lt) rate = b.z > 0 ? 1 : clamp(1 - (Lt - L) / farT, 0.5, 1); else rate = clamp(1 + (L - Lt) * 4, 1, 1.5);
+  const P1 = sim.P[1], P0 = sim.P[0], L = bt - HD.td, CF = sim.CF;
+  let rate = 1;
+  if (S.phase === 'dead') rate = clamp(1 + L / 0.5, 1, 1.25); // (the point's over: the ball we draw catches up gently - it used to jump)
+  else if (S.rally.lastHitter === 0) {
+    // (how late their strikes have been landing, with room for the connection's unevenness)
+    const Lt = hostLt(S);
+    // (waiting at their racket for their strike: on at the same pace, easing in only if it is nearly there)
+    if (S.hold) rate = clamp(Math.min(HD.r, L / 0.045), 0.12, 1);
+    else {
+      const R = netTPlane(b, P1.pos.z + CF, -1, 1.5);
+      rate = L < Lt ? clamp(1 - (Lt - L) / Math.max(0.1, R), 0.6, 1) : clamp(1 + (L - Lt) / Math.max(0.15, R), 1, 1.3);
+    }
+  } else if (S.btSk !== undefined && HD.td < S.btSk - 1e-4 && S.btSk <= bt) {
+    rate = HD.rOut || 1; // (still drawing the ball on its way into their stroke: at the pace it had)
   } else {
-    // (catching up after their strike: done while the ball is still on their half, so it crosses into yours on time)
-    const tRem = Math.abs(b.vz) > 1 ? Math.max(0.05, (P0.pos.z - b.z) / b.vz) : 0.3, toNet = b.vz > 1 ? Math.max(0, -b.z) / b.vz : 0;
-    rate = toNet > 0.08 ? clamp(1 + L / Math.max(0.1, toNet * 0.85), 1, 1.9) : clamp(1 + L / Math.max(0.12, tRem * 0.6), 1, 1.8);
+    // their shot: caught up evenly over its flight, done a moment before it reaches you
+    const R = netTPlane(b, P0.pos.z - CF, 1, 1.5);
+    rate = clamp(1 + L / Math.max(0.08, R - 0.1), 1, 1.6);
   }
+  if (S.phase === 'rally' && S.rally.lastHitter === 0 && !S.hold) HD.rOut = rate;
+  HD.r = rate;
   HD.td = Math.min(bt, HD.td + rdt * S.timeScale * rate);
   if (HD.td >= bt - 1e-5) { HD.lag = 0; return b; }
   HD.lag = bt - HD.td;
@@ -10530,10 +10606,12 @@ function gvRallyAt(T) {
 // your serve: the toss goes up on your screen the moment you press (the host's toss starts as your press reaches it,
 // i.e. on the ball's clock at Ta), and the serve is struck here when you let go
 function gvToss() {
-  const S = sim.S, Ta = GV.lastTa || GV.tau || 0;
+  // (v167: timed from when the press will reach the host, which starts its copy of the toss then - about a round trip
+  //  on from "now + off" (it was the ball's clock as it reached you, which used to be about that, and isn't any more))
+  const S = sim.S, at = GV.lastNow || performance.now(), Ta = NET.off !== null ? at + NET.off + Math.max(0, NET.rtt - 25) : (GV.lastTa || GV.tau || 0);
   S.t = gvSimT(Ta);
   const b0 = sim.tossNow(0);
-  GV.sv = { k: ++GV.skSeq, T0: Ta, ts: S.t, ball: b0, at: GV.lastNow || performance.now(), launched: false }; GV.svAt = performance.now();
+  GV.sv = { k: ++GV.skSeq, T0: Ta, ts: S.t, ball: b0, at, launched: false }; GV.svAt = performance.now();
   GV.tau = Math.max(GV.tau || Ta, Ta); GV.disp = null;
 }
 function gvServe() {
@@ -10543,6 +10621,13 @@ function gvServe() {
   if (!NET.cap) return;
   sv.launched = true;
   const b = sim.ball, info = NET.cap, tt = S.t - sv.ts;
+  // (by now the host's pictures normally show when its copy of the toss began: the serve's flight is put on the host's
+  //  clock exactly, so it is the very flight the host plays - a guess a little out made the two disagree, and a fast
+  //  serve flew on here into the back fence while the host had it coming back)
+  { const L = NET.buf[NET.buf.length - 1];
+    if (L && L.ph === 'toss' && (L.sa === undefined ? L.sv : L.sa) === 1 && isFinite(L.ts) && isFinite(L.t)) {
+      const dT = L.w - (L.t - L.ts) * 1000 / (L.sc2 || 1) - sv.T0;
+      if (Math.abs(dT) < 250) { sv.T0 += dT; GV.tau += dT; } } }
   GV.sk = { k: sv.k, sv: true, ts: null, sh: 0, T: GV.tau, t: S.t, ball: gvCopy(b, {}), wc: Infinity, at: performance.now() };
   GV.err.x = GV.err.y = GV.err.z = 0; GV.disp = null;
   const I = {}; for (const key of ['type', 'q', 'e', 'early', 'power', 'label', 'side', 'tx', 'perfect', 'ultra', 'mega']) if (info[key] !== undefined) I[key] = typeof info[key] === 'number' ? Math.round(info[key] * 10000) / 10000 : info[key];
@@ -10568,34 +10653,42 @@ function gvTick(now, Td, dt) {
   // our own toss: until we serve (or it comes down and the host re-tosses)
   const sv = GV.sv;
   if (sv && ((sv.launched && (!GV.sk || GV.sk.k !== sv.k || GV.sk.wc !== Infinity)) || (!sv.launched && now - sv.at > 2600))) GV.sv = null;
-  // how far ahead the ball runs as it reaches you: the time a press takes to get to the host (and be acted on)
-  // (one way across, and a little to spare - the host draws its ball a touch behind to cover the odd late one)
-  // (v151: "now + off" is the host's clock MINUS the quickest delivery (the sync can only see arrivals), so to be a
-  //  one-way trip ahead of the host the ball must run a whole round trip ahead of it, plus the connection's
-  //  unevenness - v147-150 ran half that, and every one of your shots reached the host late)
-  const ahead = Math.max(0, Math.min(520, NET.rtt + Math.max(20, (NET.delay - 40) * 0.8))); GV.ahead += (ahead - GV.ahead) * Math.min(1, dt * 2);
-  const Ta = Td + NET.delay + GV.ahead; GV.lastTa = Ta; // (now + off + ahead)
-  // the clock: from the opponent's racket to yours it runs from Td up to Ta, and back again on the way out
-  const wOf = (r, bz) => {
-    if (r.ph !== 'rally' && r.ph !== 'dead') return 0;
-    const zMe = P0.pos.z - CF, zOp = P1.pos.z + CF, span = Math.max(4, zMe - zOp);
-    // (v150: all the catching up is done on the far half - the opponent's shot runs a little quick over there and
-    //  then crosses into your half at its true speed, so you time it exactly as you would against the computer;
-    //  your own shot leaves at true speed and only eases once it's well over the net)
-    if (r.lh === 1) return Math.max(0, Math.min(1, (bz - zOp) / (span * 0.45)));
-    if (r.lh === 0) return 1 - Math.max(0, Math.min(1, (zMe - bz - span * 0.45) / (span * 0.55)));
-    return 0;
-  };
-  let tau = GV.tau === null ? Td : GV.tau + dt * 1000;
+  // how far ahead the ball runs as it reaches you. Keeping the ball and the host's game in step costs about a round
+  // trip on every exchange, whichever screen pays it: the ball can't leave the opponent's racket here before the host
+  // has shown it doing so, and your strike can't reach the host before it has crossed the connection.
+  // (v167: it used to fall almost all on this screen. The ball ran a whole round trip and more ahead by the time it
+  //  reached you, after leaving the opponent's racket that far behind - so their shot raced over the far half at up to
+  //  1.7x, never quite caught up anyway (your strikes still reached the host ~0.2 s late, so the host slowed ITS shots
+  //  to half speed to cover them), and your own shot left quick and then braked hard over the net. Now the ball meets
+  //  your racket about level with the host's game - your strike lands there a one-way trip late, which the host covers
+  //  - so the cost is split about evenly between the two screens.)
+  const ahead = Math.max(0, Math.min(400, NET.rtt / 2 - 3 - 0.5 * Math.max(0, NET.delay - 48))); GV.ahead += (ahead - GV.ahead) * Math.min(1, dt * 2);
+  const W = NET.delay + GV.ahead, Ta = Td + W; GV.lastTa = Ta; // (now + off + ahead)
+  // the clock: from the opponent's racket to yours it runs from Td up to Ta, and back again on the way out - each
+  // flight at ONE steady pace from racket to racket (v167; it used to do it all on the far half): the opponent's shot
+  // a touch quick from the moment it's hit, yours a touch slow from the moment it leaves your strings. The pace
+  // changes only on a strike, where the ball changes speed anyway - nothing brakes or surges in mid-air.
+  let tau, Rin = Infinity;
   if (GV.sv && !GV.sv.launched) tau = GV.sv.T0 + (now - GV.sv.at); // (our toss runs in real time from the press, as the host's will from its arrival)
-  else for (let it = 0; it < 3; it++) { const r = gvRallyAt(tau), b = gvBallAt(tau, _gb); tau = Td + (Ta - Td) * wOf(r, b.z); }
+  else if (GV.tau === null) tau = Td;
+  else {
+    // (the rate that takes the clock from how far ahead of the picture it is now (e) to where it must be as the ball
+    //  reaches the next racket (e1) evenly over the ball's time left until then (R))
+    const d = dt * 1000, t0 = GV.tau + d, r0 = gvRallyAt(t0), b0 = gvBallAt(t0, _gb), sc = L.sc2 || 1, e = t0 - Td;
+    let e1 = 0, R = r0.ph === 'dead' ? 1000 : 600;
+    if (r0.ph === 'rally' && r0.lh === 1) { e1 = W; Rin = netTPlane(b0, P0.pos.z - CF, 1, 1.6) * 1000 / sc; R = Math.max(150, Rin); }
+    // (yours is back on the picture a little before the opponent's racket, so their swing and the ball meet there)
+    else if (r0.ph === 'rally' && r0.lh === 0) R = Math.max(80, netTPlane(b0, P1.pos.z + CF + 1.2, -1, 1.6) * 1000 / sc);
+    let x = Math.max(-0.8, Math.min(0.4, (e1 - e) / R));
+    // (the last quarter second of their shot keeps the pace it came in at - steering the clock onto the mark right up
+    //  to your racket made fast balls ease off just as you met them; whatever is left over the host covers)
+    const fk = r0.ts + ':' + r0.sh;
+    if (r0.ph === 'rally' && r0.lh === 1) { if (Rin < 250 && GV.xInK === fk) x = GV.xIn; else { GV.xInK = fk; GV.xIn = x; } }
+    tau = GV.tau + d / (1 - x);
+  }
   if (GV.tau !== null) {
-    // (it speeds up and slows down gently - never faster than 1.6x or slower than 0.45x real time - and never runs backwards)
-    const d = dt * 1000; tau = Math.max(GV.tau + 0.45 * d, Math.min(GV.tau + 1.7 * d, tau));
-    // (v150-151: once the opponent's ball is on your half the clock runs at exactly real time, always - whatever it
-    //  hasn't caught up by the net is left for the host to absorb on ITS far half - so the ball you are timing
-    //  moves at its true, steady speed, as it does against the computer)
-    { const r9 = gvRallyAt(GV.tau); if (r9.ph === 'rally' && r9.lh === 1 && GV.disp && GV.disp.z > 0 && tau > GV.tau + d - 60) tau = GV.tau + d; }
+    // (never faster than 1.6x or slower than half speed, and never backwards)
+    const d = dt * 1000; tau = Math.max(GV.tau + 0.5 * d, Math.min(GV.tau + 1.6 * d, tau));
     // the ball is only flown on past the host's newest picture while it is coming to you (nothing but your own swing
     // can change it then) or flying from your own strike; anything else - the opponent's swing or serve, the end of a
     // point - isn't known until the host shows it, so the clock waits for it rather than guess
@@ -10605,12 +10698,15 @@ function gvTick(now, Td, dt) {
       const goingOut = r0.ph === 'rally' && r0.lh === 0 && GV.disp && GV.disp.z > P1.pos.z + CF + 1.2;
       GV.noFly = !own && !GV.sv && !(r0.ph === 'rally' && r0.lh === 1) && !goingOut;
       if (GV.noFly) tau = Math.min(tau, Math.max(GV.tau, L.w)); }
-    if (tau < Td) tau = Math.min(Td, GV.tau + 2.5 * d);
+    // (behind the picture - the clock sync moved on, say: caught up by the pace above, gently; only a long way behind
+    //  is it hurried)
+    if (tau < Td - 250) tau = Math.min(Td - 250, GV.tau + 2.5 * d);
     if (tau > Ta + 40 && !(GV.sv && !GV.sv.launched)) tau = Math.max(Ta, GV.tau + 0.3 * d);
     if (Math.abs(tau - Td) > 2000) tau = Td;
   }
-  const dTau = GV.tau === null ? 0 : tau - GV.tau; GV.tau = tau;
-  { const r1 = gvRallyAt(tau); if (r1.ph === 'rally' && r1.lh === 1) GV.behind = Math.max(0, Ta - tau - 15); else GV.behind *= 0.98; }
+  const dTau = GV.tau === null ? 0 : tau - GV.tau; GV.tau = tau; GV.Td = Td;
+  // (how late a press made now would reach the host: the host gives a ball you haven't pressed for that long)
+  { const r1 = gvRallyAt(tau); if (r1.ph === 'rally' && r1.lh === 1) GV.behind = Math.max(0, NET.rtt - GV.ahead + (Rin < 200 ? Math.max(0, Ta - tau - 15) : 0)); else GV.behind *= 0.98; }
   // the ball and the rally at tau
   const r = gvRallyAt(tau);
   let b;
@@ -10626,7 +10722,12 @@ function gvTick(now, Td, dt) {
   if (GV.disp) {
     const R0 = GV.disp, ex = R0.x + R0.vx * dS, ey = R0.y + R0.vy * dS, ez = R0.z + R0.vz * dS;
     const gap = Math.hypot(b.x - ex, b.y - ey, b.z - ez), sp = Math.hypot(b.vx, b.vy, b.vz);
-    if (gap > 0.15 + sp * dS * 0.5 && gap < 14 && (b.bounces === R0.bounces || r.sh !== R0.sh)) { GV.err.x += ex - b.x; GV.err.y += ey - b.y; GV.err.z += ez - b.z; }
+    // (v167: the opponent's strike landing between two frames turns the ball round - that isn't a correction. It used
+    //  to be taken out and eased away like one, so on every one of their shots the ball ran on into their racket and
+    //  was pulled back out of it. Only a jump bigger than the turn itself (the ball flown on past a strike that came
+    //  in late) is smoothed now)
+    const hitNow = r.sh !== R0.sh, turn = hitNow ? Math.hypot(b.vx - R0.vx, b.vy - R0.vy, b.vz - R0.vz) * dS + 0.2 : 0;
+    if (gap > 0.15 + sp * dS * 0.5 + turn && gap < 14 && (b.bounces === R0.bounces || hitNow)) { GV.err.x += ex - b.x; GV.err.y += ey - b.y; GV.err.z += ez - b.z; }
     else if (gap >= 14) { GV.err.x = GV.err.y = GV.err.z = 0; }
   }
   const k = Math.exp(-dt / 0.11); GV.err.x *= k; GV.err.y *= k; GV.err.z *= k;
@@ -10699,7 +10800,7 @@ function netGuestTick(rdt, now) {
     let i = 0; while (i < buf.length - 1 && buf[i + 1].w <= target) i++;
     const s0 = buf[i], s1 = buf[Math.min(buf.length - 1, i + 1)];
     const a = s1 === s0 ? 0 : Math.max(0, Math.min(1, (target - s0.w) / Math.max(1, s1.w - s0.w)));
-    if (i > 2) buf.splice(0, i - 2);
+    { const keepT = Math.min(target, GV.tau === null ? target : GV.tau) - 100; let j = 0; while (j < buf.length - 1 && buf[j + 1].w <= keepT) j++; if (j > 1) buf.splice(0, j - 1); } // (the ball's clock may run a little behind the picture)
     NET.exT = s1 === s0 && target > s0.w ? Math.min(0.12, (target - s0.w) / 1000) : 0;
     netApply(s0, s1, a);
     gvSelf(s0, Math.min(0.05, rdt));
