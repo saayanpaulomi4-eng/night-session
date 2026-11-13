@@ -2320,6 +2320,7 @@ function createSim(H, cfg) {
   }
   // Exact time until the ball reaches h's contact plane, following bounces and spin (cached per sim step).
   const tcCache = { t: -1, idx: -1, v: Infinity, p: null, px: 0, pz: 0 };
+  const BALL_KEYS = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'bounces', 'rolling'];
   function timeToCrossExact(h) {
     if (tcCache.t === S.t && tcCache.idx === h.idx && tcCache.px === h.pos.x && tcCache.pz === h.pos.z) return tcCache.v;
     let v = Infinity, cp = null;
@@ -2548,7 +2549,7 @@ function createSim(H, cfg) {
     afterStrike(h, Object.assign({}, sk.info, { serve: true }));
     for (const a of P) a.prevF = null;
     let rem = clamp(S.t - S.tossStart - sk.tt, 0, 0.6);
-    while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
+    while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st, undefined, S.t - rem); for (const e of EV) onEvent(e); }
   }
   function netStrikeLate(h) {
     const sk = h.netSk; if (!sk || sk.done || sk.miss || sk.sv || !cfg.net || S.phase !== 'rally') return false;
@@ -2558,7 +2559,7 @@ function createSim(H, cfg) {
     netBridge(Math.max(sk.t - S.t, -(S.t - (h.netFellT === undefined ? S.t : h.netFellT))), B); S.btSk = S.bt; // (the record taken back to their strike - no further than the ball's last stop - as in netStrikeApply)
     Object.assign(ball, { x: B[0], y: B[1], z: B[2], vx: B[3], vy: B[4], vz: B[5], spin: B[7], g: B[9], mag: B[10], ax: B[11], ev: B[12], fh: B[13], kd: B[14], bounces: 0, rolling: false, netTouched: false, netHit: false, wall: false });
     let rem = clamp(S.t - sk.t, 0, 0.8);
-    while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
+    while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st, undefined, S.t - rem); for (const e of EV) onEvent(e); }
     const o = oppOf(h); o.prevF = null; planFor(o, predict(ball));
     return true;
   }
@@ -2582,7 +2583,7 @@ function createSim(H, cfg) {
     const rl = sk.relHold !== undefined ? sk.relHold : clamp(S.t - (hd0 ? Math.min(hd0.t, sk.t) : sk.t), 0, 0.5); S.lateEst = S.lateEst === undefined ? rl : S.lateEst * 0.7 + rl * 0.3;
     S.lateDev = S.lateDev === undefined ? 0.02 : S.lateDev * 0.8 + Math.abs(rl - S.lateEst) * 0.2;
     const Ls = S.lates || (S.lates = []); Ls.push(rl); if (Ls.length > 9) Ls.shift();
-    while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
+    while (rem > 1e-6) { const st = Math.min(1 / 240, rem); rem -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st, undefined, S.t - rem); for (const e of EV) onEvent(e); }
     for (const a of P) if (a !== h) a.prevF = null;
   }
   // the ball waiting for a remote player's release: let go when it arrives (see shotUp) or after S.netHold
@@ -2596,8 +2597,8 @@ function createSim(H, cfg) {
         // (v167: their strike is in, and they met the ball a moment after it got to our copy of them (running back for
         //  it, say): it flies on to them rather than stand waiting for that moment - it used to stop dead for up to half
         //  a second. Flown on from where it stopped, so it is back where it would have been, and struck there)
-        let r = Math.min(0.5, S.t - hd.t); S.hold = null; h.netSk.relHold = r;
-        while (r > 1e-6) { const st = Math.min(1 / 240, r); r -= st; EV.length = 0; stepBall(ball, st, EV); bRec(st); for (const e of EV) onEvent(e); }
+        let r = Math.min(0.5, S.t - hd.t), f = bLastFt(); S.hold = null; h.netSk.relHold = r;
+        while (r > 1e-6) { const st = Math.min(1 / 240, r); r -= st; EV.length = 0; stepBall(ball, st, EV); f += st; bRec(st, undefined, f); for (const e of EV) onEvent(e); }
       }
       else if (S.t >= hd.until + 0.3) resolveHold();
       return;
@@ -2618,25 +2619,30 @@ function createSim(H, cfg) {
   }
   // online host: the ball's flight is kept (on its own clock - which stands still while it waits at a friend's racket)
   // so the ball can be drawn a moment behind and never be seen to stop (see hostDisp)
-  function bRec(st, b0) {
+  // (v169: each entry also keeps the match time it belongs to (S.bft) - the clock the friend's own swing is timed on,
+  //  so their swing can be drawn in step with the ball we draw, a moment behind (see netRemAnim). Normally that is
+  //  now; a flight flown on in one go (after a stop, or from their strike) passes ft for each step)
+  function bRec(st, b0, ft) {
     if (!cfg.net) return;
     const b = b0 || ball;
-    S.bt = (S.bt || 0) + st; const Hh = S.bh || (S.bh = []);
-    Hh.push(S.bt, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.bounces, S.rally.shots);
-    if (Hh.length > 9 * 480) Hh.splice(0, 9 * 60);
+    S.bt = (S.bt || 0) + st; const Hh = S.bh || (S.bh = []), F = S.bft || (S.bft = []);
+    if (F.length * 9 !== Hh.length) { F.length = 0; for (let i = 0; i < Hh.length; i += 9) F.push(S.t); }
+    Hh.push(S.bt, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.bounces, S.rally.shots); F.push(ft === undefined ? S.t : ft);
+    if (Hh.length > 9 * 480) { Hh.splice(0, 9 * 60); F.splice(0, 60); }
   }
+  const bLastFt = () => S.bft && S.bft.length ? S.bft[S.bft.length - 1] : S.t;
   // (dtc > 0: the stopped ball flown on that long, into the record; dtc < 0: the record taken back that far. Either
   //  way the end of it is eased onto where they struck it (B), so the record runs on into their strike without a step)
   function netBridge(dtc, B) {
     const Hh = S.bh; if (!Hh || Hh.length < 27 || !isFinite(dtc)) return;
     const n0 = Hh.length / 9;
     if (dtc > 0) {
-      const c = Object.assign({}, ball); let r = Math.min(dtc, 0.4);
-      while (r > 1e-6) { const st = Math.min(1 / 240, r); r -= st; stepBall(c, st, null); bRec(st, c); }
+      const c = Object.assign({}, ball); let r = Math.min(dtc, 0.4), f = bLastFt();
+      while (r > 1e-6) { const st = Math.min(1 / 240, r); r -= st; stepBall(c, st, null); f += st; bRec(st, c, f); }
     } else if (dtc < 0) {
       const cut = S.bt + Math.max(dtc, -0.4); let n = n0;
       while (n > 2 && Hh[(n - 1) * 9] > cut + 1e-6) { Hh.length -= 9; n--; }
-      S.bt = Hh[(n - 1) * 9];
+      S.bt = Hh[(n - 1) * 9]; if (S.bft && S.bft.length > n) S.bft.length = n;
     }
     const n = Hh.length / 9, L = (n - 1) * 9, ox = B[0] - Hh[L + 1], oy = B[1] - Hh[L + 2], oz = B[2] - Hh[L + 3];
     if (Math.hypot(ox, oy, oz) > 1.5) return;
@@ -2829,7 +2835,42 @@ function createSim(H, cfg) {
     tossNow(i) { tossStart(P[i]); P[i].charging = true; P[i].awaitPress = false; return Object.assign({}, ball); },
     serveNow(i, t) { serveRelease(t, i); },
     crossCheck(i) { crossingCheck(P[i]); },
+    tweenCheck(i) { tweenerCheck(P[i]); },
+    // (v169, online guest) the strike you will make as the ball reaches your contact plane, worked out the moment you
+    // let go - without making it: nothing in the game changes and nothing is seen or heard. The launch and the shot, or
+    // null (out of reach, or nothing to strike)
+    dryStrike(i, b0, t) {
+      const h = P[i], st = S.stats[h.team];
+      const kb = Object.assign({}, ball), kt = S.t, kr = Object.assign({}, S.rally), kst = Object.assign({}, st), kS = { slowT: S.slowT, lastServeKmh: S.lastServeKmh };
+      const HK = ['stamina', 'pending', 'charging', 'awaitPress', 'megaArmed', 'megaSpent', 'prevF', 'lastAttack', 'hop'], kh = {}; for (const k of HK) kh[k] = h[k];
+      const ka = Object.assign({}, h.anim), ko = P.filter(o => o !== h).map(o => ({ o, plan: o.plan, planT: o.planT, hop: o.hop, prevF: o.prevF }));
+      const kH = {}; for (const k in H) if (typeof H[k] === 'function') { kH[k] = H[k]; H[k] = () => {}; }
+      let cap = null, out = null; H.strike = (idx, info) => { cap = info; };
+      try {
+        Object.assign(ball, b0); S.t = t; h.prevF = -1e-4;
+        crossingCheck(h);
+        if (cap && S.rally.lastHitter === h.team) out = { b: Object.assign({}, ball), info: cap, mega: [h.megaArmed, h.megaSpent] };
+      } finally {
+        for (const k in kH) H[k] = kH[k];
+        for (const k in ball) if (!(k in kb)) delete ball[k]; Object.assign(ball, kb);
+        S.t = kt; Object.assign(S.rally, kr); Object.assign(st, kst); S.slowT = kS.slowT; S.lastServeKmh = kS.lastServeKmh;
+        for (const k of HK) h[k] = kh[k];
+        for (const k in h.anim) if (!(k in ka)) h.anim[k] = undefined; Object.assign(h.anim, ka);
+        for (const q of ko) { q.o.plan = q.plan; q.o.planT = q.planT; q.o.hop = q.hop; q.o.prevF = q.prevF; }
+      }
+      return out;
+    },
+    applyStrike(i, B, info, mega) { const h = P[i]; Object.assign(ball, B); if (mega) { h.megaArmed = mega[0]; h.megaSpent = mega[1]; } afterStrike(h, Object.assign({}, info)); for (const a of P) a.prevF = null; },
     animTick(i, dt) { animOne(P[i], dt); },
+    // (v169) the players are drawn against the ball as it is drawn: on the online host that is a moment behind the
+    // game's own (see hostDisp), and the poses read where the ball is, whether it is coming to them and when it gets
+    // there. The drawn ball (and who hit it last, as drawn) is put in for the drawing and the game's put back after
+    withBall(o, lh, fn) {
+      const keep = {}; for (const k of BALL_KEYS) keep[k] = ball[k]; const klh = S.rally.lastHitter;
+      for (const k of BALL_KEYS) if (o[k] !== undefined) ball[k] = o[k];
+      S.rally.lastHitter = lh; tcCache.t = -1;
+      try { fn(); } finally { for (const k of BALL_KEYS) ball[k] = keep[k]; S.rally.lastHitter = klh; tcCache.t = -1; }
+    },
     stepBall(b, dt, ev) { stepBall(b, dt, ev); },
     CF,
     runMax(i) { const p = P[i]; return RUN_BASE * 1.095 * (1 + 0.07 * rk(statFor(p, 'speed'))) * legs(p.stamina); },
@@ -3288,7 +3329,18 @@ const HBS = { prev: null, x: 0, y: 0, z: 0 }; // (online host: the drawn ball's 
 //  strikes land only about a one-way trip late, and the little slowing that's left is spread evenly over the whole
 //  flight from your racket to theirs - a steady pace, a touch slow, rather than a ball that brakes in mid-air; the
 //  catching up on their shot is spread the same way, done just before it reaches you)
-const HD = { td: null, o: {}, lag: 0, r: 1 };
+const HD = { td: null, o: {}, lag: 0, r: 1, q: [] };
+// (v169) the hits and bounces the online host's drawn ball hasn't reached yet: played as it gets to each
+function hostDue(bD) {
+  const Q = HD.q; if (!Q.length) return;
+  while (Q.length && (HD.td === null || HD.lag <= 0 || Q[0].bt <= HD.td + 1e-4 || Q.length > 12)) {
+    const q = Q.shift();
+    // (the friend was told of it when it happened - not again now: told twice, their screen played their strike twice,
+    //  a second hit sound and the ball drawn back towards their racket for a frame)
+    HD.late = true;
+    try { if (q.k === 's') H.strike(q.idx, q.info, HD.td !== null && HD.lag > 0 ? bD : sim.ball); else H.bounce(q.e, q.live); } finally { HD.late = false; }
+  }
+}
 // (online) how long, in game seconds, the ball takes from where it is to cross z = zc going that way (flown with the
 // game's own physics, bounce and all); maxT if it never gets there (it dies, or turns back off the net)
 const _tpB = {};
@@ -3314,7 +3366,7 @@ function hostDisp(rdt, b) {
   const clamp = (v, a, c) => v < a ? a : v > c ? c : v;
   const S = sim.S, Hh = S.bh, n = Hh ? Hh.length / 9 : 0;
   const live = S.phase === 'rally' || (S.phase === 'dead' && HD.td !== null);
-  if (!live || n < 3 || !isFinite(S.bt)) { HD.td = null; HD.lag = 0; HD.r = 1; return b; }
+  if (!live || n < 3 || !isFinite(S.bt)) { HD.td = null; HD.lag = 0; HD.r = 1; HD.ft = S.t; return b; }
   const bt = S.bt;
   if (HD.td === null || HD.td > bt || bt - HD.td > 0.75) HD.td = bt;
   const P1 = sim.P[1], P0 = sim.P[0], L = bt - HD.td, CF = sim.CF;
@@ -3339,7 +3391,8 @@ function hostDisp(rdt, b) {
   if (S.phase === 'rally' && S.rally.lastHitter === 0 && !S.hold) HD.rOut = rate;
   HD.r = rate;
   HD.td = Math.min(bt, HD.td + rdt * S.timeScale * rate);
-  if (HD.td >= bt - 1e-5) { HD.lag = 0; return b; }
+  const F = S.bft && S.bft.length === n ? S.bft : null;
+  if (HD.td >= bt - 1e-5) { HD.lag = 0; HD.ft = F ? F[n - 1] : S.t; return b; }
   HD.lag = bt - HD.td;
   // (the flight at td)
   let lo = 0, hi = n - 1;
@@ -3349,7 +3402,8 @@ function hostDisp(rdt, b) {
   const o = Object.assign(HD.o, b);
   o.x = Hh[a + 1] + (Hh[c + 1] - Hh[a + 1]) * f; o.y = Hh[a + 2] + (Hh[c + 2] - Hh[a + 2]) * f; o.z = Hh[a + 3] + (Hh[c + 3] - Hh[a + 3]) * f;
   o.vx = Hh[a + 4] + (Hh[c + 4] - Hh[a + 4]) * f; o.vy = Hh[a + 5] + (Hh[c + 5] - Hh[a + 5]) * f; o.vz = Hh[a + 6] + (Hh[c + 6] - Hh[a + 6]) * f;
-  o.bounces = Hh[a + 7]; o.rolling = false;
+  o.bounces = Hh[a + 7]; o.rolling = false; HD.sh = Hh[a + 8];
+  HD.ft = F ? F[lo] + (F[hi] - F[lo]) * f : S.t - HD.lag; // (the match time the drawn ball is at)
   return o;
 }
 const H = {
@@ -3359,8 +3413,13 @@ const H = {
     if (server === 0) hint(isTouch ? `Hold ${BTN} to toss · let go at the top` : `Hold ${BTN} to toss · let go at the top · aim with ←/→ · <kbd>Shift</kbd> for a slice serve`);
     else hint(`Get to the ball with ${isTouch ? 'the stick' : '<kbd>WASD</kbd>'} · hold ${BTN} as it comes and let go when the cursor hits yellow (close to the ball, holding it sets you up)`);
   },
-  strike(idx, info) {
+  strike(idx, info, bD) {
     if (idx === 0 && NET.live && NET.role === 'guest') NET.cap = info; // (our own strike, made on this screen: sent to the host)
+    // (v169) online host: the friend's strike comes into our game as soon as it arrives, but the ball we draw is a
+    // moment behind it - the hit is seen and heard when that ball gets to their racket (it used to be up to a fifth of
+    // a second early: the sound, and the ball drawn leaving the strings while it was still metres away)
+    if (NET.live && NET.role === 'host' && idx === 1 && !bD && HD.td !== null && sim.S.btSk !== undefined && HD.td < sim.S.btSk - 1e-4) { HD.q.push({ bt: sim.S.btSk, k: 's', idx, info }); return; }
+    const bF = bD || sim.ball;
     rpEvent('strike', { idx, power: info.power, smash: info.smash, volley: info.volley, type: info.type, kmh: info.kmh, label: info.label, serve: !!info.serve, side: info.side, tw: !!info.tweener, q: info.q });
     if (idx === 0) { const pr = sim.predict(sim.ball); if (pr.fb) { landFlash.position.x = pr.fb.x; landFlash.position.z = pr.fb.z; landFlashT = Math.min(1.1, pr.fb.t + 0.35); } }
     rallyTag();
@@ -3368,8 +3427,8 @@ const H = {
     // with perfect-shot effects off, every strike sounds and looks like a normal clean hit
     const pfx = false; // perfect / ultra / mega flashes and stings are always off
     if (pfx && info.mega && idx === 0) AU.mega(); else if (pfx && info.ultra && idx === 0) AU.ultra();
-    { const hs = hitSoundOf(info); AU.hit(hs.pw, pfx && info.perfect && idx === 0, sim.ball.x, (idx & 1) === 1, hs.kind, hs.mis, undefined, hs.bh); }
-    fx.hitFlash(sim.ball, pfx && info.perfect, idx, info.smash, pfx && info.ultra, pfx && info.mega, info.kmh, info.volley, info.type);
+    { const hs = hitSoundOf(info); AU.hit(hs.pw, pfx && info.perfect && idx === 0, bF.x, (idx & 1) === 1, hs.kind, hs.mis, undefined, hs.bh); }
+    fx.hitFlash(bF, pfx && info.perfect, idx, info.smash, pfx && info.ultra, pfx && info.mega, info.kmh, info.volley, info.type);
     showReadout(info, idx);
     if (idx === 0) showQuality(info);
     // feel: on a phone, a short buzz on your strikes
@@ -3382,7 +3441,7 @@ const H = {
     const n = sim.S.rally.shots;
     if (!cfg.practice) { AU.tension(n); if (n >= 10 && n % 5 === 0) toast(`${n}-shot rally`); }
   },
-  bounce(e, live) { if (NET.live && NET.role === 'host' && HD.lag > 0.02 && !e._d) { const e2 = Object.assign({}, e, { _d: 1 }); setTimeout(() => H.bounce(e2, live), HD.lag * 1000); return; } rpEvent('bounce', { e: { x: e.x, z: e.z, n: e.n, impact: e.impact, vx: e.vx, vz: e.vz }, live }); if (live && window.__surfKey === 'clay' && e.n === 1) fx.mark(e, false); AU.bounce(e.impact, e.x); ballSquash = Math.min(1, 0.35 + e.impact / 9); spawnPuff(e.x, e.z, e.impact / 9); if (live && e.n === 1) skidMark(e); },
+  bounce(e, live) { if (NET.live && NET.role === 'host' && HD.td !== null && HD.lag > 0.005 && !e._d && isFinite(sim.S.bt)) { HD.q.push({ bt: sim.S.bt, k: 'b', e: Object.assign({}, e, { _d: 1 }), live }); return; } rpEvent('bounce', { e: { x: e.x, z: e.z, n: e.n, impact: e.impact, vx: e.vx, vz: e.vz }, live }); if (live && window.__surfKey === 'clay' && e.n === 1) fx.mark(e, false); AU.bounce(e.impact, e.x); ballSquash = Math.min(1, 0.35 + e.impact / 9); spawnPuff(e.x, e.z, e.impact / 9); if (live && e.n === 1) skidMark(e); },
   mark(e) { rpEvent('mark', { e: { x: e.x, z: e.z, n: e.n, vx: e.vx, vz: e.vz } }); fx.mark(e, true); },
   sfx(name, x) { rpEvent('sfx', { name, x }); if (name === 'cord') AU.ooh(0.6); if (name === 'net' || name === 'cord') AU.net(x); else if (name === 'toss') AU.toss(); else if (name === 'dribble') AU.bounce(3, x); },
   toast,
@@ -10397,7 +10456,7 @@ function startNetMatch() {
   clearInput(); blurActive(); hintCount = 0;
   sim.newMatch();
   gvReset(); NET.lastSkK = null;
-  NET.live = true; NET.tdS = null; NET.gTm = undefined; NET.gW = []; NET.gT = []; NET.gD = undefined; NET.gMin = undefined; NET.oppBg = false; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.lostShown = false;
+  NET.live = true; NET.tdS = null; NET.gTm = undefined; NET.gW = []; NET.gT = []; NET.gA = []; NET.gAt = undefined; _ra.T = null; _ra.w = 0; NET.gD = undefined; NET.gMin = undefined; NET.oppBg = false; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.lostShown = false;
   for (const h of sim.P) { h.charging = false; h.pending = null; }
   if (host) {
     NET.mid = Math.random().toString(36).slice(2, 10);
@@ -10420,7 +10479,7 @@ const NET_FWD = {
 };
 for (const k in NET_FWD) {
   const f = H[k];
-  H[k] = function (...a) { if (NET.live && NET.role === 'host') { NET.evq.push([++NET.evSeq, Math.round(NET.frameNow || performance.now()), k, NET_FWD[k](...a)]); if (NET.evq.length > 24) NET.evq.shift(); } return f.apply(H, a); };
+  H[k] = function (...a) { if (NET.live && NET.role === 'host' && !HD.late) { NET.evq.push([++NET.evSeq, Math.round(NET.frameNow || performance.now()), k, NET_FWD[k](...a)]); if (NET.evq.length > 24) NET.evq.shift(); } return f.apply(H, a); };
 }
 const netR3 = v => Math.round(v * 1000) / 1000;
 function netRound(o, d = 0) {
@@ -10459,7 +10518,7 @@ function netHostPre(now) {
   // where they are (on their screen - their own player answers their keys at once there): every update that came in
   // goes into a short track, played back smoothly a little behind (by how uneven their updates' arrival has been)
   const box = (NET.R && NET.R.inbox) || []; const ins = box.length ? box.splice(0) : [];
-  for (const q of ins) { const gg = q && q.g; if (gg && gg.mid === NET.mid) netTrackIn(gg, now, num); }
+  for (const q of ins) { const gg = q && q.g; if (gg && gg.mid === NET.mid) { netTrackIn(gg, now, num); netAnimIn(gg); } }
   netTrackOut(now);
   // their strike, made on their screen: mirrored into our frame and played at the moment they struck it
   const k = g.sk; if (k && typeof k === 'object' && k.k !== NET.lastSkK && isFinite(k.t) && (isFinite(k.ts) || k.sv)) {
@@ -10496,6 +10555,167 @@ function netTrackIn(g, now, num) {
   const T = NET.gT || (NET.gT = []);
   T.push({ t: g.tm + NET.gMin, x: -num(g.px, -10, 10), z: -num(g.pz, -20, 20), vx: -num(g.vx, -12, 12), vz: -num(g.vz, -12, 12), pe: g.pe | 0, as: g.as | 0 });
   while (T.length > 60) T.shift();
+}
+// (v169) the friend's own swing - as they made it on their screen - comes in with each update: kept in a short track
+// with when they sent it (on our clock, as for their position) and the match time it belongs to on their screen
+const NET_AK = { kind: 's', s: 'n', cap: 'n', rate: 'n', active: 'b', prep: 'b', fwd: 'b', fwdRate: 'n', boostTo: 'n', baseRate: 'n', flat: 'b', blendFrom: 's', lat: 'n', h: 'n', reachT: 'n', runIn: 'n', runSide: 'n', lock: 'n' };
+const NET_KINDS = ['fh', 'bh', 'sfh', 'sbh', 'dfh', 'dbh', 'vfh', 'vbh', 'oh', 'srv', 'tw'];
+function netAnimIn(g) {
+  const an = g.an;
+  if (!an || typeof an !== 'object' || typeof g.at !== 'number' || !isFinite(g.at) || !isFinite(g.tm) || NET.gMin === undefined) return;
+  if (NET.gAt !== undefined && g.tm <= NET.gAt) return; NET.gAt = g.tm;
+  const o = {};
+  for (const k in NET_AK) { const v = an[k], t = NET_AK[k]; if (t === 'n' ? typeof v === 'number' && isFinite(v) : t === 'b' ? typeof v === 'boolean' : typeof v === 'string' && NET_KINDS.includes(v)) o[k] = v; }
+  if (!o.kind) return;
+  o.s = Math.max(0, Math.min(1, o.s || 0)); o.active = !!o.active; o.cap = Math.max(0, Math.min(1, o.cap === undefined ? 1 : o.cap)); o.rate = Math.max(0, Math.min(12, o.rate || 0));
+  const cp = an.cp; if (cp && typeof cp === 'object' && [cp.x, cp.y, cp.z].every(v => typeof v === 'number' && isFinite(v))) o.cp = { x: -cp.x, y: cp.y, z: -cp.z };
+  const Q = NET.gA || (NET.gA = []);
+  if (Q.length && (g.at < Q[Q.length - 1].at - 0.6 || g.at > Q[Q.length - 1].at + 5)) Q.length = 0; // (their match clock moved a long way: start the track again)
+  const ps = g.ps, sp = Array.isArray(ps) && ps.length >= 4 && ps.slice(0, 3).every(v => typeof v === 'number' && isFinite(v)) ? { x: ps[0], y: ps[1], z: ps[2], tweener: !!(ps[3] & 1), volley: !!(ps[3] & 2), overhead: !!(ps[3] & 4) } : null;
+  Q.push({ T: g.tm + NET.gMin, at: g.at, an: o, sp });
+  while (Q.length > 80) Q.shift();
+}
+// where they were at T (our clock) on their track: as netTrackOut, without moving anything
+function netTrackAt(T, out) {
+  const Tr = NET.gT; if (!Tr || !Tr.length) return null;
+  let a = Tr[0], b = null;
+  for (let i = 0; i < Tr.length; i++) { if (Tr[i].t <= T) a = Tr[i]; else { b = Tr[i]; break; } }
+  if (b && a !== b && a.t < T && a.pe === b.pe && b.t - a.t < 400) {
+    const h = (b.t - a.t) / 1000, u = (T - a.t) / (b.t - a.t), u2 = u * u, u3 = u2 * u;
+    const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+    out.x = h00 * a.x + h10 * h * a.vx + h01 * b.x + h11 * h * b.vx; out.z = h00 * a.z + h10 * h * a.vz + h01 * b.z + h11 * h * b.vz;
+    const d00 = 6 * u2 - 6 * u, d10 = 3 * u2 - 4 * u + 1, d01 = -6 * u2 + 6 * u, d11 = 3 * u2 - 2 * u;
+    out.vx = (d00 * a.x + d01 * b.x) / h + d10 * a.vx + d11 * b.vx; out.vz = (d00 * a.z + d01 * b.z) / h + d10 * a.vz + d11 * b.vz;
+  } else if (b && (a === b || T < a.t)) { out.x = b.x; out.z = b.z; out.vx = b.vx; out.vz = b.vz; }
+  else { const e = Math.min(0.12, Math.max(0, (T - a.t) / 1000)), k = 1 - e / 0.24; out.x = a.x + a.vx * e * k; out.z = a.z + a.vz * e * k; out.vx = a.vx * (1 - e / 0.12); out.vz = a.vz * (1 - e / 0.12); }
+  out.pe = (b || a).pe; return out;
+}
+// The friend's player on the host's screen swings as they swung on their own screen (v169). Their swing is played back
+// as their position is (a little behind, by how unevenly their updates arrive) - and, from a moment before the ball
+// reaches them until a moment after they strike it, at the match time the ball we DRAW is at, so racket and ball
+// meet on the strings here too. (It used to be our own copy of their swing, timed on the game's ball, which runs ahead
+// of the drawn one by what the connection costs: their racket reached the ball, waited, and swung on through while
+// the ball was still a few metres short - then the ball came off nothing.)
+const _ra = { w: 0, T: null };
+function netRemAnim(now, rdt, dB) {
+  const Q = NET.gA, S = sim.S, P1 = sim.P[1];
+  // (their serve stays our own copy, timed on our toss; and nothing new from them for a while: our copy too)
+  if (!Q || Q.length < 2 || !(S.phase === 'rally' || S.phase === 'dead') || (P1.anim.active && P1.anim.kind === 'srv') || Q[Q.length - 1].T < now - 400) { _ra.T = null; _ra.w = 0; return null; }
+  const Ts = now - (NET.gD || 40);
+  let wt = 0, Tb = Ts;
+  if (HD.td !== null && isFinite(HD.ft)) {
+    const pre = S.rally.lastHitter === 0 || (S.rally.lastHitter === 1 && S.btSk !== undefined && HD.td < S.btSk - 1e-4);
+    if (pre) wt = netTPlane(dB, P1.pos.z + sim.CF, -1, 0.8) < 0.7 ? 1 : 0;
+    else if (S.rally.lastHitter === 1 && S.btSk !== undefined && HD.td - S.btSk < 0.2) wt = 1;
+    if (wt || _ra.w > 0) {
+      // (the moment of their track at which their ball was where ours is drawn)
+      const ft = HD.ft; let i = Q.length - 1; while (i > 0 && Q[i].at > ft) i--;
+      const A = Q[i], B = Q[Math.min(Q.length - 1, i + 1)];
+      Tb = B !== A && B.at > A.at + 1e-6 ? A.T + (B.T - A.T) * Math.max(0, Math.min(1, (ft - A.at) / (B.at - A.at))) : A.T + Math.max(0, ft - A.at) * 1000;
+    }
+  }
+  // (the playback clock steers onto whichever it should follow - the two are normally within a few hundredths of a
+  //  second - at between three quarters and 1.3 times the pace, never backwards; once on the drawn ball's, it stays
+  //  exactly on it, however that runs)
+  const want = wt ? Tb : Ts, adv = rdt * 1000;
+  let T;
+  if (_ra.T === null || Math.abs(want - _ra.T) > 600) { T = want; _ra.lock = !!wt; }
+  else if (wt && _ra.lock) T = Math.max(_ra.T, want); // (locked on: exactly with the drawn ball - slowing, waiting, catching up as it does)
+  else {
+    // (steering onto it: at 0.6 to 1.4 times the pace until within a few milliseconds; off it, back onto their stream
+    //  at 0.75 to 1.3 times - never backwards)
+    const lo = wt ? -0.4 : -0.25, hi = wt ? 0.4 : 0.3;
+    T = _ra.T + adv; T += Math.max(lo * adv, Math.min(hi * adv, (want - T) * Math.min(1, rdt / 0.15)));
+    if (wt && Math.abs(want - T) < 6) { T = Math.max(_ra.T, want); _ra.lock = true; }
+    if (!wt) _ra.lock = false;
+  }
+  _ra.w = wt;
+  const last = Q[Q.length - 1], sk = P1.netSk;
+  const skOk = !!(sk && !sk.miss && !sk.sv && isFinite(sk.t) && Math.abs((sk.ts || 0) - S.tossStart) < 0.02);
+  // (the ball we draw is ahead of their swing's stream: since they send their strike as they let go (see gvCommit) it
+  //  is hardly behind the game at all. Their racket is then brought round from their newest picture as it is on their
+  //  screen - the takeback and forward swing paced to the ball's arrival, at the moment they struck it once that is in
+  //  - and on through the strike, until the stream catches up. (Their newest picture held still until the next came in:
+  //  the swing went round in steps)
+  if (wt && HD.td !== null && isFinite(HD.ft) && T > last.T + 8 && T < last.T + 1000) {
+    const pos = netTrackAt(T, _ra.pos || (_ra.pos = {}));
+    const o = !pos || (pos.pe | 0) === (S.pe || 0) ? netRemModel(HD.ft, last, skOk ? sk : null, netTPlane(dB, (pos ? pos.z : P1.pos.z) + sim.CF, -1, 0.8)) : null;
+    if (o) { _ra.T = T; return netRemOut({ an: o, pos, sp: last.sp ? Object.assign({}, last.sp) : null }, rdt); }
+  }
+  T = Math.min(T, last.T + 100); // (never more than a moment past their newest)
+  if (_ra.T !== null && T < _ra.T - 1) _ra.lock = false;
+  _ra.T = T;
+  if (T < Q[0].T) return null;
+  let i = Q.length - 1; while (i > 0 && Q[i].T > T) i--;
+  const A = Q[i], B = i + 1 < Q.length ? Q[i + 1] : null, an = A.an, bn = B && B.an;
+  if (an.active && an.kind === 'srv') return null; // (the end of their serve: ours, until theirs is done too)
+  const o = Object.assign({}, an);
+  if (bn && an.kind === bn.kind && an.active && bn.active && bn.s >= an.s && B.T > A.T) {
+    const u = Math.min(1, (T - A.T) / (B.T - A.T)); o.s = an.s + (bn.s - an.s) * u;
+    // (the takeback ended between the two: past it, it is the forward swing - drawn as a takeback beyond its end,
+    //  the strings flipped over as it switched)
+    if (an.prep && !bn.prep && u > 0) { o.prep = false; o.fwd = bn.fwd; o.cap = bn.cap; o.rate = bn.rate; o.fwdRate = bn.fwdRate; }
+  }
+  else if (an.active) { o.s = Math.min(an.cap, an.s + an.rate * Math.max(0, T - A.T) / 1000); if (o.s >= 1) { o.active = false; o.s = 0; } } // (a swing that ended before the next update: over, as it would be here)
+  // ...with their body where it was then on their track, and their own plan for the ball: their swing, body and the
+  // spot they meant to meet the ball at belong together (our copy of them is a moment behind, and planned from there:
+  // their racket met the ball up to a metre from where the ball we draw was struck)
+  const sp = (B && T - A.T > (B.T - A.T) / 2 ? B.sp : A.sp) || A.sp;
+  const pos = netTrackAt(T, _ra.pos || (_ra.pos = {}));
+  if (pos && (pos.pe | 0) !== (S.pe || 0)) return null;
+  return netRemOut({ an: o, pos, sp: sp ? Object.assign({}, sp) : null }, rdt);
+}
+// (switching between their stream and the swing brought round to the ball - the two a little apart - the step in the
+//  swing is eased out over a few frames rather than shown at once)
+function netRemOut(r, rdt) {
+  const o = r.an, p = _ra.po && performance.now() - _ra.pt < 60 ? _ra.po : null; _ra.pt = performance.now();
+  let off = _ra.off || 0;
+  if (p && o.active && p.active && o.kind === p.kind && !o.prep === !p.prep) {
+    const jump = o.s - (p.raw + (p.rate || 0) * rdt); // (beyond what its own pace would have taken it)
+    if (Math.abs(jump) > 0.05) off -= jump;
+  } else off = 0;
+  off = Math.max(-0.2, Math.min(0.2, off)) * Math.exp(-rdt / 0.07); _ra.off = off;
+  const raw = o.s;
+  if (Math.abs(off) > 1e-3 && o.active) o.s = Math.max(0, Math.min(0.999, o.s + off));
+  _ra.po = { active: o.active, kind: o.kind, prep: o.prep, raw, rate: o.rate };
+  return r;
+}
+function netRemModel(ft, last, sk, tcB) {
+  const S = sim.S, P1 = sim.P[1], an = last.an, cS = 0.42;
+  if (an.kind === 'srv' || !(an.active || an.prep)) return null;
+  const o = Object.assign({}, an);
+  // (their strike of this ball, if it is in: when they struck it is known exactly)
+  const known = !!(sk && !sk.miss && isFinite(sk.t) && sk.sh === S.rally.shots - (S.rally.lastHitter === 1 ? 1 : 0));
+  if (!(known && sk.done && S.rally.lastHitter === 1 && ft >= sk.t)) {
+    if (S.rally.lastHitter !== 0 && !(known && sk.done && ft < sk.t)) return null; // (only for a ball coming to them)
+    const tc = known ? sk.t - ft : tcB;
+    if (!isFinite(tc) || !an.active) return null;
+    const oh = an.kind === 'oh', tF = oh ? 0.22 : 0.26;
+    if (tc <= 0) {
+      // (at the ball, their strike on its way - for a moment: none coming (they missed it), their stream again)
+      const key = S.tossStart + ':' + S.rally.shots; if (_ra.zk !== key) { _ra.zk = key; _ra.zt = ft; }
+      if (!known && ft - _ra.zt > 0.15) return null;
+      o.prep = false; o.fwd = true; o.cap = 0.455; o.s = Math.max(an.s, cS); return o;
+    }
+    if (tc < tF) {
+      // (the forward swing: from where the takeback got to, round to meet the ball as it arrives)
+      const s0 = an.prep ? (oh ? Math.max(an.s, 0.25) : Math.min(0.15, Math.max(an.s, 0.15 * smooth(Math.max(0, Math.min(1, (0.75 - tF) / 0.5)))))) : an.s;
+      o.prep = false; o.fwd = true; o.cap = 0.455; o.s = Math.max(an.prep ? 0 : an.s, s0 + (cS - s0) * (1 - tc / tF));
+      return o;
+    }
+    // (the takeback, travelling on round the back of the loop as the ball comes)
+    if (an.prep && !oh) { const u = Math.max(0, Math.min(1, (0.75 - tc) / 0.5)); o.s = Math.max(an.s, u * u * (3 - 2 * u) * 0.15); return o; }
+    return null;
+  }
+  const A = P1.anim, dt = ft - sk.t;
+  if (S.rally.lastHitter !== 1 || dt < 0 || dt > 0.5 || !A.active || A.kind === 'srv') return null;
+  // (on through the ball: the stroke it became and where it met the ball as our game has it, at the pace their swing
+  //  carries out of the strike and settles from)
+  for (const k of ['kind', 'flat', 'blendFrom', 'cp', 'lat', 'h', 'reachT', 'runIn', 'runSide', 'lock', 'baseRate']) o[k] = A[k];
+  const base = A.baseRate || 1.6, r0 = Math.max(base, Math.min(3, Math.max(an.rate || 0, an.fwdRate || 0, 2.1)));
+  o.prep = false; o.fwd = false; o.cap = 1; o.active = true; o.boostTo = 0; o.rate = base + (r0 - base) * Math.exp(-7 * dt);
+  o.s = Math.min(0.999, cS + base * dt + (r0 - base) * (1 - Math.exp(-7 * dt)) / 7);
+  return o;
 }
 function netTrackOut(now) {
   const T = NET.gT; if (!T || !T.length) return;
@@ -10551,9 +10771,12 @@ function netGuestRx1(pr, now) {
   if (Array.isArray(s.ev)) for (const e of s.ev) if (Array.isArray(e) && e[0] > NET.evDone && !NET.evPend.some(q => q[0] === e[0])) NET.evPend.push(e);
   NET.evPend.sort((a, b) => a[0] - b[0]);
 }
-function netLerpAnim(A, B, a) {
+function netLerpAnim(A, B, a, hT) {
   const o = Object.assign({}, A);
   if (B && A.kind === B.kind && A.active && B.active && B.s >= A.s) o.s = A.s + (B.s - A.s) * a;
+  // (v169: up to a swing's end, or the start of the next one, it runs on at its own pace - it used to stand still
+  //  until the next picture, a stall at the end of every swing)
+  else if (A.active && hT > 0 && typeof A.s === 'number') o.s = Math.min(A.cap === undefined ? 1 : A.cap, 0.999, A.s + (A.rate || 0) * a * hT);
   return o;
 }
 function netApplyPl(h, f, g, a, own, hT) {
@@ -10575,13 +10798,20 @@ function netApplyPl0(h, f, g, a, own, hT) {
   h.hop = L(f[4], g[4]); h.cheer = f[5]; h.slump = f[6]; h.cheerKind = f[7] ? 'small' : 'big'; h.stamina = f[9];
   if (!own || !h.charging) h.chKey = f[8];
   if (!(own && GV.localAnim)) {
-    const an = netLerpAnim(f[10] || {}, g[10], a), A = h.anim;
+    const an = netLerpAnim(f[10] || {}, g[10], a, hT), A = h.anim;
     for (const k in A) if (!(k in an)) A[k] = undefined;
     Object.assign(A, an); A.cp = an.cp ? { x: -an.cp.x, y: an.cp.y, z: -an.cp.z } : undefined;
   }
   const sp = f[11];
-  h.plan = sp ? { spot: Object.assign({}, sp, { x: -sp.x, z: -sp.z, vx: sp.vx !== undefined ? -sp.vx : undefined, vz: sp.vz !== undefined ? -sp.vz : undefined }), leave: !!f[12] } : null;
-  if (h.plan && h.plan.spot) { h.plan.x = h.plan.spot.x; h.plan.z = h.plan.spot.z; }
+  // (v169: your own plan for the ball coming to you is worked out here, against the ball and where you are on your
+  //  screen, every tenth of a second. The host's copy - from where it shows you, a moment behind, and without the
+  //  forehand-or-backhand choice - used to overwrite it every frame in between, so your takeback flipped between
+  //  forehand and backhand several times a second and started again from the beginning each time)
+  const keepPlan = own && GV.localAnim && h.plan && h.plan.fh !== undefined && Math.abs(sim.S.t - (h.planT === undefined ? -99 : h.planT)) < 0.7;
+  if (!keepPlan) {
+    h.plan = sp ? { spot: Object.assign({}, sp, { x: -sp.x, z: -sp.z, vx: sp.vx !== undefined ? -sp.vx : undefined, vz: sp.vz !== undefined ? -sp.vz : undefined }), leave: !!f[12] } : null;
+    if (h.plan && h.plan.spot) { h.plan.x = h.plan.spot.x; h.plan.z = h.plan.spot.z; }
+  }
   h.megaArmed = !!f[13]; h.abilOn = !!f[15]; h.assist = f[16] || 0;
   if (!own) h.charging = !!f[14];
 }
@@ -10619,8 +10849,13 @@ function gvSelf(s0, dt) {
     GV.pe = pe; GV.selfOn = true; return;
   }
   if (S.phase === 'toss' && S.srvAth === 0) { p.vel.x = p.vel.z = 0; return; }
+  if (GV.cm) { p.vel.x = p.vel.z = 0; return; } // (set for the strike you have made: see gvCommit)
+  // (v169: on the match time your ball is at - the time your plans for it are kept on; it was the time of the host's
+  //  pictures, a moment behind, so a plan's own timing (a tweener's, an overhead's) ran early by that much)
+  const kt = S.t; if (GV.st !== undefined && GV.stPe === pe && (S.phase === 'rally' || S.phase === 'dead')) S.t = GV.st;
   if (S.phase === 'serveReady' || S.phase === 'rally' || S.phase === 'dead' || S.phase === 'toss') sim.moveSelf(0, dt);
   else { p.vel.x *= 0.8; p.vel.z *= 0.8; }
+  S.t = kt;
 }
 function netPredict(dt) {
   const S = sim.S, p = sim.P[0], I = S.input, N = NET.pred;
@@ -10650,7 +10885,7 @@ function netPredict(dt) {
 // racket exactly where the opponent is shown. Your own strike is made here, the moment you make it (swing, sound, the
 // ball flying off), and sent to the host, which plays it at that same moment of its game.
 const GV = { tau: null, ext: null, sk: null, skSeq: 0, localAnim: false, disp: null, err: { x: 0, y: 0, z: 0 }, pv: null, bnKey: '', bn: 0, prevVy: 0, ahead: 0 };
-function gvReset() { GV.selfOn = false; GV.pe = -1; GV.sv = null; GV.svAt = 0; GV.tau = null; GV.ext = null; GV.sk = null; GV.localAnim = false; GV.disp = null; GV.err.x = GV.err.y = GV.err.z = 0; GV.pv = null; GV.bnKey = ''; GV.bn = 0; NET.skOut = null; NET.cap = null; }
+function gvReset() { GV.cm = null; GV.leads = []; GV.st = undefined; GV.selfOn = false; GV.pe = -1; GV.sv = null; GV.svAt = 0; GV.tau = null; GV.ext = null; GV.sk = null; GV.localAnim = false; GV.disp = null; GV.err.x = GV.err.y = GV.err.z = 0; GV.pv = null; GV.bnKey = ''; GV.bn = 0; NET.skOut = null; NET.cap = null; }
 const gvMir = (B, o) => { o.x = -B[0]; o.y = B[1]; o.z = -B[2]; o.vx = -B[3]; o.vy = B[4]; o.vz = -B[5]; o.bounces = B[6]; o.spin = B[7]; o.rolling = !!B[8]; o.g = B[9]; o.mag = B[10]; o.ax = -B[11]; o.ev = B[12]; o.fh = B[13]; o.kd = B[14]; o.netTouched = false; o.netHit = false; o.wall = false; return o; };
 const GV_KEYS = ['x', 'y', 'z', 'vx', 'vy', 'vz', 'bounces', 'spin', 'rolling', 'g', 'mag', 'ax', 'ev', 'fh', 'kd', 'netTouched', 'netHit', 'wall'];
 const gvCopy = (a, o) => { for (const k of GV_KEYS) o[k] = a[k]; return o; };
@@ -10736,6 +10971,10 @@ function gvToss() {
   S.t = gvSimT(Ta);
   const b0 = sim.tossNow(0);
   GV.sv = { k: ++GV.skSeq, T0: Ta, ts: S.t, ball: b0, at, launched: false }; GV.svAt = performance.now();
+  // (v169: your serve motion is yours from this moment - the host's pictures used to overwrite it on the very next
+  //  frame with its copy of you still standing, so the toss went up from a player who didn't move, and the whole
+  //  serve was played in the tenth of a second after you struck it)
+  GV.localAnim = true;
   GV.tau = Math.max(GV.tau || Ta, Ta); GV.disp = null;
 }
 function gvServe() {
@@ -10786,7 +11025,10 @@ function gvTick(now, Td, dt) {
   //  to half speed to cover them), and your own shot left quick and then braked hard over the net. Now the ball meets
   //  your racket about level with the host's game - your strike lands there a one-way trip late, which the host covers
   //  - so the cost is split about evenly between the two screens.)
-  const ahead = Math.max(0, Math.min(400, NET.rtt / 2 - 3 - 0.5 * Math.max(0, NET.delay - 48))); GV.ahead += (ahead - GV.ahead) * Math.min(1, dt * 2);
+  // (v169: your strike now goes to the host as you let go (gvCommit), usually a tenth of a second or so before the ball
+  //  reaches you, and the host has it that much sooner: half of that is taken off here - the ball runs that much less
+  //  quick to you and slow away - and half left to the host, so the two screens still share what the connection costs)
+  const ahead = Math.max(0, Math.min(400, NET.rtt / 2 - 3 - 0.5 * Math.max(0, NET.delay - 48) - 0.5 * gvLeadEst())); GV.ahead += (ahead - GV.ahead) * Math.min(1, dt * 2);
   const W = NET.delay + GV.ahead, Ta = Td + W; GV.lastTa = Ta; // (now + off + ahead)
   // the clock: from the opponent's racket to yours it runs from Td up to Ta, and back again on the way out - each
   // flight at ONE steady pace from racket to racket (v167; it used to do it all on the far half): the opponent's shot
@@ -10858,11 +11100,14 @@ function gvTick(now, Td, dt) {
   GV.disp = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, bounces: b.bounces, sh: r.sh };
   gvCopy(b, B); B.x += GV.err.x; B.y = Math.max(0.033, B.y + GV.err.y); B.z += GV.err.z;
   gvBounce(r, B, dt);
-  // your own swing is animated here, on the ball's clock while it comes to you (so the racket meets it)
+  // your strike is made here, and your own swing is animated here - on the ball's clock while it comes to you, so the
+  // racket meets it. (v169: the strike first, then the swing, as in a match against the CPU - the other way round the
+  // racket had always gone a frame further on, past the ball, when it was struck)
   GV.localAnim = r.ph === 'rally' || r.ph === 'dead' || !!GV.sv;
+  if (GV.cm && (GV.cm.ts !== r.ts || GV.cm.sh !== r.sh || (r.ph !== 'rally' && r.ph !== 'paused') || now - GV.cm.at > 1500)) GV.cm = null; // (the point moved on without it)
+  if (r.ph === 'rally' && r.lh === 1) gvStrikeAt(now, tau, dTau, r);
   if (GV.localAnim) sim.animTick(0, r.lh === 1 && dTau > 0 ? Math.min(0.06, dTau / 1000 * (L.sc2 || 1)) : dt);
-  // ...and your strike is made here
-  if (r.ph === 'rally' && r.lh === 1) gvStrike(now, tau, r);
+  GV.st = S.t; GV.stPe = L.pe || 0;
 }
 // bounces: seen, heard and marked as the ball we draw bounces
 function gvBounce(r, B, dt) {
@@ -10872,11 +11117,74 @@ function gvBounce(r, B, dt) {
   else if (B.bounces < GV.bn) GV.bn = B.bounces;
   GV.prevVy = B.vy;
 }
+// (v169) your strike, worked out the moment you let go - the ball's flight to your racket is already known (nothing
+// but your swing changes it) - and sent to the host at once. It used to be sent only as the ball reached your racket,
+// so it reached the host a one-way trip after that, and the host drew its own shots slowed down to make room for it.
+// It is played here the moment the ball reaches your contact plane, just as it would have been; from letting go until
+// then you are set (your feet stay put), so it is struck where it was worked out. (Let go more than about a sixth of a
+// second early, or hold on through the ball, and it is made at the plane as before)
+const GV_SKI = ['type', 'q', 'e', 'early', 'power', 'label', 'side', 'tx', 'smash', 'volley', 'stretch', 'dQ', 'perfect', 'ultra', 'mega', 'tweener'];
+function gvSkInfo(info) { const I = {}; for (const key of GV_SKI) if (info[key] !== undefined) I[key] = typeof info[key] === 'number' ? Math.round(info[key] * 10000) / 10000 : info[key]; if (typeof I.tx === 'number') I.tx = -I.tx; return I; }
+const gvSkB = b => [-b.x, b.y, -b.z, -b.vx, b.vy, -b.vz, b.bounces, b.spin || 0, 0, b.g, b.mag || 0, -(b.ax || 0), b.ev, b.fh, b.kd || 1].map(v => Math.round(v * 100000) / 100000);
+function gvCommit() {
+  const S = sim.S, P0 = sim.P[0], L = NET.buf[NET.buf.length - 1];
+  if (GV.cm || !P0.pending || S.phase !== 'rally' || GV.tau === null || !L || GV.sv || NET.off === null) return;
+  const r = gvRallyAt(GV.tau); if (r.ph !== 'rally' || r.lh !== 1) return;
+  if (P0.plan && P0.plan.spot && P0.plan.spot.tweener) return; // (a tweener is struck its own way)
+  if (GV.sk && GV.sk.ts === r.ts && GV.sk.sh === r.sh) return;
+  const b = gvBallAt(GV.tau, {}), pz = P0.pos.z + P0.fwd * sim.CF, sc = L.sc2 || 1, st = 1 / 240;
+  if ((b.z - pz) * P0.side >= 0) return;
+  let t = 0, hit = false;
+  while (t < 0.18) { sim.stepBall(b, st, null); t += st; if (b.bounces >= 2 || b.vz * P0.side <= 0) return; if ((b.z - pz) * P0.side >= 0) { hit = true; break; } }
+  if (!hit || t < 0.03) return;
+  const Tc = GV.tau + t * 1000 / sc, tS = gvSimT(Tc), res = sim.dryStrike(0, b, tS);
+  if (!res) return; // (out of reach: decided at the plane, as before)
+  GV.cm = { k: ++GV.skSeq, T: Tc, t: tS, ts: r.ts, sh: r.sh, b: res.b, info: res.info, mega: res.mega, lead: Tc - GV.tau, at: performance.now() };
+  NET.skOut = { k: GV.cm.k + '-' + NET.startedMid, ts: r.ts, sh: r.sh, t: Math.round(tS * 10000) / 10000, b: gvSkB(res.b), i: gvSkInfo(res.info) };
+}
+// (how far ahead of the ball your strikes usually go: a quarter of your recent strikes went at least this far ahead -
+//  one made as the ball arrives counts as none)
+function gvLeadEst() { const Ls = GV.leads; if (!Ls || Ls.length < 3) return 0; const s = Ls.slice().sort((a, b) => a - b); return Math.max(0, Math.min(160, s[Math.floor(0.25 * (s.length - 1))])); }
+function gvLead(ms) { const Ls = GV.leads || (GV.leads = []); Ls.push(ms); if (Ls.length > 9) Ls.shift(); }
+function gvApplyCommit(now, tau) {
+  const S = sim.S, cm = GV.cm, B = sim.ball, kt = S.t; GV.cm = null; gvLead(cm.lead || 0);
+  S.t = cm.t; NET.cap = null;
+  sim.applyStrike(0, cm.b, cm.info, cm.mega);
+  GV.sk = { k: cm.k, ts: cm.ts, sh: cm.sh, T: cm.T, t: cm.t, ball: gvCopy(cm.b, {}), wc: Infinity, at: now };
+  GV.err.x = GV.err.y = GV.err.z = 0; GV.disp = null;
+  gvBallAt(tau, _gc); gvCopy(_gc, B); S.t = kt;
+}
+// (v169) your strike is made at the moment between the last frame and this one that the ball crossed your contact
+// plane, as in a match against the CPU (which checks many times a frame). Checked once a frame, the ball had gone on
+// up to half a metre or more past it: struck a few centimetres from your body (median a third of a metre in front of
+// you instead of 0.6), well behind your racket, and on the host's screen your racket missed it by as much
+const _gc = {};
+function gvStrikeAt(now, tau, dTau, r) {
+  if (GV.cm) {
+    // (the strike you made as you let go: played at its moment; nothing else is struck meanwhile)
+    if (GV.cm.ts !== r.ts || GV.cm.sh !== r.sh) GV.cm = null;
+    else { if (tau >= GV.cm.T) gvApplyCommit(now, tau); return; }
+  }
+  const S = sim.S, P0 = sim.P[0], B = sim.ball, pz = P0.pos.z + P0.fwd * sim.CF, f0 = P0.prevF, f1 = (B.z - pz) * P0.side;
+  if (!(dTau > 0.5 && typeof f0 === 'number' && f0 < 0 && f1 >= 0 && (P0.charging || P0.pending))) { gvStrike(now, tau, r); return; }
+  let lo = tau - dTau, hi = tau;
+  for (let k = 0; k < 7; k++) { const m = (lo + hi) / 2; gvBallAt(m, _gc); if ((_gc.z + GV.err.z - pz) * P0.side < 0) lo = m; else hi = m; }
+  const keep = gvCopy(B, {}), kt = S.t, k0 = GV.sk;
+  gvBallAt(hi, _gc); gvCopy(_gc, B); B.x += GV.err.x; B.y = Math.max(0.033, B.y + GV.err.y); B.z += GV.err.z;
+  S.t = gvSimT(hi);
+  gvStrike(now, hi, r);
+  if (GV.sk !== k0 && GV.sk && !GV.sk.miss) { gvBallAt(tau, _gc); gvCopy(_gc, B); } // (struck there: this frame's ball is that far along its new flight)
+  else gvCopy(keep, B);
+  S.t = kt;
+}
 function gvStrike(now, tau, r) {
   const S = sim.S, P0 = sim.P[0];
   const had = !!(P0.pending || P0.charging); NET.cap = null;
-  sim.crossCheck(0);
+  // (v169: a tweener is struck here too - it never was: the ball went through your legs and the host played it)
+  sim.tweenCheck(0);
+  if (!NET.cap) sim.crossCheck(0);
   if (S.rally.lastHitter === 0 && NET.cap) {
+    gvLead(0);
     const b = sim.ball, info = NET.cap;
     GV.sk = { k: ++GV.skSeq, ts: r.ts, sh: r.sh, T: tau, t: S.t, ball: gvCopy(b, {}), wc: Infinity, at: now };
     GV.err.x = GV.err.y = GV.err.z = 0; GV.disp = null;
@@ -10942,8 +11250,11 @@ function netGuestSend(now, force) {
   NET.inT = now;
   const I = sim.S.input, A = sim.S.aim;
   NET.R.presence({ g: { mid: NET.startedMid, x: netR3(I.x), z: netR3(I.z), ax: netR3(A.x), az: netR3(A.z), a: NET.acts, tm: Math.round(now), rt: Math.round(NET.rtt), dl: Math.round(NET.delay), bh: Math.round(GV.behind || 0), sk: NET.skOut || null,
-    px: netR3(sim.P[0].pos.x), pz: netR3(sim.P[0].pos.z), vx: netR3(sim.P[0].vel.x), vz: netR3(sim.P[0].vel.z), pe: GV.pe || 0, as: sim.P[0].assist || 0 } });
+    px: netR3(sim.P[0].pos.x), pz: netR3(sim.P[0].pos.z), vx: netR3(sim.P[0].vel.x), vz: netR3(sim.P[0].vel.z), pe: GV.pe || 0, as: sim.P[0].assist || 0,
+    // (v169) your own swing as it is on your screen, and the match time it is at: the host draws your player with it
+    an: GV.localAnim ? netRound(sim.P[0].anim) : 0, at: netR3(sim.S.t), ps: GV.localAnim ? netSpotOut(sim.P[0].plan) : 0 } });
 }
+const netSpotOut = pl => { const sp = pl && pl.spot; if (!sp || !isFinite(sp.x) || !isFinite(sp.y) || !isFinite(sp.z)) return 0; return [netR3(-sp.x), netR3(sp.y), netR3(-sp.z), (sp.tweener ? 1 : 0) | (sp.volley ? 2 : 0) | (sp.overhead ? 4 : 0)]; };
 function netAct(kind, key, t) {
   NET.acts.push([++NET.seq, kind, key || null, Math.round(t * 10000) / 10000]);
   if (NET.acts.length > 8) NET.acts.shift();
@@ -10971,6 +11282,7 @@ function netGuestUp(key) {
     const pw = Math.max(0.2, Math.min(1, 0.2 + (t - p.chStart) / 0.7 * 0.8)), d = -S.aim.z;
     const type = p.chKey === 'slice' ? (d < -0.5 ? 'drop' : 'slice') : p.chKey === 'main' ? (d > 0.5 ? 'flat' : d < -0.5 ? 'lob' : 'top') : p.chKey;
     p.pending = { t, type, power: pw, aim: { lx: S.aim.x, d: 0.2 } };
+    try { gvCommit(); } catch (e) { GV.cm = null; console.error(e); }
   } else p.charging = false;
   netAct('u', k, t);
 }
@@ -11462,15 +11774,23 @@ function frameBody(now) {
   const S = sim.S; let b = sim.ball;
   const vdt = rdt * S.timeScale;
   const live = S.phase !== 'paused';
-  if (live) {
+  // (v169: the online host's drawn ball is worked out before the players are drawn, so they are drawn against it)
+  const netHost = NET.live && NET.role === 'host';
+  if (netHost) { b = hostDisp(rdt, b); hostDue(b); } else { HD.td = null; if (HD.q.length) HD.q.length = 0; }
+  const remA = netHost && live ? netRemAnim(now, rdt, b) : null;
+  const drawPlayers = () => {
     for (let i = 0; i < sim.P.length; i++) {
       const h = sim.P[i];
       if (i === 1 && cfg.practice) continue; // the machine stands in for the opponent
+      const keepA = h.anim, keepPl = h.plan, kx = h.pos.x, kz = h.pos.z, kvx = h.vel.x, kvz = h.vel.z, rem = i === 1 && remA;
+      if (rem) { h.anim = remA.an; if (remA.pos) { h.pos.x = remA.pos.x; h.pos.z = remA.pos.z; h.vel.x = remA.pos.vx; h.vel.z = remA.pos.vz; } if (remA.sp) h.plan = { spot: remA.sp, x: remA.sp.x, z: remA.sp.z, fh: keepPl ? keepPl.fh : true }; }
+      try {
       // racket whoosh as the forward swing starts
       if (h.anim.active && h.anim.s > 0.3 && lastAnimS[i] <= 0.3 && h.anim.kind !== 'srv') AU.whoosh(h.pos.x);
       lastAnimS[i] = h.anim.active ? h.anim.s : 0;
       syncAthlete(h, models[i], vdt);
       updateSwingTrail(i, h, models[i], vdt);
+      } finally { if (rem) { h.anim = keepA; h.plan = keepPl; h.pos.x = kx; h.pos.z = kz; h.vel.x = kvx; h.vel.z = kvz; } }
       // sneaker squeak on hard changes of direction
       const sq = squeakState[i], vx = h.vel.x, vz = h.vel.z;
       if (vdt > 0) {
@@ -11483,9 +11803,12 @@ function frameBody(now) {
         sq.vx = vx; sq.vz = vz;
       }
     }
+  };
+  if (live) {
+    if (netHost && HD.td !== null && HD.lag > 0) sim.withBall(b, S.rally.lastHitter === 1 && S.btSk !== undefined && HD.td < S.btSk - 1e-4 ? 0 : S.rally.lastHitter, drawPlayers);
+    else drawPlayers();
     updateNet(rdt);
   }
-  if (NET.live && NET.role === 'host') b = hostDisp(rdt, b); else HD.td = null;
   // the ball turns with its spin (topspin rolls forward over the top, slice backward); on the ground it rolls
   const hv = Math.hypot(b.vx, b.vz);
   if (hv > 0.2 && vdt > 0) {
@@ -11514,12 +11837,15 @@ function frameBody(now) {
   // online host: a friend's strike lands in our game a moment after they made it, so the ball catches up a little; it
   // is drawn easing onto its new flight instead of jumping (the game itself uses the true position)
   if (NET.live && NET.role === 'host') {
-    const R0 = HBS.prev, d = Math.max(0, vdt);
+    const R0 = HBS.prev, d = Math.max(0, vdt), shD = HD.td !== null && HD.lag > 0 ? HD.sh : S.rally.shots;
     if (R0) {
       const ex = R0.x + R0.vx * d, ey = R0.y + R0.vy * d, ez = R0.z + R0.vz * d, gap = Math.hypot(b.x - ex, b.y - ey, b.z - ez);
-      if (gap > 0.25 + spd3 * d * 0.5 && gap < 14 && S.phase === 'rally') { HBS.x += ex - b.x; HBS.y += ey - b.y; HBS.z += ez - b.z; } else if (gap >= 8) HBS.x = HBS.y = HBS.z = 0;
+      // (v169: a strike between two frames turns the ball round - that isn't a jump to smooth over. It was, on every
+      //  hit on this screen, yours and theirs: the ball ran on into the racket and was pulled back out of it)
+      const turn = R0.sh !== shD ? Math.hypot(b.vx - R0.vx, b.vy - R0.vy, b.vz - R0.vz) * d + 0.2 : 0;
+      if (gap > 0.25 + spd3 * d * 0.5 + turn && gap < 14 && S.phase === 'rally') { HBS.x += ex - b.x; HBS.y += ey - b.y; HBS.z += ez - b.z; } else if (gap >= 8) HBS.x = HBS.y = HBS.z = 0;
     }
-    HBS.prev = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, n: b.bounces };
+    HBS.prev = { x: b.x, y: b.y, z: b.z, vx: b.vx, vy: b.vy, vz: b.vz, n: b.bounces, sh: shD };
     const kk = Math.exp(-rdt / 0.12); HBS.x *= kk; HBS.y *= kk; HBS.z *= kk;
     ballRoot.position.x += HBS.x; ballRoot.position.y = Math.max(0.03, ballRoot.position.y + HBS.y); ballRoot.position.z += HBS.z;
   } else { HBS.prev = null; HBS.x = HBS.y = HBS.z = 0; }
