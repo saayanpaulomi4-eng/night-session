@@ -3314,9 +3314,12 @@ function callout(main, sub, tone, ms) {
   el.className = ''; void el.offsetWidth; el.className = 'on' + (tone ? ' ' + tone : '');
   clearTimeout(callTimer); callTimer = setTimeout(() => { el.className = tone || ''; }, ms || 1100);
 }
-function toast(t) {
-  const el = $('toast'); el.textContent = t; el.classList.add('on');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), 800);
+let toastPri = 0;
+function toast(t, ms, pri) {
+  // (v171: a message that matters - about the connection - stays up its full time; the usual quick ones wait)
+  const now = performance.now(); if (!pri && now < toastPri) return;
+  const el = $('toast'); el.textContent = t; el.classList.add('on'); toastPri = pri ? now + (ms || 800) : 0;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms || 800);
 }
 let hintCount = 0;
 function hint(html) {
@@ -10087,14 +10090,30 @@ const NET_V = 5, NET_KEYS = { main: 1, slice: 1, flat: 1, lob: 1, drop: 1 };
 const NET_SITE = 'https://saayanpaulomi4-eng.github.io/night-session/';
 // the connection, on the scoreboard: the round trip to your friend and whether it's direct or through the relay
 let netPingT = 0;
+const netFps = () => (NET.ftAvg ? Math.max(1, Math.min(240, Math.round(1000 / NET.ftAvg))) : 0);
 function netPingTick(now) {
   const el = document.getElementById('netPing'); if (!el) return;
   if (!NET.live) { if (!el.hidden) el.hidden = true; return; }
   if (now - netPingT < 500) return; netPingT = now;
-  const ms = Math.round(NET.role === 'host' ? (NET.peerRtt || 0) : NET.rtt), via = NET.R && NET.R.via ? NET.R.via() : '';
+  const ms = Math.round(NET.role === 'host' ? (NET.peerRtt || 0) : NET.rtt), via = NET.R && NET.R.link && NET.R.link.via ? NET.R.link.via() : '';
   el.hidden = !(ms > 0);
   el.className = ms < 110 ? '' : ms < 220 ? 'mid' : 'bad';
-  el.innerHTML = '<i></i>' + ms + ' ms' + (via === 'relay' ? ' · relay' : '');
+  const rl = via === 'relay' || via === 'turn';
+  el.innerHTML = '<i></i>' + (rl ? 'Relay · ' : via === 'direct' ? 'Direct · ' : '') + ms + ' ms';
+  el.title = rl ? 'Your games couldn’t connect directly, so the match goes through a relay server: slower, and it can lag.' + (via === 'relay' ? ' The game keeps trying to connect directly.' : '') : via === 'direct' ? 'Your games are connected directly' : '';
+  // (v171: say when the route changes - a relay is the usual reason a match lags badly, and it was easy to miss: the
+  //  scoreboard was meant to say "relay" and never did)
+  { const mine = netFps(), f = netPeerOf(), fr = NET.role === 'host' ? (f && f.presence && f.presence.g && f.presence.g.fr) : (NET.buf.length ? NET.buf[NET.buf.length - 1].fr : 0);
+    NET.slowMe = mine && mine < 40 ? (NET.slowMe || 0) + 1 : 0; NET.slowThem = fr && fr < 40 ? (NET.slowThem || 0) + 1 : 0;
+    const mk = NET.mid || NET.startedMid || '-';
+    if (NET.slowMe >= 6 && NET.saidMe !== mk) { NET.saidMe = mk; toast('This device is running the game slowly (' + mine + ' fps): that makes online matches jumpy. A lower graphics setting can help.', 5000, 1); }
+    else if (NET.slowThem >= 6 && NET.saidThem !== mk) { NET.saidThem = mk; toast('Your opponent’s device is running the game slowly (' + fr + ' fps): that makes the match jumpy for both of you', 5000, 1); } }
+  if (via && via !== 'none' && via !== NET.viaShown) {
+    const was = NET.viaShown; NET.viaShown = via;
+    if (via === 'relay') toast(was === 'direct' ? 'Direct connection lost: using a relay server (more lag) and trying to reconnect' : 'Couldn’t connect directly yet: using a relay server, which can lag. Still trying to connect directly…', 4500, 1);
+    else if (via === 'turn') toast('Connected through a relay server: your networks block a direct connection, so this match may lag', 4500, 1);
+    else if (was === 'relay' || was === 'turn') toast('Connected directly: smoother now', 2500, 1);
+  }
 }
 window.__nightNet = () => ({ role: NET.role, live: NET.live, mid: NET.mid, started: NET.startedMid, ok: NET.R && NET.R.ok, err: NET.R && NET.R.err, remote: NET.R && NET.R.remote ? Object.keys(NET.R.remote).join(',') + '|go=' + NET.R.remote.go : null, rn: NET.R && NET.R.rn, sn: NET.R && NET.R.sn, buf: NET.buf.length, delay: Math.round(NET.delay), rtt: Math.round(NET.rtt), hold: window.__nightSession && window.__nightSession.S.netHold, via: NET.R && NET.R.link && NET.R.link.via ? NET.R.link.via() : null }); // (for testing)
 const NET_PEERJS = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
@@ -10133,11 +10152,11 @@ function netRoom(code, role, rnd) {
     flush() { if (R.ok && R.link && !R.closed) { R.lastOut = performance.now(); try { R.link.send({ n: ++R.sn, p: R.pres }); } catch (e) {} } },
     peers() { return R.remote ? [{ peer: 'friend', presence: R.remote, sameTab: false }] : []; },
     onPeers(cb, onClose) { R.cb = cb; R.onClose = onClose; return () => { R.cb = null; }; },
-    rx(d) {
+    rx(d, via) {
       if (R.closed || !d || typeof d !== 'object') return;
       if (d.full) { R.fail('full'); return; }
       if (!(d.n > R.rn) || !d.p || typeof d.p !== 'object') return; // (late or repeated)
-      R.rn = d.n; R.remote = d.p; R.lastIn = performance.now();
+      R.rn = d.n; R.remote = d.p; R.lastIn = performance.now(); R.via = via === 'r' ? 'r' : 'd';
       R.inbox.push(d.p); if (R.inbox.length > 40) R.inbox.shift(); // (every update, in order - not just the newest)
       if (R.cb) R.cb({ left: [] });
     },
@@ -10221,6 +10240,7 @@ function netRelayLink(key, role, R, H) {
       }
     } else if (m.k === 'welcome' && m.to === me && !other) { other = m.f; clearTimeout(helloT); H.up('relay'); return; }
     if (m.k === 'd' && m.to === me && (!other || m.f === other)) { if (other) H.inRelay(); H.rx(m.d); return; }
+    if (m.k === 'sig' && m.to === me && other && m.f === other) { H.sig(m.s); return; } // (v171: setting up the direct link)
     if (m.k === 'bye' && m.f === other) { other = null; H.down('relay'); }
   }, st => {
     if (st === 'up') { L.dead = false; if (role === 'guest' && !other) { tries = 0; clearTimeout(helloT); hello(); } else if (other && role === 'guest') out('hello', { tok: H.tok }); }
@@ -10228,6 +10248,7 @@ function netRelayLink(key, role, R, H) {
   });
   const L = { closed: false, dead: false, up: () => !!other && C.up,
     send: d => { if (other) out('d', { to: other, d }); },
+    sig: s => { if (other) out('sig', { to: other, s }); },
     close: () => { L.closed = true; clearTimeout(helloT); try { if (other) out('bye', { to: other }); } catch (e) {} C.close(); } };
   return L;
 }
@@ -10238,10 +10259,71 @@ function netDualLink(code, role, R) {
   let friendTok = null, pErr = null, rDead = false, rNo = false, p2pIn = 0, relayIn = 0, relay = null, peer = null, conn = null, p2pOpen = false;
   const H = { tok: Math.random().toString(36).slice(2, 12),
     claim: t => { t = t || 'x'; if (!friendTok || friendTok === t || !R.remote) { friendTok = t; return true; } return false; },
-    up: () => { if (R.closed) return; if (!R.ok) { R.ok = true; R.lastIn = performance.now(); } R.flush(); matched(); },
-    down: () => { if (!p2pOpen && !(relay && relay.up())) R.gone(); },
-    rx: d => R.rx(d), inRelay: () => { relayIn = performance.now(); },
+    up: via => { if (R.closed) return; if (!R.ok) { R.ok = true; R.lastIn = performance.now(); } R.flush(); matched(); if (via === 'relay') { relayUpAt = performance.now(); if (role === 'guest') rtcSoon(60); } },
+    down: () => { if (!p2pOpen && !rtcLive() && !(relay && relay.up())) R.gone(); },
+    rx: d => R.rx(d, 'r'), inRelay: () => { relayIn = performance.now(); },
+    sig: s => rtcSig(s),
     relayNo: () => { rNo = true; decide(); }, relayDead: () => { rDead = true; decide(); } };
+  // (v171) a direct link of our own, set up through the relay. The direct link through PeerJS needs PeerJS's free server
+  // to introduce the two devices, and when that server was slow or down - now and then, with no sign of it - the whole
+  // match ran through the relay: a public message server, often far from both players, two or three times slower, with
+  // every hiccup holding up everything behind it. Two people who are already talking through the relay can set up the
+  // direct link themselves: the friend asks (an offer), the host answers, and both pass on the routes they can be
+  // reached by. Its channel drops a late message rather than waiting for it - every message carries the whole state.
+  // Not up within 12 s, it is tried again, less often each time; if it drops during a match the relay carries on and it
+  // is tried again.
+  const RTC = !NET_NOP2P && typeof RTCPeerConnection === 'function' ? RTCPeerConnection : null;
+  let pc = null, dc = null, dcOpen = false, dcIn = 0, rtcN = 0, rtcPend = [], rtcEarly = [], rtcRemote = false, rtcT = null, rtcTry = 0, sigQ = 0, relayUpAt = 0;
+  const rtcSeen = new Set();
+  const rtcLive = () => !!(dcOpen && dc && dc.readyState === 'open');
+  const rtcDrop = () => { const a = pc, b = dc; pc = dc = null; dcOpen = false; rtcPend = []; rtcRemote = false; try { if (b) b.close(); } catch (e) {} try { if (a) a.close(); } catch (e) {} };
+  const rtcSend = s => { if (relay) relay.sig(Object.assign({ q: ++sigQ }, s)); };
+  const rtcDesc = d => ({ type: d.type, sdp: d.sdp });
+  const rtcSoon = ms => { if (role !== 'guest' || R.closed || !RTC) return; clearTimeout(rtcT); rtcT = setTimeout(rtcGo, ms); };
+  // (is a direct link really direct, or does it go through a TURN relay server - when the two devices can't reach each
+  //  other at all? Said on the scoreboard either way)
+  let turnD = false, turnP = false;
+  const pairTurn = (c, set) => { try { if (!c || !c.getStats) return; c.getStats().then(st => { let pair = null; const cand = {}; st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId) || pair; if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && !pair) pair = r; if (r.type === 'local-candidate' || r.type === 'remote-candidate') cand[r.id] = r.candidateType; }); if (pair) set(cand[pair.localCandidateId] === 'relay' || cand[pair.remoteCandidateId] === 'relay'); }).catch(() => {}); } catch (e) {} };
+  const rtcAttach = ch => {
+    dc = ch;
+    ch.onopen = () => { if (R.closed || dc !== ch) return; dcOpen = true; dcIn = performance.now(); clearTimeout(rtcT); H.up('direct'); const c = pc; setTimeout(() => pairTurn(c, v => { turnD = v; }), 600); };
+    ch.onmessage = ev => { if (dc !== ch) return; dcIn = performance.now(); let d = null; try { d = JSON.parse(ev.data); } catch (e) {} if (d) R.rx(d, 'd'); };
+    ch.onclose = () => { if (dc !== ch) return; dcOpen = false; rtcSoon(3000); };
+  };
+  const rtcNew = n => {
+    const c = new RTC(NET_ICE); pc = c; rtcN = n; rtcRemote = false;
+    rtcPend = rtcEarly.filter(x => x.n === n).map(x => x.c); rtcEarly = rtcEarly.filter(x => x.n > n);
+    c.onicecandidate = e => { if (pc === c && e.candidate) rtcSend({ t: 'c', n, c: e.candidate.toJSON ? e.candidate.toJSON() : { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } }); };
+    c.onconnectionstatechange = () => { if (pc === c && c.connectionState === 'failed') { dcOpen = false; rtcSoon(5000); } };
+    return c;
+  };
+  const rtcFlush = c => { const q = rtcPend; rtcPend = []; for (const x of q) c.addIceCandidate(x).catch(() => {}); };
+  const rtcGo = () => {
+    clearTimeout(rtcT);
+    if (R.closed || !RTC || !relay || !relay.up() || rtcLive()) return;
+    rtcDrop(); const n = rtcN + 1, c = rtcNew(n); rtcTry++;
+    try {
+      rtcAttach(c.createDataChannel('ns', { ordered: false, maxRetransmits: 0 }));
+      c.createOffer().then(o => c.setLocalDescription(o)).then(() => { if (pc === c) rtcSend({ t: 'o', n, d: rtcDesc(c.localDescription) }); }).catch(() => {});
+    } catch (e) {}
+    rtcT = setTimeout(() => { if (!rtcLive()) { rtcDrop(); rtcSoon(Math.min(30000, 4000 * rtcTry)); } }, 12000);
+  };
+  const rtcSig = s => {
+    if (!s || typeof s !== 'object' || R.closed || !RTC) return;
+    const k = s.t + ':' + s.n + ':' + s.q; if (rtcSeen.has(k)) return; rtcSeen.add(k); if (rtcSeen.size > 400) rtcSeen.clear(); // (each comes through both relays)
+    try {
+      if (role === 'host' && s.t === 'o' && s.d && s.n > rtcN) {
+        rtcDrop(); const c = rtcNew(s.n);
+        c.ondatachannel = e => { if (pc === c) rtcAttach(e.channel); };
+        c.setRemoteDescription(s.d).then(() => { rtcRemote = true; rtcFlush(c); return c.createAnswer(); }).then(a => c.setLocalDescription(a)).then(() => { if (pc === c) rtcSend({ t: 'a', n: s.n, d: rtcDesc(c.localDescription) }); }).catch(() => {});
+      } else if (role === 'guest' && s.t === 'a' && s.d && pc && s.n === rtcN && !rtcRemote) {
+        const c = pc; rtcRemote = true; c.setRemoteDescription(s.d).then(() => rtcFlush(c)).catch(() => {});
+      } else if (s.t === 'c' && s.c) {
+        if (pc && s.n === rtcN) { if (rtcRemote) pc.addIceCandidate(s.c).catch(() => {}); else rtcPend.push(s.c); }
+        else if (s.n > rtcN) { rtcEarly.push({ n: s.n, c: s.c }); if (rtcEarly.length > 60) rtcEarly.shift(); }
+      }
+    } catch (e) {}
+  };
   // (a failed route only counts once the other one has failed too)
   const decide = () => {
     if (R.ok || R.closed) return;
@@ -10254,9 +10336,9 @@ function netDualLink(code, role, R) {
   const startRelay = key => { if (!relay && !R.closed) relay = netRelayLink(key, role, R, H); };
   const attach = c => {
     conn = c;
-    c.on('open', () => { if (R.closed) { try { c.close(); } catch (e) {} return; } p2pOpen = true; p2pIn = performance.now(); H.up(); });
-    c.on('data', d => { p2pIn = performance.now(); R.rx(d); });
-    c.on('close', () => { if (conn !== c) return; p2pOpen = false; if (!(relay && relay.up())) R.gone(); });
+    c.on('open', () => { if (R.closed) { try { c.close(); } catch (e) {} return; } p2pOpen = true; p2pIn = performance.now(); H.up(); setTimeout(() => pairTurn(c.peerConnection, v => { turnP = v; }), 600); });
+    c.on('data', d => { p2pIn = performance.now(); R.rx(d, 'p'); });
+    c.on('close', () => { if (conn !== c) return; p2pOpen = false; if (!rtcLive() && !(relay && relay.up())) R.gone(); });
     c.on('error', () => {});
   };
   // a friend joining by code can always be found on the relay, even if the direct route's server can't be reached
@@ -10288,13 +10370,18 @@ function netDualLink(code, role, R) {
   } catch (e) { pErr = 'net'; setTimeout(decide, 0); }
   return {
     send: d => {
-      const pOk = p2pOpen && conn && conn.open;
-      if (pOk) { try { conn.send(d); } catch (e) {} }
-      // (the relay carries the match whenever the direct link isn't up, or has gone quiet)
-      if (relay && relay.up() && (!pOk || performance.now() - p2pIn > 1200)) relay.send(d);
+      const now = performance.now(), dOk = rtcLive(), pOk = p2pOpen && conn && conn.open;
+      // (our own direct link if it's up, else PeerJS's)
+      if (dOk) { try { dc.send(JSON.stringify(d)); } catch (e) {} }
+      else if (pOk) { try { conn.send(d); } catch (e) {} }
+      // (the relay carries the match whenever no direct link is up, or it has gone quiet)
+      const dIn = Math.max(dOk ? dcIn : 0, pOk ? p2pIn : 0);
+      if (relay && relay.up() && (!(dOk || pOk) || now - dIn > 1200)) relay.send(d);
     },
-    close: () => { try { if (conn) conn.close(); } catch (e) {} try { if (peer) peer.destroy(); } catch (e) {} try { if (relay) relay.close(); } catch (e) {} },
-    via: () => (p2pOpen && performance.now() - p2pIn < 1500 ? 'direct' : relay && relay.up() ? 'relay' : 'none'),
+    close: () => { clearTimeout(rtcT); rtcDrop(); try { if (conn) conn.close(); } catch (e) {} try { if (peer) peer.destroy(); } catch (e) {} try { if (relay) relay.close(); } catch (e) {} },
+    via: () => { const now = performance.now(), d = rtcLive() && now - dcIn < 1500, p = p2pOpen && now - p2pIn < 1500; return d ? (turnD ? 'turn' : 'direct') : p ? (turnP ? 'turn' : 'direct') : relay && relay.up() ? 'relay' : 'none'; },
+    // (v171: still on the relay, with a direct link being set up: worth a moment's wait before starting the match)
+    trying: () => { const now = performance.now(); return !!(RTC && relay && relay.up() && !rtcLive() && !(p2pOpen && now - p2pIn < 1500) && rtcTry <= 1 && (pc || now - relayUpAt < 2500)); },
   };
 }
 // a local stand-in for testing (two tabs of the same browser): BroadcastChannel, with optional one-way delay ?nettest=ms
@@ -10420,7 +10507,10 @@ function netPeers(ch) {
   if (NET.role === 'host' && !NET.live && !NET.mid && pr.role === 'guest' && !NET.timer) {
     NET.gpk = sim.PROFILES[pr.pk] && pr.pk !== 'cpu' ? pr.pk : 'fed'; NET.gcus = NET.gpk === 'cus' && pr.cus && typeof pr.cus === 'object' ? pr.cus : null;
     $('onWaitTxt').textContent = NET.mode === 'random' ? 'Opponent found! Starting…' : `${sim.PROFILES[NET.gpk].name} joined! Starting…`;
-    NET.timer = setTimeout(() => { NET.timer = null; if (NET.role === 'host' && netPeerOf() && !NET.live) startNetMatch(); }, 1200);
+    // (v171: if a direct link is being set up, wait for it a moment - up to 3 s more - rather than start on the relay
+    //  and change over during the first point)
+    const t0 = performance.now(), go = () => { NET.timer = null; if (NET.role !== 'host' || !netPeerOf() || NET.live) return; const L = NET.R && NET.R.link; if (L && L.trying && L.trying() && performance.now() - t0 < 4200) { NET.timer = setTimeout(go, 200); return; } startNetMatch(); };
+    NET.timer = setTimeout(go, 1200);
   }
   if (NET.role === 'guest' && pr.role === 'host') {
     if (!NET.live && !pr.go) $('onWaitTxt').textContent = NET.mode === 'random' ? 'Opponent found! Starting…' : 'Found the match! Starting…';
@@ -10478,7 +10568,7 @@ function startNetMatch() {
   clearInput(); blurActive(); hintCount = 0;
   sim.newMatch();
   gvReset(); NET.lastSkK = null;
-  NET.live = true; NET.tdS = null; NET.gTm = undefined; NET.gW = []; NET.gT = []; NET.gA = []; NET.gAt = undefined; _ra.T = null; _ra.w = 0; NET.gD = undefined; NET.gMin = undefined; NET.oppBg = false; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.liveT = performance.now(); NET.ldq = []; NET.lostShown = false;
+  NET.live = true; NET.tdS = null; NET.gTm = undefined; NET.gW = []; NET.gT = []; NET.gA = []; NET.gAt = undefined; _ra.T = null; _ra.w = 0; NET.gD = undefined; NET.gMin = undefined; NET.oppBg = false; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.liveT = performance.now(); NET.ldq = []; NET.rtK = undefined; NET.rtAt = undefined; NET.viaShown = null; NET.lostShown = false;
   for (const h of sim.P) { h.charging = false; h.pending = null; }
   if (host) {
     NET.mid = Math.random().toString(36).slice(2, 10);
@@ -10523,7 +10613,7 @@ function netSnap(now) {
     b: [b.x, b.y, b.z, b.vx, b.vy, b.vz, b.bounces, b.spin || 0, b.rolling ? 1 : 0, b.g, b.mag || 0, b.ax || 0, b.ev, b.fh, b.kd || 1],
     p: [netPl(sim.P[0]), netPl(sim.P[1])],
     sc: sc ? [sc.pts, sc.games, sc.sets, sc.tb ? 1 : 0, sc.tbp, sc.history, sc.gameServer, sc.matchOver ? 1 : 0, sc.winner] : null,
-    pr: S.pressure ? [S.pressure.w, S.pressure.label, S.pressure.lv || 0] : null, lg: S.longest, st: S.stats, mid: NET.mid, ec: NET.echo, ev: NET.evq });
+    pr: S.pressure ? [S.pressure.w, S.pressure.label, S.pressure.lv || 0] : null, lg: S.longest, st: S.stats, mid: NET.mid, ec: NET.echo, ev: NET.evq, fr: netFps() });
   // (a data channel message is safest under 16 KB: shed the oldest effects first if a frame is ever that big)
   while (s.ev.length && JSON.stringify(s).length > 12000) s.ev.shift();
   return s;
@@ -10804,6 +10894,10 @@ function netGuestRx1(pr, now) {
   const s = pr.s;
   if (!s || typeof s !== 'object' || s.mid !== NET.startedMid || s.k === NET.lastK || !Array.isArray(s.p) || !Array.isArray(s.b)) return;
   NET.lastK = s.k; NET.lastRx = now; NET.lostShown = false;
+  // (v171: the pictures now come by another route - the relay, or a direct link: they can differ by a tenth of a second
+  //  or more. The clock is taken afresh from the new route's pictures: crept towards, it had everything shown too early
+  //  (or late) for a second or two, and the jitter allowance blown up by the old route's pictures for four)
+  { const rt = (NET.R && NET.R.via) || 'd'; if (NET.rtK !== rt) { if (NET.rtK !== undefined) { NET.offs.length = 0; NET.rtAt = now; } NET.rtK = rt; } }
   if (s.ec && s.ec !== NET.lastEc) { NET.lastEc = s.ec; const r = now - s.ec; if (r > 0 && r < 3000) NET.rtt += (r - NET.rtt) * (r < NET.rtt ? 0.3 : 0.08); }
   // clock: the host's frame time minus ours; the largest recent value is the least-delayed delivery
   const v = s.w - now; NET.offs.push([v, now]); while (NET.offs.length && NET.offs[0][1] < now - 4000) NET.offs.shift();
@@ -10813,7 +10907,7 @@ function netGuestRx1(pr, now) {
   const early = NET.liveT !== undefined && now - NET.liveT < 2500;
   if (!early && NET.offsCut !== NET.startedMid) { NET.offsCut = NET.startedMid; NET.offs = NET.offs.filter(o => o[1] >= now - 400); }
   let mx = -Infinity; for (const o of NET.offs) mx = Math.max(mx, o[0]);
-  NET.off = NET.off === null ? mx : (mx > NET.off + 60 ? mx : mx > NET.off ? NET.off + (mx - NET.off) * 0.15 : NET.off + (mx - NET.off) * 0.02); // (v149: a quicker delivery nudges the clock forward gently - it used to jump, and everything drawn jumped with it)
+  NET.off = NET.off === null || now - (NET.rtAt || -1e9) < 500 ? mx : (mx > NET.off + 60 ? mx : mx > NET.off ? NET.off + (mx - NET.off) * 0.15 : NET.off + (mx - NET.off) * 0.02); // (v149: a quicker delivery nudges the clock forward gently - it used to jump, and everything drawn jumped with it)
   const ex = NET.offs.map(o => NET.off - o[0]).sort((a, b) => a - b), p90 = ex[Math.floor(ex.length * 0.9)] || 0;
   NET.delay += (Math.max(45, Math.min(early ? 110 : 240, p90 + 40)) - NET.delay) * 0.05;
   // (v170: how far ahead of the moment the players are shown each picture comes in - the ball can meet the opponent's
@@ -11384,7 +11478,7 @@ function netGuestSend(now, force) {
   NET.R.presence({ g: { mid: NET.startedMid, x: netR3(I.x), z: netR3(I.z), ax: netR3(A.x), az: netR3(A.z), a: NET.acts, tm: Math.round(now), rt: Math.round(NET.rtt), dl: Math.round(NET.delay), bh: Math.round(GV.behind || 0), sk: NET.skOut || null,
     px: netR3(sim.P[0].pos.x), pz: netR3(sim.P[0].pos.z), vx: netR3(sim.P[0].vel.x), vz: netR3(sim.P[0].vel.z), pe: GV.pe || 0, as: sim.P[0].assist || 0,
     // (v169) your own swing as it is on your screen, and the match time it is at: the host draws your player with it
-    an: GV.localAnim ? netRound(sim.P[0].anim) : 0, at: netR3(sim.S.t), ps: GV.localAnim ? netSpotOut(sim.P[0].plan) : 0 } });
+    an: GV.localAnim ? netRound(sim.P[0].anim) : 0, at: netR3(sim.S.t), ps: GV.localAnim ? netSpotOut(sim.P[0].plan) : 0, fr: netFps() } });
 }
 const netSpotOut = pl => { const sp = pl && pl.spot; if (!sp || !isFinite(sp.x) || !isFinite(sp.y) || !isFinite(sp.z)) return 0; return [netR3(-sp.x), netR3(sp.y), netR3(-sp.z), (sp.tweener ? 1 : 0) | (sp.volley ? 2 : 0) | (sp.overhead ? 4 : 0)]; };
 function netAct(kind, key, t) {
@@ -11886,6 +11980,10 @@ function frame(now) {
       lowFrames.sum = lowFrames.n = 0;
     }
   }
+  // (v171: how smoothly this device runs the game, online: told to the other side, and said if it's low - a device
+  //  struggling to keep up makes the match jumpy for both players)
+  if (NET.live && NET.fpsLast) { const ft = now - NET.fpsLast; if (ft > 0 && ft < 500) NET.ftAvg = NET.ftAvg ? NET.ftAvg + (ft - NET.ftAvg) * 0.03 : ft; }
+  NET.fpsLast = now;
   lowFrames.last = now;
   if (!renderer.domElement.isConnected) { const st = $('stage'); if (st) st.appendChild(renderer.domElement); }
   try { frameBody(now); frameErrors = 0; }
