@@ -5937,19 +5937,123 @@ function twoBone(parent, j1, j2, L1, L2, targetW, poleLocal, bendSign, weight, m
 // Orient a bone so its local -y points along dirW and local +z along normW (both world directions).
 // the racket hand: the bone is turned so the racket (held at the grip's angle) points where the swing wants it
 const _gm = new THREE.Matrix4(), _gq = new THREE.Quaternion(), _gv = new THREE.Vector3(), _gx = new THREE.Vector3(), _gy = new THREE.Vector3(), _gz = new THREE.Vector3();
-function orientRacketHand(Mo, rtW, rnW) {
-  orientBone(Mo.armR.hand, rtW, rnW, 1);
+// (v168) The strings' direction only counts across the racket: the swing's face aim (rn) and racket aim (rt) are
+// sprung separately, and as the face aim swung close to the racket's own line, what was left of it across the racket
+// turned faster and faster - the strings spun half way round in one frame (the CPU's forehand takeback did it
+// hundreds of times a match). Near that line the face now holds the way it faced, turning on only at a sane rate.
+const _fq = { y: new THREE.Vector3(), z: new THREE.Vector3(), m: new THREE.Vector3(), c: new THREE.Vector3() };
+const _rc = { a: new THREE.Vector3(), b: new THREE.Vector3(), g: new THREE.Vector3(), q: new THREE.Vector3(), c: new THREE.Vector3(), n: new THREE.Vector3(), d: new THREE.Vector3(), x: new THREE.Vector3(), h: new THREE.Vector3(), r: new THREE.Quaternion(), I: new THREE.Quaternion() };
+function racketClear(Mo, rtW, rnW) {
+  const R = Mo.racket; Mo.armR.hand.updateMatrixWorld(true);
+  const e = R.matrixWorld.elements, sc = Math.hypot(e[4], e[5], e[6]) || 1;
+  const g = _rc.g.set(e[12], e[13], e[14]), dir = _rc.d.set(-e[4] / sc, -e[5] / sc, -e[6] / sc);
+  const A = Mo.torso.getWorldPosition(_rc.a), B = Mo.neck.getWorldPosition(_rc.b); A.y += 0.05;
+  const hc = _rc.h.set(0, 0.11, 0).applyMatrix4(Mo.headG.matrixWorld), rs = Math.abs(Mo.root.scale.y) || 1;
+  const abx = B.x - A.x, aby = B.y - A.y, abz = B.z - A.z, ab2 = abx * abx + aby * aby + abz * abz || 1;
+  const clos = (q, out) => { const u = Math.max(0, Math.min(1, ((q.x - A.x) * abx + (q.y - A.y) * aby + (q.z - A.z) * abz) / ab2)); return out.set(A.x + abx * u, A.y + aby * u, A.z + abz * u); };
+  // (with the hand right against the body the racket can't be turned out of it, and the push fades away - it used to
+  //  switch off at a set distance, and the racket snapped back into the chest)
+  const fade = smooth(Math.max(0, Math.min(1, (g.distanceTo(clos(g, _rc.c)) / rs - 0.09) / 0.1)));
+  if (fade < 0.02) return null;
+  let worst = 0, wl = 0;
+  for (const y of [0.2, 0.3, 0.4, 0.5, 0.6]) {
+    const L = y * sc, q = _rc.q.copy(g).addScaledVector(dir, L), rT = (y >= 0.36 ? 0.16 : 0.13) * rs, rH = (y >= 0.36 ? 0.15 : 0.125) * rs;
+    clos(q, _rc.c); let d = q.distanceTo(_rc.c);
+    if (rT - d > worst && d > 1e-4) { worst = rT - d; wl = L; _rc.n.copy(q).sub(_rc.c).multiplyScalar(1 / d); }
+    d = q.distanceTo(hc);
+    if (rH - d > worst && d > 1e-4) { worst = rH - d; wl = L; _rc.n.copy(q).sub(hc).multiplyScalar(1 / d); }
+  }
+  if (worst <= 0.002 || wl < 0.05) return null;
+  const ax = _rc.x.crossVectors(dir, _rc.n); if (ax.lengthSq() < 1e-8) return null; ax.normalize();
+  const ang = Math.min(0.35, (worst + 0.004) / wl) * fade;
+  const q = _rc.r.setFromAxisAngle(ax, ang);
+  rtW.applyQuaternion(q); rnW.applyQuaternion(q);
+  return q;
+}
+// a face direction made square to its racket direction (length kept); where the two nearly line up and "across" is all
+// but undefined, it keeps to the way it faced last time, turning on only slowly
+function squareFace(rt, rn, mem, dt) {
+  const tl = Math.hypot(rt[0], rt[1], rt[2]), nl = Math.hypot(rn[0], rn[1], rn[2]); if (tl < 1e-6 || nl < 1e-6) return;
+  const tx = rt[0] / tl, ty = rt[1] / tl, tz = rt[2] / tl, d = (rn[0] * tx + rn[1] * ty + rn[2] * tz) / nl;
+  let px = rn[0] / nl - d * tx, py = rn[1] / nl - d * ty, pz = rn[2] / nl - d * tz; const pl = Math.hypot(px, py, pz);
+  let ok = pl > 1e-6; if (ok) { px /= pl; py /= pl; pz /= pl; }
+  if (mem.ok) {
+    const dm = mem.x * tx + mem.y * ty + mem.z * tz; let qx = mem.x - dm * tx, qy = mem.y - dm * ty, qz = mem.z - dm * tz; const ql = Math.hypot(qx, qy, qz);
+    if (ql > 1e-4) {
+      qx /= ql; qy /= ql; qz /= ql;
+      if (!ok) { px = qx; py = qy; pz = qz; ok = true; }
+      else {
+        const rel = smooth(Math.max(0, Math.min(1, (pl - 0.12) / 0.33)));
+        const cx = qy * pz - qz * py, cy = qz * px - qx * pz, cz = qx * py - qy * px, ang = Math.atan2(cx * tx + cy * ty + cz * tz, qx * px + qy * py + qz * pz);
+        const mx = (dt || 1 / 60) * (4 + 60 * rel);
+        if (Math.abs(ang) > mx) {
+          // (q turned about the racket by mx, toward p)
+          const a2 = Math.sign(ang) * mx, c = Math.cos(a2), s = Math.sin(a2), bx = ty * qz - tz * qy, by = tz * qx - tx * qz, bz = tx * qy - ty * qx;
+          px = qx * c + bx * s; py = qy * c + by * s; pz = qz * c + bz * s;
+        }
+      }
+    }
+  }
+  if (!ok) return;
+  rn[0] = px * nl; rn[1] = py * nl; rn[2] = pz * nl;
+  mem.x = px; mem.y = py; mem.z = pz; mem.ok = true;
+}
+function orientRacketHand(Mo, rtW, rnW, dt, fast) {
+  const y = _fq.y.copy(rtW).normalize(), z = _fq.z.copy(rnW).addScaledVector(y, -rnW.dot(y)), zl = z.length();
+  const mem = Mo.faceW || (Mo.faceW = new THREE.Vector3());
+  if (zl > 1e-6) z.multiplyScalar(1 / zl);
+  if (mem.lengthSq() > 0.25) {
+    const mp = _fq.m.copy(mem).addScaledVector(y, -mem.dot(y));
+    if (mp.lengthSq() > 1e-6) {
+      mp.normalize();
+      if (zl <= 1e-6) z.copy(mp);
+      else {
+        // (how far the face may turn about the racket this frame: freely while its aim is clear, barely while it isn't)
+        const rel = smooth(Math.max(0, Math.min(1, (zl - 0.12) / 0.33))), ang = Math.atan2(_fq.c.crossVectors(mp, z).dot(y), mp.dot(z));
+        const mx = (dt === undefined ? 1 / 60 : dt) * (4 + 60 * rel);
+        if (Math.abs(ang) > mx) z.copy(mp).applyAxisAngle(y, Math.sign(ang) * mx);
+      }
+    }
+  } else if (zl <= 1e-6) return;
+  mem.copy(z);
+  orientBone(Mo.armR.hand, rtW, z, 1);
   if (Mo.grip) Mo.armR.hand.quaternion.multiply(Mo.grip.qInv);
-  wristLimit(Mo.armR.hand.quaternion);
+  wristLimit(Mo.armR.hand.quaternion, Mo.wristM || (Mo.wristM = {}), dt, fast);
 }
 // (v153) a real wrist: the hand can bend back or forward only so far from the line of the forearm (about 75-80
 // degrees), and the forearm can only turn the hand over so far. The racket's direction used to set the hand outright,
 // so in the serve's racket drop the wrist folded back 140-160 degrees and the racket stuck out of the fist at
 // impossible angles - the "weird grip". Past a comfortable range the bend now eases into a hard stop, and the racket
 // goes where the hand can actually hold it (the contact pass then lines the strings up with the ball)
-const _wq = { t: new THREE.Quaternion(), s: new THREE.Quaternion(), i: new THREE.Quaternion() };
-function wristLimit(q) {
+// (v168) Asked to bend far past that - the racket pointing back along the forearm, as in a smash's racket drop or a
+// wrapped finish - the direction the wrist should give way in is all but undefined, and it was picked afresh each
+// frame: the racket jumped from one side of the forearm to the other, ~150 degrees in a frame, on every smash. Pinned at
+// the limit, the hand now gives way the way it was already going, turning on to the new way only at a sane rate.
+const _wq = { t: new THREE.Quaternion(), s: new THREE.Quaternion(), i: new THREE.Quaternion(), r: new THREE.Quaternion(), y: new THREE.Vector3(), y2: new THREE.Vector3() };
+function wristLimit(q, mem, dt, fast) {
   const soft = (a, a0, a1) => a <= a0 ? a : a0 + (a1 - a0) * (1 - Math.exp(-(a - a0) / (a1 - a0)));
+  {
+    const hy = _wq.y.set(0, -1, 0).applyQuaternion(q), sa = Math.acos(Math.max(-1, Math.min(1, -hy.y))), hpl = Math.hypot(hy.x, hy.z);
+    let bx = hpl > 1e-6 ? hy.x / hpl : (mem && mem.b ? mem.bx : 1), bz = hpl > 1e-6 ? hy.z / hpl : (mem && mem.b ? mem.bz : 0);
+    if (mem && mem.b && (sa > 1.75 || mem.lag)) {
+      // (asked to bend well past what it can, the hand rolls round the wrist only so fast - the further past, the
+      //  slower: a takeback or a smash's racket drop asking for a bend it can't make used to roll the racket round the
+      //  wrist half a turn in a frame or two. Back within reach, what it is still behind is made up quickly but
+      //  smoothly - switching straight back flicked the racket round in one frame)
+      const rel = smooth(Math.max(0, Math.min(1, (hpl - 0.2) / 0.45))), a0 = Math.atan2(mem.bz, mem.bx), a1 = Math.atan2(bz, bx);
+      let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+      const rate = sa > 1.75 ? (3 + 57 * rel) * (1 - 0.6 * smooth(Math.max(0, Math.min(1, (sa - 1.75) / 0.4)))) : 60;
+      const mx = (dt === undefined ? 1 / 60 : dt) * rate * (1 + 3 * (fast || 0)); // (freer for the few frames through contact, where the racket really does whip round)
+      if (Math.abs(da) > mx) { const aa = a0 + Math.sign(da) * mx; bx = Math.cos(aa); bz = Math.sin(aa); mem.lag = true; } else mem.lag = false;
+      mem.bx = bx; mem.bz = bz;
+      // (the same clamp as below, done on the hand's direction: bent as far as asked or the furthest the wrist goes,
+      //  toward bx/bz)
+      const sl = soft(sa, 1.05, 1.38), cs = Math.cos(sl), sn = Math.sin(sl), hy2 = _wq.y2.set(bx * sn, -cs, bz * sn);
+      q.premultiply(_wq.r.setFromUnitVectors(hy, hy2));
+      return;
+    }
+    if (mem) { mem.bx = bx; mem.bz = bz; mem.b = 1; mem.lag = false; }
+  }
   // twist about the forearm (the hand's own long axis), then the bend left over
   const t = _wq.t.set(0, q.y, 0, q.w); if (t.lengthSq() < 1e-10) t.set(0, 0, 0, 1); t.normalize();
   const sw = _wq.s.copy(q).multiply(_wq.i.copy(t).invert());
@@ -6620,6 +6724,12 @@ function syncAthlete0(h, Mo, dt) {
     if (Mo.xf) { Mo.xf.t += dt; const u = smooth(Math.min(1, Mo.xf.t / Mo.xf.dur)); if (u < 1) { const sv = [T.rt.slice(), T.rn.slice(), T.rp.slice()]; lerpSpec(Mo.xf.from, T, u, T); slerpDir(Mo.xf.from.rt, sv[0], u, T.rt); slerpDir(Mo.xf.from.rn, sv[1], u, T.rn); slerpDir(Mo.xf.from.rp, sv[2], u, T.rp); } else Mo.xf = null; }
     if (!Mo.lastT) Mo.lastT = cloneSpec(T); else lerpSpec(T, T, 0, Mo.lastT);
   }
+  // (v168) the strings face across the racket. Plenty of the touches above tilt the racket's aim (the wait's "stand it up",
+  //  the high-ball lag, the set-ups for a lob or a low volley...) without turning the face with it, so the two could
+  //  end up 150-170 degrees apart - nearly opposite - and "across the racket" was then all but undefined: the strings
+  //  spun round in a frame (the CPU's forehand takeback, hundreds of times a match). The face aim is squared to the
+  //  racket aim here, and again after the springs below
+  squareFace(T.rt, T.rn, Mo.fT || (Mo.fT = {}), dt);
   // ---- 3. smooth toward the target ----
   // Critically damped springs instead of plain easing: when the target pose changes (a takeback starts, a
   // stroke switches, the player returns to ready) the body's speed builds and settles smoothly instead of
@@ -6657,6 +6767,8 @@ function syncAthlete0(h, Mo, dt) {
     for (let j = 0; j < 3; j++) { S[key][j] = spring(S[key][j], V[key][j], tv[j], key === 'lh' ? w : wZone, dt); V[key][j] = _spV; }
     if (key !== 'rh' && key !== 'lh') { const n2 = Math.hypot(S[key][0], S[key][1], S[key][2]); if (n2 < 0.5 && n2 > 1e-4) for (let j = 0; j < 3; j++) S[key][j] *= 0.5 / n2; }
   }
+  squareFace(S.rt, S.rn, Mo.fS || (Mo.fS = {}), dt);
+  { const rl = Math.hypot(S.rt[0], S.rt[1], S.rt[2]) || 1, d = (V.rn[0] * S.rt[0] + V.rn[1] * S.rt[1] + V.rn[2] * S.rt[2]) / (rl * rl); for (let j = 0; j < 3; j++) V.rn[j] -= d * S.rt[j]; }
   for (const key of V2K) for (let j = 0; j < 2; j++) { S[key][j] = spring(S[key][j], V[key][j], T[key][j], w, dt); V[key][j] = _spV; }
   if (Mo.dribble && !swinging) for (let j = 0; j < 3; j++) { S.lh[j] = spring(S.lh[j], V.lh[j], T.lh[j], 46, dt); V.lh[j] = _spV; }
   if (!isFinite(S.cr) || !isFinite(S.sy) || !isFinite(S.rh[0]) || !isFinite(S.lh[1])) { Mo.spec = cloneSpec(T); Mo.vel = zeroSpec(); return; }
@@ -6834,7 +6946,19 @@ function syncAthlete0(h, Mo, dt) {
   if (Mo.grip) gripShift(Mo, wristL, rtW, rnW);
   twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, UPPER, FORE, wristL, _sv.pole, 1, 1, Mo.ikR || (Mo.ikR = {}), dt);
   Mo.armR.sh.updateMatrixWorld(true);
-  orientRacketHand(Mo, rtW, rnW);
+  const fastC = swinging && !a.prep ? Math.exp(-Math.pow((a.s - (a.kind === 'srv' ? 0.6 : CONTACT_S)) / 0.035, 2)) : 0;
+  // (the push that keeps the racket out of the body - see below - carries on from frame to frame, easing off)
+  const Qp = Mo.rcQ || (Mo.rcQ = new THREE.Quaternion());
+  Qp.slerp(_rc.I, 1 - Math.exp(-dt / 0.09));
+  if (1 - Math.abs(Qp.w) > 1e-7) { rtW.applyQuaternion(Qp); rnW.applyQuaternion(Qp); }
+  orientRacketHand(Mo, rtW, rnW, dt, fastC);
+  // (v168) the racket never goes through its own player. Between strokes its aim is blended straight from one pose to
+  //  the next - the ready position's racket up in front to a forehand takeback's racket back, a backhand finish back
+  //  to ready - and with the hand by the body that swept the head through the chest or the face. Whatever of the racket
+  //  would be inside the torso or the head is turned out round it, by as much as it would be in
+  //  (worked out afresh each frame the push jumped about - 30, 19, 8, 15 degrees on four frames through the CPU's
+  //  forehand finish - and the racket juddered; now it is kept, eases off, and is topped up only as much as needed)
+  if (Mo.racket) for (let it = 0; it < 3; it++) { const q = racketClear(Mo, rtW, rnW); if (!q) break; Qp.premultiply(q); orientRacketHand(Mo, rtW, rnW, 0, fastC); } // (no extra wrist roll for the frame: that budget is spent above)
   // ---- 7b. contact: make the strings actually meet the ball ----
   // Around the contact frame, measure where the racket head really is after the IK and move the hand by the
   // remaining gap, then solve the arm again, so the ball visibly comes off the strings instead of near them.
@@ -6877,7 +7001,7 @@ function syncAthlete0(h, Mo, dt) {
       wristL.add(Mo.corr);
       twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, UPPER, FORE, wristL, _sv.pole, 1, 1, Mo.ikR, 0);
       Mo.armR.sh.updateMatrixWorld(true);
-      orientRacketHand(Mo, rtW, rnW);
+      orientRacketHand(Mo, rtW, rnW, 0);
     }
   }
   // ---- 8. free arm: own target, or on the racket ----
