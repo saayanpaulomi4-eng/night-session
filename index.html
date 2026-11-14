@@ -5342,7 +5342,7 @@ const STYLE_DEFS = {
            [0.42, { sy: 0.58, hy: 0.32, cr: 0.1, rh: [-0.2, 0.98, 0.46], rt: [-0.92, 0.02, 0.25], rn: [0.12, 0.0, 1] }],
            [0.52, { sy: 0.22, hy: 0.15, rh: [-0.06, 1.06, 0.74], rt: [-0.8, 0.18, 0.57], rn: [0.55, 0.05, 0.83] }],
            [0.62, { sy: -0.12, hy: 0.04, rh: [0.06, 1.16, 0.72], rt: [-0.42, 0.42, 0.8], rn: [0.85, 0.1, 0.5] }],
-           [1, { sy: -0.7, hy: -0.3, cr: 0.08, rh: [0.30, 1.46, 0.10], rt: [0.15, 0.2, -0.97], rn: [0.9, 0.2, -0.3], rp: [0.25, -0.35, 1], hlL: 0.3 }]],
+           [1, { sy: -0.7, hy: -0.3, cr: 0.08, rh: [0.38, 1.46, 0.12], rt: [0.3, 0.2, -0.93], rn: [0.9, 0.2, -0.3], rp: [0.25, -0.35, 1], hlL: 0.3 }]], // (v175: over the shoulder like the other two-handers - pointed straight back by the ear, the wrist couldn't hold it there)
       srv: serveKeys({ stance: 1, rock: -0.1, knee: 0.15, turn: 1.0, arch: 0.26, toss: 1.95, tipBack: 0.35, compact: 1, drop: 0.35, leap: 0.07, land: 0.62, kick: 0.12 }),
       oh: ohKeysFor({ leap: 1.25, fold: 1.2 }), // (v152: their own overhead)
     } },
@@ -5469,7 +5469,7 @@ const STYLE_DEFS = {
   // extension along the line of the shot, finishing with a windshield wiper that turns the tip up.
   // Backhand: a protected, compact two-hander after his wrist surgeries (he slices a lot): short takeback, pushes
   // through flat and stops around the shoulder. Serve: tall and simple, big leverage from 1.98 m.
-  dpo: { hand: 1, headLock: 0.35, reach: { fh: { tb: 0.9, ct: 0.97, ex: 0.98 }, bh: { tb: 0.82, ct: 0.9, ex: 0.86 } }, split: 0.85, bounce: 0.016, drive: 0.04,
+  dpo: { hand: 1, headLock: 0.35, bhRet: false /* (v175: his compact two-hander, stopped round the shoulder, keeps the old way back) */, reach: { fh: { tb: 0.9, ct: 0.97, ex: 0.98 }, bh: { tb: 0.82, ct: 0.9, ex: 0.86 } }, split: 0.85, bounce: 0.016, drive: 0.04,
     ready: { cr: 0.13, sp: 0.12, rh: [0.13, 0.95, 0.38], rt: [-0.2, 0.38, 0.9], lg: 1, gp: 0.14, fL: [-0.27, 0.04], fR: [0.27, 0] }, // (v160: racket head held lower)
     keys: {
       fh: [[0, { sy: -1.75, hy: -0.85, cr: 0.12, px: 0.06, rh: [0.42, 1.5, -0.26], rt: [0.08, 0.92, -0.38], rn: [0.12, -0.5, 0.86], lg: 0, lh: [0.24, 1.32, 0.6], fL: [-0.18, 0.2], fR: [0.3, -0.12], aL: 0.6, aR: 0.9 }],
@@ -6426,6 +6426,28 @@ function strideSwing(Mo, h, spd, dt) {
   Mo.pumpS = (Mo.pumpS || 0) + (pw - (Mo.pumpS || 0)) * Math.min(1, dt * 14);
   return Mo.pumpS;
 }
+// (v175) A two-handed backhand's way back from the finish (F) to the stance (Rdy), RET_D seconds from the end of the
+// follow-through: the body and the hands evenly, the elbow round to its place early (RET_LP of the way), and the racket's
+// aim along an arc out over the shoulder it finished on (RET_VIA: up, out to that side, a little forward), so it
+// passes beside the head, never stood up above it. The springs follow closely (RET_W) and only smooth it.
+const RET_D = 0.56, RET_LP = 0.4, RET_VIA = [0.5, 0.85, 0.15], RET_W = 20;
+const FIN2H_RP = [0.25, -1, 0.35]; // (v175: a two-hander's elbow pole in the finish - under the hands, a little forward)
+const retKind = (k, st) => k === 'bh' && !st.oneHand && st.bhRet !== false;
+const _rp = { a: [0, 0, 0], b: [0, 0, 0] };
+function retPath(R, F, Rdy, out) {
+  const u = Math.min(1, R.t / RET_D), us = smooth(u), up = smooth(Math.min(1, u / RET_LP));
+  if (R.V === null) {
+    // (the arc goes out to the side only for a turn of over ~100 degrees - from a finish over the shoulder)
+    const nf = Math.hypot(F.rt[0], F.rt[1], F.rt[2]) || 1, nr = Math.hypot(Rdy.rt[0], Rdy.rt[1], Rdy.rt[2]) || 1;
+    if ((F.rt[0] * Rdy.rt[0] + F.rt[1] * Rdy.rt[1] + F.rt[2] * Rdy.rt[2]) / (nf * nr) < -0.17) { const v = RET_VIA, n = Math.hypot(v[0], v[1], v[2]); R.V = [v[0] / n, v[1] / n, v[2] / n]; } else R.V = false;
+  }
+  for (const key of SC) if (!FAST_KEYS[key]) out[key] = F[key] + (Rdy[key] - F[key]) * us;
+  for (const key of ['rh', 'lh']) for (let j = 0; j < 3; j++) out[key][j] = F[key][j] + (Rdy[key][j] - F[key][j]) * us;
+  if (R.V) { slerpDir(F.rt, R.V, us, _rp.a); slerpDir(R.V, Rdy.rt, us, _rp.b); slerpDir(_rp.a, _rp.b, us, out.rt); }
+  else slerpDir(F.rt, Rdy.rt, us, out.rt);
+  slerpDir(F.rn, Rdy.rn, us, out.rn); slerpDir(F.rp, Rdy.rp, up, out.rp);
+  for (const key of V2K) for (let j = 0; j < 2; j++) out[key][j] = F[key][j] + (Rdy[key][j] - F[key][j]) * us;
+}
 // ---------- the per-frame solve ----------
 const _cc = new THREE.Vector3(), _cw = new THREE.Vector3(), _cv = new THREE.Vector3();
 const _sv = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), pole: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler() };
@@ -6828,19 +6850,50 @@ function syncAthlete0(h, Mo, dt) {
   // (it starts once the finish has been reached: the stroke paths arrive at their finish around s 0.8, and a return
   //  that began at 0.7 washed every player's own finish - the wrap, the lasso, the high one-hander - into the same
   //  racket-up-in-front ready pose)
-  if (swinging && !a.prep && !mood) {
+  // (v175) A two-hander's finish: the hitting elbow hangs under the hands. Pointed forward and down, as the keys
+  //  have it, it lay almost along the line from the shoulder to the hands - which by the finish are right by the
+  //  shoulder - so where the elbow went was all but undefined: on a high ball it swung up and out level with the
+  //  hands, the forearm pointed back across the face, and the wrist could no longer hold the racket over the shoulder
+  //  (it was held at its stop and rolled round, then flicked back as it came free)
+  const bh2 = retKind(a.kind, st);
+  if (swinging && !a.prep && !mood && bh2 && a.s > 0.68) slerpDir(T.rp, FIN2H_RP, smooth(Math.min(1, (a.s - 0.68) / 0.14)), T.rp);
+  // (v175) ...and its way back to the ready stance is a path of its own (retPath), on its own clock, instead of the
+  //  springs chasing a stance the target reached in a fifth of a second. From the finish over the shoulder the
+  //  shortest way round stood the racket straight up above the head, and the looser springs of v174 held it there:
+  //  the "weird animation" after every two-hander's backhand. Every other stroke ends as before.
+  if (swinging && !a.prep && !mood && bh2) {
+    if (a.s > 0.83) {
+      let R = Mo.ret;
+      if (!R || !R.live || R.kind !== a.kind) R = Mo.ret = { kind: a.kind, t: 0, ti: 0, live: true, F: cloneSpec(T), Rd: null, V: null };
+      else R.t += dt;
+      lerpSpec(T, T, 0, R.F); // (the stroke's own pose this frame, as if there were no way back)
+      retPath(R, R.F, st.readySpec, T);
+    } else if (Mo.ret) Mo.ret.live = false;
+  } else if (swinging && !a.prep && !mood) {
     const r0 = a.kind === 'srv' ? 0.8 : a.kind === 'oh' || a.kind === 'tw' ? 0.76 : a.kind === 'fh' || a.kind === 'bh' ? 0.83 : 0.74, u0 = a.s > r0 ? Math.min(1, (a.s - r0) / (1 - r0)) : 0, r = u0 * u0 * u0 * (u0 * (u0 * 6 - 15) + 10);
     if (r > 0) { const rs = st.readySpec; for (const key of SC) if (!FAST_KEYS[key]) T[key] += (rs[key] - T[key]) * r; for (const key of V3K) { if (key === 'rt' || key === 'rn' || key === 'rp') slerpDir(T[key], rs[key], r, T[key]); else for (let j = 0; j < 3; j++) T[key][j] += (rs[key][j] - T[key][j]) * r; } for (const key of V2K) for (let j = 0; j < 2; j++) T[key][j] += (rs[key][j] - T[key][j]) * r; }
-  }
+    if (Mo.ret) Mo.ret.live = false;
+  } else if (!swinging && !mood && Mo.ret && Mo.ret.live && Mo.ret.t < RET_D) {
+    // (the stroke is over: on from the finish it last had to the stance as it now is. The path was headed for the plain
+    //  ready stance; if the stance differs - the carry on the run - that is blended in over 0.15 s, rather than by the
+    //  crossfade below, which held the target still for a few frames)
+    const R = Mo.ret; R.t += dt; R.ti += dt;
+    const k = smooth(Math.min(1, R.ti / 0.15)), Rd = R.Rd || (R.Rd = cloneSpec(st.readySpec));
+    lerpSpec(st.readySpec, T, k, Rd); for (const key of ['rt', 'rn', 'rp']) slerpDir(st.readySpec[key], T[key], k, Rd[key]);
+    retPath(R, R.F, Rd, T);
+  } else if (Mo.ret) Mo.ret.live = false;
   {
     const evKey = (swinging ? (a.prep ? 'P' + a.kind : 'S') : 'I') + '|' + mood;
     if (!swinging || a.prep) { Mo.swLive = false; Mo.bf = null; }
     const sJump = swinging && !a.prep && Mo.lastS !== undefined && Mo.evKey === evKey && Math.abs(a.s - Mo.lastS) > Math.max(0.04, (a.rate || 0) * dt * 2.5);
     if (Mo.lastT && (evKey !== Mo.evKey || sJump)) {
       const toSwing = swinging && !a.prep, fromSwing = Mo.evKey && Mo.evKey[0] === 'S';
+      // (v175: not from the swing into the way back's continuation - that is one path)
+      if (fromSwing && evKey[0] === 'I' && !mood && Mo.ret && Mo.ret.live) Mo.xf = null; else {
       const prepSwap = !toSwing && evKey[0] === 'P' && Mo.evKey && Mo.evKey[0] === 'P'; // (a takeback switching wings: turn round, don't snap)
       const dur = toSwing && a.kind === 'srv' && (!Mo.evKey || Mo.evKey[0] === 'I') ? 0.22 : toSwing && Mo.evKey && Mo.evKey[0] === 'P' ? 0.09 : toSwing ? 0.08 : fromSwing ? (mood ? 0.32 : 0.16) : prepSwap ? 0.3 : mood ? 0.25 : 0.14; // (the serve flows out of the stance at the line)
       Mo.xf = { from: cloneSpec(Mo.lastT), t: 0, dur };
+      }
     }
     Mo.evKey = evKey; Mo.lastS = a.s;
     if (Mo.xf) { Mo.xf.t += dt; const u = smooth(Math.min(1, Mo.xf.t / Mo.xf.dur)); if (u < 1) { const sv = [T.rt.slice(), T.rn.slice(), T.rp.slice()]; lerpSpec(Mo.xf.from, T, u, T); slerpDir(Mo.xf.from.rt, sv[0], u, T.rt); slerpDir(Mo.xf.from.rn, sv[1], u, T.rn); slerpDir(Mo.xf.from.rp, sv[2], u, T.rp); } else Mo.xf = null; }
@@ -6861,7 +6914,9 @@ function syncAthlete0(h, Mo, dt) {
   // (after the finish the body eases back to ready over about a third of a second instead of snapping there in a
   //  tenth: the springs loosen as the stroke hands back to the ready stance)
   const retW = swinging && !a.prep && a.kind !== 'srv' ? smooth(Math.max(0, Math.min(1, (a.s - 0.8) / 0.15))) : 0;
-  const w0 = swinging && !a.prep ? 72 + (13 - 72) * retW : a.prep ? 30 : mood ? 10 : 16, wFast = 50;
+  const retLive = !!(Mo.ret && Mo.ret.live && !mood && !a.prep);
+  // (v175: along the backhand's way back the springs only smooth the path - loose, they trailed it by a tenth of a second and more)
+  const w0 = Math.max(swinging && !a.prep ? 72 + (13 - 72) * retW : a.prep ? 30 : mood ? 10 : 16, retLive ? RET_W : 0), wFast = 50;
   Mo.wS = Mo.wS === undefined ? w0 : Mo.wS + (w0 - Mo.wS) * Math.min(1, dt * (w0 > Mo.wS ? 14 : retW > 0 ? 20 : 8));
   const w = Mo.wS;
   // through the hitting zone the racket whips round ~1000 degrees a second: stiffer springs there (the keyframe
@@ -6877,7 +6932,7 @@ function syncAthlete0(h, Mo, dt) {
   const gsRet = k => !!k && k !== 'srv' && k !== 'oh' && k !== 'tw';
   if (swinging && !a.prep) { Mo.retKind = a.kind; Mo.postT = 0; } else if (!swinging && !mood) Mo.postT = (Mo.postT || 0) + dt; else Mo.postT = 9;
   const retR = mood ? 0 : swinging && !a.prep ? (gsRet(a.kind) ? retW : 0) : !swinging && gsRet(Mo.retKind) ? 1 - smooth(Math.max(0, Math.min(1, ((Mo.postT || 0) - 0.3) / 0.3))) : 0;
-  const wDir = wZone * (1 - 0.45 * retR);
+  const wDir = wZone * (1 - (retLive ? 0 : 0.45) * retR); // (v175: not on the backhand's way back - that has its own pace)
   // (v162: the hips' sideways and forward travel on softer springs through a swing: the weight going from the back leg
   //  to the front through contact was a 1.5-1.8 m/s flick over planted feet, in about four frames)
   // (and a groundstroke's leg drive rises and lands over a few frames more: Shelton's rose 4.5-5.5 cm a frame off
