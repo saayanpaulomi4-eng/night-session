@@ -5262,10 +5262,12 @@ const STYLE_DEFS = {
            // (v159: the "buggy whip" kept moving - it used to freeze with the racket straight up over his head for the
            //  second half. The racket whips up and the forearm comes OVER the head, the elbow pointing at the target,
            //  the racket head dropping down behind the hitting-side shoulder; then the arm relaxes down a little)
-           [0.62, { sy: 0.55, hy: 0.52, cr: 0.12, pz: -0.03, airR: 0.05, airL: 0, rh: [0.38, 1.66, 0.48], rt: [0.1, 0.95, -0.1], rn: [-0.85, 0.0, -0.5], rp: [0.6, -0.2, 1] }],
-           [0.74, { sy: 0.66, hy: 0.55, cr: 0.11, pz: -0.06, airR: 0, rh: [0.22, 1.86, 0.28], rt: [0.35, 0.1, -0.93], rn: [-0.6, -0.3, -0.7], rp: [0.2, 0.5, 1] }],
-           [0.87, { sy: 0.72, hy: 0.56, cr: 0.1, pz: -0.08, rh: [0.2, 1.8, 0.22], rt: [0.45, -0.45, -0.77], rn: [-0.3, -0.6, -0.7], rp: [0.2, 0.5, 1], lh: [-0.35, 1.18, 0.3] }],
-           [1, { sy: 0.72, hy: 0.55, cr: 0.1, pz: -0.08, rh: [0.24, 1.66, 0.22], rt: [0.45, -0.6, -0.66], rn: [-0.3, -0.6, -0.7], rp: [0.4, 0.2, 1], lh: [-0.35, 1.16, 0.3], hlR: 0.3 }]],
+           // (v174: a touch lower - the hand finished 10 cm over the top of his head, the arm reaching up like a
+           //  serve's, which with the whip over read as a glitch more than a lasso)
+           [0.62, { sy: 0.55, hy: 0.52, cr: 0.12, pz: -0.03, airR: 0.05, airL: 0, rh: [0.38, 1.6, 0.48], rt: [0.1, 0.95, -0.1], rn: [-0.85, 0.0, -0.5], rp: [0.6, -0.2, 1] }],
+           [0.74, { sy: 0.66, hy: 0.55, cr: 0.11, pz: -0.06, airR: 0, rh: [0.22, 1.76, 0.28], rt: [0.35, 0.1, -0.93], rn: [-0.6, -0.3, -0.7], rp: [0.2, 0.5, 1] }],
+           [0.87, { sy: 0.72, hy: 0.56, cr: 0.1, pz: -0.08, rh: [0.2, 1.72, 0.22], rt: [0.45, -0.45, -0.77], rn: [-0.3, -0.6, -0.7], rp: [0.2, 0.5, 1], lh: [-0.35, 1.18, 0.3] }],
+           [1, { sy: 0.72, hy: 0.55, cr: 0.1, pz: -0.08, rh: [0.24, 1.62, 0.22], rt: [0.45, -0.6, -0.66], rn: [-0.3, -0.6, -0.7], rp: [0.4, 0.2, 1], lh: [-0.35, 1.16, 0.3], hlR: 0.3 }]],
       bh: [[0, { sy: 1.35, hy: 0.8, cr: 0.16, rh: [-0.3, 1.0, -0.25], rt: [-0.1, 0.75, -0.65], rn: [0.35, 0.1, 0.93], lg: 1, gp: 0.14, fL: [-0.33, -0.08], fR: [0.05, 0.22], aL: -0.5, aR: -0.3 }],
            [0.22, { sy: 1.2, hy: 0.7, cr: 0.18, rh: [-0.42, 0.85, -0.15], rt: [-0.3, -0.5, -0.8], rn: [0.3, -0.2, 0.93] }],
            [0.42, { sy: 0.62, hy: 0.4, cr: 0.15, rh: [-0.25, 0.95, 0.45], rt: [-0.88, 0.1, 0.3], rn: [0.15, 0.1, 1] }],
@@ -5357,9 +5359,13 @@ const STYLE_DEFS = {
            [0.34, { sy: -0.5, hy: 0.0, rh: [0.47, 0.92, 0.14], rt: [0.35, -0.5, -0.79], rn: [-0.1, 0.0, 1], lh: [0.24, 1.2, 0.52] }],
            [0.42, { sy: 0.15, hy: 0.35, cr: 0.12, px: 0.0, pz: 0.06, rh: [0.44, 1.0, 0.44], rt: [0.97, 0.03, 0.22], rn: [-0.15, 0.05, 1], lh: [-0.18, 1.2, 0.28] }],
            [0.54, { sy: 0.62, hy: 0.5, pz: 0.08, rh: [0.3, 1.24, 0.8], rt: [0.3, 0.45, 0.84], rn: [-0.85, 0.15, 0.5], lh: [-0.3, 1.16, 0.2], hlR: 0.5 }], // (v159: through the ball, not straight up)
-           [0.63, { sy: 0.83, rh: [0.16, 1.54, 0.65], rt: [-0.5, 0.62, 0.6], rn: [-0.6, -0.3, -0.74] }], // (v159: across in front of the face on the way to the wrap - not up through the vertical)
-           [0.72, { sy: 1.05, hy: 0.72, rh: [0.02, 1.5, 0.5], rt: [-0.4, 0.4, -0.82], rn: [-0.3, -0.4, -0.86], rp: [0.0, 0.35, 1], hlR: 0.75 }],
-           [1, { sy: 1.3, hy: 0.8, cr: 0.1, rh: [-0.18, 1.42, 0.32], rt: [-0.3, -0.2, -0.93], rn: [-0.1, -0.5, -0.86], rp: [0.0, 0.35, 1], lg: 0.4, gp: 0.3, hlR: 0.85 }]],
+           // (v174: further across and less up at 0.63, so the racket comes round to the wrap in two even arcs of ~78
+           //  degrees - it stood up here and then tipped 92 degrees over in the next tenth: a stop, then a whip. And the
+           //  hand crosses to the left shoulder before the racket goes back, so the wrap passes beside his head: it went
+           //  back over the top of it, from a hand still in front of his face, and was flicked out of his head)
+           [0.63, { sy: 0.83, rh: [0.16, 1.5, 0.65], rt: [-0.66, 0.38, 0.25], rn: [-0.6, -0.3, -0.74] }], // (v159: across in front of the face on the way to the wrap - not up through the vertical)
+           [0.72, { sy: 1.05, hy: 0.72, rh: [-0.14, 1.48, 0.45], rt: [-0.5, 0.1, -0.86], rn: [0.49, -0.79, -0.37], rp: [0.0, 0.35, 1], hlR: 0.75 }],
+           [1, { sy: 1.3, hy: 0.8, cr: 0.1, rh: [-0.26, 1.42, 0.3], rt: [-0.38, -0.25, -0.89], rn: [0.64, -0.76, -0.06], rp: [0.0, 0.35, 1], lg: 0.4, gp: 0.3, hlR: 0.85 }]],
       // Sinner two-hander: early turn with the racket up at shoulder height, then a loop that drops the head into a
       // slot along the left leg (below the ball, not to the court); he takes it early and flat, both arms driving long
       // through the ball, then a high finish with the hands beside the right shoulder.
@@ -5788,6 +5794,8 @@ function contactHead(style, kind) {
   return [key.rh[0] + t[0] / n * 0.57, key.rh[1] + t[1] / n * 0.57 + key.lift, key.rh[2] + t[2] / n * 0.57]; // rh is measured from the court
 }
 for (const k in STYLES) { const st = STYLES[k]; st.contact = {}; for (const kind in st.keys) st.contact[kind] = contactHead(st, kind); }
+// (v174) the hitting hand's own height at the contact key, per stroke: a high ball's follow-through is measured from it
+for (const k in STYLES) { const st = STYLES[k]; st.contactRh = {}; for (const kind in st.keys) { const ks = st.keys[kind], cs = kind === 'srv' ? 0.6 : CONTACT_S; let key = ks[0][1]; for (const [s, p] of ks) if (Math.abs(s - cs) < 1e-6) key = p; st.contactRh[kind] = key.rh[1]; } }
 // Re-timing every stroke by the distance the racket head actually travels. The keyframes put contact in the right
 // place, but the speed along the path came out of how the keys happened to be spaced: on most strokes the racket
 // was fastest just BEFORE the ball and then lost half its speed in one frame at contact - the swing looked like it
@@ -6039,7 +6047,7 @@ const _gm = new THREE.Matrix4(), _gq = new THREE.Quaternion(), _gv = new THREE.V
 // hundreds of times a match). Near that line the face now holds the way it faced, turning on only at a sane rate.
 const _fq = { y: new THREE.Vector3(), z: new THREE.Vector3(), m: new THREE.Vector3(), c: new THREE.Vector3() };
 const _rc = { a: new THREE.Vector3(), b: new THREE.Vector3(), g: new THREE.Vector3(), q: new THREE.Vector3(), c: new THREE.Vector3(), n: new THREE.Vector3(), d: new THREE.Vector3(), x: new THREE.Vector3(), h: new THREE.Vector3(), r: new THREE.Quaternion(), I: new THREE.Quaternion() };
-function racketClear(Mo, rtW, rnW) {
+function racketClear(Mo, rtW, rnW, maxA) {
   const R = Mo.racket; Mo.armR.hand.updateMatrixWorld(true);
   const e = R.matrixWorld.elements, sc = Math.hypot(e[4], e[5], e[6]) || 1;
   const g = _rc.g.set(e[12], e[13], e[14]), dir = _rc.d.set(-e[4] / sc, -e[5] / sc, -e[6] / sc);
@@ -6061,7 +6069,7 @@ function racketClear(Mo, rtW, rnW) {
   }
   if (worst <= 0.002 || wl < 0.05) return null;
   const ax = _rc.x.crossVectors(dir, _rc.n); if (ax.lengthSq() < 1e-8) return null; ax.normalize();
-  const ang = Math.min(0.35, (worst + 0.004) / wl) * fade;
+  const ang = Math.min(0.35, (worst + 0.004) / wl, maxA === undefined ? 9 : maxA) * fade; if (ang < 1e-4) return null;
   const q = _rc.r.setFromAxisAngle(ax, ang);
   rtW.applyQuaternion(q); rnW.applyQuaternion(q);
   return q;
@@ -6139,7 +6147,11 @@ function wristLimit(q, mem, dt, fast) {
       const rel = smooth(Math.max(0, Math.min(1, (hpl - 0.2) / 0.45))), a0 = Math.atan2(mem.bz, mem.bx), a1 = Math.atan2(bz, bx);
       let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
       const rate = sa > 1.75 ? (3 + 57 * rel) * (1 - 0.6 * smooth(Math.max(0, Math.min(1, (sa - 1.75) / 0.4)))) : 60;
-      const mx = (dt === undefined ? 1 / 60 : dt) * rate * (1 + 3 * (fast || 0)); // (freer for the few frames through contact, where the racket really does whip round)
+      // (v174: in a finish and on the way back to the ready stance, at most ~12 degrees a frame either way: rolling or
+      //  catching up at up to 60 a second there, the racket spun round the wrist at 30-55 degrees a frame for a few
+      //  frames - Nadal after a very high ball, Sinner after a scooped low one, Federer's wrap)
+      const rateC = mem.calm ? Math.min(rate, 13) : rate;
+      const mx = (dt === undefined ? 1 / 60 : dt) * rateC * (1 + 3 * (fast || 0)); // (freer for the few frames through contact, where the racket really does whip round)
       if (Math.abs(da) > mx) { const aa = a0 + Math.sign(da) * mx; bx = Math.cos(aa); bz = Math.sin(aa); mem.lag = true; } else mem.lag = false;
       mem.bx = bx; mem.bz = bz;
       // (the same clamp as below, done on the hand's direction: bent as far as asked or the furthest the wrist goes,
@@ -6670,8 +6682,11 @@ function syncAthlete0(h, Mo, dt) {
     const fA = Mo.flatS;
     if (fA > 0.01) {
       const thru = Math.exp(-Math.pow((ss - 0.5) / 0.09, 2));
-      T.rh[1] += (0.12 * pre - 0.24 * post) * fA; T.rh[2] += 0.16 * thru * fA;
-      T.rt[1] -= 0.35 * post * fA; T.pz += 0.06 * post * fA; T.sp += 0.04 * post * fA; T.cr -= 0.02 * fA;
+      // (v174: not on top of a finish that is already a flat one - Nadal's round the far shoulder: dropped again here
+      //  it ended round his hips, the racket level across his waist)
+      const fDrop = st.alt && st.alt[a.kind] ? 1 - 0.7 * Math.max(0, Math.min(1, Mo.altS || 0)) : 1;
+      T.rh[1] += (0.12 * pre - 0.24 * post * fDrop) * fA; T.rh[2] += 0.16 * thru * fA;
+      T.rt[1] -= 0.35 * post * fA * fDrop; T.pz += 0.06 * post * fA; T.sp += 0.04 * post * fA; T.cr -= 0.02 * fA;
     }
     // high ball: racket set high, upright chest, flatter finish across the shoulders
     if (hiA > 0) { T.rh[1] += (0.22 * pre - 0.12 * post) * hiA; T.cr -= 0.04 * hiA; T.sp -= 0.05 * hiA; }
@@ -6742,7 +6757,14 @@ function syncAthlete0(h, Mo, dt) {
       const wh = a.prep ? 0.15 : Math.max(Math.exp(-Math.pow((a.s - CONTACT_S) / 0.16, 2)), 0.15 * (1 - smooth(Math.min(1, a.s / 0.3))));
       // (more of a far ball is taken by moving the body over to it and less by stretching the arm out on its own -
       //  the arm reaching for every ball alone was a big part of the rubbery look at contact)
-      T.rh[0] += dr * wh * 0.5; T.rh[1] += (du + (vol ? 0 : knees)) * wu; T.rh[2] += df * wh * 0.6;
+      // (v174) a high ball's follow-through goes on across at about the height it was met, rising only to the finish's
+      //  own height - not to that height plus the lift that put the strings on the ball. On a shoulder-high ball that
+      //  was half a metre on top of the swing's own rise: the arm shot straight up overhead (the wrist two metres up on
+      //  Nadal's lasso) and then whipped the racket down behind the head to the finish
+      let liftH = (du + (vol ? 0 : knees)) * wu;
+      const cRh = st.contactRh && st.contactRh[a.kind];
+      if (!vol && !a.prep && a.s > CONTACT_S && du > 0 && cRh !== undefined) liftH = Math.min(liftH, Math.max(0, Math.max(T.rh[1], cRh + du + 0.1) - T.rh[1]));
+      T.rh[0] += dr * wh * 0.5; T.rh[1] += liftH; T.rh[2] += df * wh * 0.6;
       // (v162) ...and the body goes over to a far ball WITH its feet: the shift is set from the set-up on (as soon as
       //  the ball's line is known), the feet step across under it, it is held through the shot and let go at the end
       //  of the finish. The hips used to slide up to 35 cm sideways over planted feet during the forward swing - the
@@ -6846,6 +6868,16 @@ function syncAthlete0(h, Mo, dt) {
   // path is already smooth) so the strings are square to the ball at contact instead of still pointing back
   const zone = swinging && !a.prep ? (a.kind === 'srv' ? Math.exp(-Math.pow((a.s - 0.58) / 0.1, 2)) : Math.exp(-Math.pow((a.s - 0.4) / 0.13, 2))) : 0;
   const wZone = w + (118 - w) * zone;
+  // (v174) the way back from a groundstroke's finish to the ready stance is unhurried: the hitting hand and the racket's
+  //  aim ride looser springs, together (the racket alone lagging the hand bent the wrist to its stop, and it then rolled
+  //  round in a flick). The aim swung the 140-180 degrees from the wrap, or from over the shoulder, back to up in front
+  //  at 15-17 degrees a frame - a second whip after the shot, straight up over the head on a backhand
+  //  (the elbow's way round stays on the quick springs, and so do the shoulders and hips: slowed with the hand, the
+  //   elbow swung across under a racket still on its way after a very high ball, and bent the wrist to its stop)
+  const gsRet = k => !!k && k !== 'srv' && k !== 'oh' && k !== 'tw';
+  if (swinging && !a.prep) { Mo.retKind = a.kind; Mo.postT = 0; } else if (!swinging && !mood) Mo.postT = (Mo.postT || 0) + dt; else Mo.postT = 9;
+  const retR = mood ? 0 : swinging && !a.prep ? (gsRet(a.kind) ? retW : 0) : !swinging && gsRet(Mo.retKind) ? 1 - smooth(Math.max(0, Math.min(1, ((Mo.postT || 0) - 0.3) / 0.3))) : 0;
+  const wDir = wZone * (1 - 0.45 * retR);
   // (v162: the hips' sideways and forward travel on softer springs through a swing: the weight going from the back leg
   //  to the front through contact was a 1.5-1.8 m/s flick over planted feet, in about four frames)
   // (and a groundstroke's leg drive rises and lands over a few frames more: Shelton's rose 4.5-5.5 cm a frame off
@@ -6864,7 +6896,7 @@ function syncAthlete0(h, Mo, dt) {
         const nm = Math.hypot(m[0], m[1], m[2]); tv = [m[0] / nm, m[1] / nm, m[2] / nm];
       }
     }
-    for (let j = 0; j < 3; j++) { S[key][j] = spring(S[key][j], V[key][j], tv[j], key === 'lh' ? w : wZone, dt); V[key][j] = _spV; }
+    for (let j = 0; j < 3; j++) { S[key][j] = spring(S[key][j], V[key][j], tv[j], key === 'lh' ? w : key === 'rp' ? wZone : wDir, dt); V[key][j] = _spV; }
     if (key !== 'rh' && key !== 'lh') { const n2 = Math.hypot(S[key][0], S[key][1], S[key][2]); if (n2 < 0.5 && n2 > 1e-4) for (let j = 0; j < 3; j++) S[key][j] *= 0.5 / n2; }
   }
   squareFace(S.rt, S.rn, Mo.fS || (Mo.fS = {}), dt);
@@ -7051,6 +7083,10 @@ function syncAthlete0(h, Mo, dt) {
   const Qp = Mo.rcQ || (Mo.rcQ = new THREE.Quaternion());
   Qp.slerp(_rc.I, 1 - Math.exp(-dt / 0.09));
   if (1 - Math.abs(Qp.w) > 1e-7) { rtW.applyQuaternion(Qp); rnW.applyQuaternion(Qp); }
+  // (v174) after the strike and on the way back to the ready stance the racket is settled, not whipped: see the push
+  //  below, and the wrist's give in wristLimit
+  const calmR = (swinging && !a.prep && a.s > 0.5) || (!swinging && Mo.postT !== undefined && Mo.postT < 0.6);
+  (Mo.wristM || (Mo.wristM = {})).calm = calmR;
   orientRacketHand(Mo, rtW, rnW, dt, fastC);
   // (v168) the racket never goes through its own player. Between strokes its aim is blended straight from one pose to
   //  the next - the ready position's racket up in front to a forehand takeback's racket back, a backhand finish back
@@ -7058,7 +7094,11 @@ function syncAthlete0(h, Mo, dt) {
   //  would be inside the torso or the head is turned out round it, by as much as it would be in
   //  (worked out afresh each frame the push jumped about - 30, 19, 8, 15 degrees on four frames through the CPU's
   //  forehand finish - and the racket juddered; now it is kept, eases off, and is topped up only as much as needed)
-  if (Mo.racket) for (let it = 0; it < 3; it++) { const q = racketClear(Mo, rtW, rnW); if (!q) break; Qp.premultiply(q); orientRacketHand(Mo, rtW, rnW, 0, fastC); } // (no extra wrist roll for the frame: that budget is spent above)
+  // (v174) ...but after the strike and on the way back to the ready stance it grows by at most ~6 degrees a frame. The
+  //  wrap took the racket in behind the head, and the push went 0-16-24 degrees in two frames: a flick in the finish
+  //  and another as the body turned back, on top of the swing's own motion
+  const capC = calmR ? 0.1 : 9; let usedC = 0;
+  if (Mo.racket) for (let it = 0; it < 3 && usedC < capC - 1e-3; it++) { const q = racketClear(Mo, rtW, rnW, capC - usedC); if (!q) break; usedC += 2 * Math.acos(Math.min(1, Math.abs(q.w))); Qp.premultiply(q); orientRacketHand(Mo, rtW, rnW, 0, fastC); } // (no extra wrist roll for the frame: that budget is spent above)
   // ---- 7b. contact: make the strings actually meet the ball ----
   // Around the contact frame, measure where the racket head really is after the IK and move the hand by the
   // remaining gap, then solve the arm again, so the ball visibly comes off the strings instead of near them.
