@@ -5721,47 +5721,68 @@ const STYLE_DEFS = {
       oh: ohKeysFor({ leap: 1.5, fold: 1.3 }), // (v152: their own overhead)
     } },
   // ---------------- MEDVEDEV ----------------
-  // (Mouratoglou, Tennisplayer, coaching breakdowns) 1.98 m, long levers, a tall, upright base.
-  // Forehand: semi-western; the left hand lets go early and the left arm stays out at the ball; a huge, high takeback -
-  // the elbow up level with the shoulder, the hand far back behind him, the racket head up with the face shut; a deep
-  // drop and lag, then a flat contact just in front of the left knee, taken high and fairly close to the body, with
-  // little extension; the arm then wraps right round his neck, and the right leg comes through in front of the left.
-  // Backhand: closed stance, a split grip (a gap between the hands); a long, low backswing that points the racket head
-  // down at the back fence ("five o'clock"); the head drops and both arms drive it through flat - next to no rolling
-  // over of the face - a long push out along the line, then the hands finish high over the right shoulder.
-  // Serve: pinpoint stance (the back foot slides up), the tossing arm stretched right up, a spring up from the knees and
-  // a long reach to contact; the racket crosses the body and he lands on the front foot.
-  med: { hand: 1, bhOut: 0.04, waitUp: { fh: 0.4, bh: 0.45 }, hiLag: 1.2, headLock: 0.3, reach: { fh: { tb: 0.86, ct: 0.9, ex: 0.88 }, bh: { tb: 0.86, ct: 0.97, ex: 0.97 } }, split: 1.1, bounce: 0.024, drive: 0.025, driveBh: 0.02,
-    ready: { cr: 0.13, sp: 0.12, rh: [0.12, 1.0, 0.37], lg: 1, gp: 0.14, fL: [-0.31, 0.04], fR: [0.31, 0] },
+  // (v177, redrawn from coaching breakdowns: Mouratoglou, Rick Macci, the Tennisplayer forum on the Yandell high-speed
+  //  clips, playtennis.sg, Hugh Clarke, Prodigymaker) 1.98 m, long thin levers ("a human praying mantis"), a wide, upright
+  //  base that barely sits into the knees. Drawn to read as HIS from the broadcast camera, not as a tidy textbook stroke.
+  // Forehand: the left arm comes across bent ("not full or complete"), not stretched out; the takeback is the longest
+  //  on tour, a "helicopter backswing" (Macci): the racket swung round flat and wide at head height, then on back in
+  //  line with a hitting arm that is all but straight, out behind him at shoulder height (the elbow level with the
+  //  shoulder, the hand "extremely far back"); a deep loop down his back with a big lag in the wrist, and the head is
+  //  thrown at the ball - a flat slap with the arm bent, the extension short; then the arm wraps tight round his neck,
+  //  the elbow up high pointing at the net, the racket hanging down his back, the left arm flung out, and the right leg
+  //  swings through and crosses in front ("crosses his legs").
+  // Backhand: a very closed stance (the right foot steps right across the left); a split grip; a low, straight-back takeback
+  //  with the racket tip pointing down at the back fence ("five o'clock") and next to no loop; both elbows bent at
+  //  contact (a double bend - "he would rarely hit with a straight right arm"), the ball met level with the front hip
+  //  rather than far out in front; a scooping, low-to-high but flat swing (the head dips under the hands, no rolling
+  //  over), the front shoulder dipping as he leans in; a shorter swing than the forehand, then a full, high finish with
+  //  the hands up by the right ear. The back leg trails as a brake.
+  // Serve: simple and upright - next to no knee bend, hardly leaves the ground; the racket starts down before the toss;
+  //  pinpoint stance; the tossing arm stretched right up; lands on the left foot with the right leg kicking up behind.
+  med: { hand: 1, bhOut: 0, waitUp: { fh: 0.15, bh: 0.2 }, hiLag: 1.5, headLock: 0.34, reach: { fh: { tb: 0.98, ct: 0.84, ex: 0.8 }, bh: { tb: 0.9, ct: 0.82, ex: 0.86 } }, split: 1.1, bounce: 0.022, drive: 0.04, driveBh: 0.03,
+    ready: { cr: 0.09, sp: 0.15, rh: [0.12, 1.02, 0.38], lg: 1, gp: 0.14, fL: [-0.37, 0.04], fR: [0.37, 0] },
     keys: {
-      fh: [[0, { sy: -1.35, hy: -0.7, cr: 0.12, px: 0.06, rh: [0.46, 1.3, -0.22], rt: [0.2, 0.9, -0.38], rn: [0.25, -0.5, 0.83], lg: 0, lh: [0.6, 1.3, 0.56], fL: [-0.24, 0.08], fR: [0.34, -0.06], aL: 0.3, aR: 0.8 }],
-           // the big, high takeback: elbow up level with the shoulder, the hand far back, the racket head up, face shut
-           [0.12, { sy: -1.42, rh: [0.56, 1.42, -0.5], rt: [0.3, 0.72, -0.62], rn: [0.73, -0.59, -0.33], rp: [1, 0.4, -0.45], lh: [0.62, 1.32, 0.58] }],
-           // a deep drop and lag
-           [0.24, { sy: -1.1, hy: -0.5, cr: 0.14, rh: [0.56, 1.08, -0.32], rt: [0.28, -0.7, -0.66], rn: [0.05, -0.3, 0.95], rp: [1, -0.2, -0.4], lh: [0.5, 1.26, 0.56] }],
-           [0.34, { sy: -0.5, hy: 0.0, rh: [0.5, 0.96, 0.08], rt: [0.35, -0.45, -0.82], rn: [-0.1, 0.0, 1], lh: [0.2, 1.2, 0.48] }],
-           // flat, just in front of the left knee, taken high and close to the body
-           [0.42, { sy: 0.15, hy: 0.38, cr: 0.12, px: 0.0, rh: [0.4, 1.04, 0.36], rt: [0.96, 0.08, 0.25], rn: [-0.15, 0.1, 1], lh: [-0.18, 1.2, 0.28] }],
-           // little extension: the racket comes up quickly...
-           [0.52, { sy: 0.62, hy: 0.56, airR: 0.04, rh: [0.24, 1.32, 0.62], rt: [0.2, 0.62, 0.76], rn: [-0.9, 0.12, 0.42], lh: [-0.3, 1.18, 0.2] }],
-           // ...and the arm wraps right round his neck, the right leg swinging through in front
-           [0.62, { sy: 0.95, hy: 0.72, airR: 0.07, rh: [0.04, 1.52, 0.54], rt: [-0.52, 0.66, 0.54], rn: [-0.6, -0.3, -0.74] }],
-           [0.74, { sy: 1.18, hy: 0.86, airR: 0.04, rh: [-0.14, 1.58, 0.34], rt: [-0.75, 0.3, -0.58], rn: [-0.4, 0.2, -0.9], fR: [0.2, 0.18] }],
-           [1, { sy: 1.32, hy: 0.95, cr: 0.1, airR: 0, rh: [-0.22, 1.55, 0.22], rt: [-0.35, -0.2, -0.92], rn: [-0.2, 0.3, -0.93], lg: 0.3, gp: 0.3, hlR: 0.85, fR: [0.12, 0.3], aR: 0.3 }]],
-      // closed stance, split grip; long, low backswing to "five o'clock"; flat through, a long push along the line,
-      // then high over the right shoulder
-      bh: [[0, { sy: 1.55, hy: 0.85, cr: 0.16, rh: [-0.38, 1.06, -0.2], rt: [-0.15, 0.8, -0.58], rn: [0.9, 0, 0.42], lg: 1, gp: 0.17, fL: [-0.34, -0.02], fR: [0.06, 0.24], aL: -0.6, aR: -0.25 }],
-           [0.14, { sy: 1.65, hy: 0.88, rh: [-0.48, 1.04, -0.36], rt: [-0.12, 0.3, -0.95], rn: [0.7, -0.2, 0.68] }],
-           [0.25, { sy: 1.48, hy: 0.8, cr: 0.18, rh: [-0.48, 0.92, -0.28], rt: [-0.2, -0.5, -0.84], rn: [0.35, -0.25, 0.9] }],
-           [0.34, { sy: 1.1, hy: 0.6, rh: [-0.44, 0.9, 0.16], rt: [-0.72, -0.2, -0.66], rn: [0.15, -0.12, 0.98] }],
-           [0.42, { sy: 0.78, hy: 0.42, cr: 0.15, rh: [-0.36, 0.98, 0.6], rt: [-0.92, 0.04, 0.3], rn: [0.1, -0.02, 1] }],
-           [0.53, { sy: 0.4, hy: 0.24, rh: [-0.14, 1.06, 0.94], rt: [-0.5, 0.2, 0.84], rn: [0.55, 0.05, 0.83] }],
-           [0.64, { sy: 0.08, hy: 0.1, rh: [0.08, 1.2, 0.86], rt: [-0.08, 0.58, 0.81], rn: [0.85, 0.05, 0.52] }],
-           [0.76, { sy: -0.22, hy: -0.08, rh: [0.24, 1.42, 0.56], rt: [0.62, 0.66, 0.42], rn: [0.7, -0.35, -0.6], rp: [0.25, -0.35, 1] }], // (round the right side, the hands still out in front - pointed back this early, the wrist couldn't hold it)
-           [0.88, { sy: -0.5, hy: -0.26, rh: [0.34, 1.46, 0.24], rt: [0.5, 0.42, -0.76], rn: [0.92, 0.3, -0.1], rp: [0.25, -0.35, 1] }],
-           [1, { sy: -0.62, hy: -0.32, cr: 0.12, rh: [0.38, 1.46, 0.12], rt: [0.36, 0.06, -0.93], rn: [0.92, 0.3, -0.1], rp: [0.25, -0.35, 1], hlL: 0.5 }]],
-      srv: serveKeys({ stance: 1, knee: 0.26, turn: 1.3, arch: 0.34, toss: 2.2, tipBack: 0.2, drop: 0.85, leap: 0.13, land: 0.76, kick: 0.24 }),
-      oh: ohKeysFor({ leap: 0.9, fold: 1.0 }),
+      // the "helicopter" backswing (Rick Macci): the racket swings out round him flat, at head height, the arm long
+      // and the elbow up level with the shoulder, the face shut; the left arm bent across the chest...
+      fh: [[0, { sy: -1.36, hy: -0.74, cr: 0.09, sp: 0.06, px: 0.06, rh: [0.54, 1.47, -0.42], rt: [0.52, 0.3, -0.8], rn: [0.3, -0.95, 0.05], rp: [1, 0.4, -0.35], lg: 0, lh: [0.26, 1.3, 0.4], fL: [-0.26, 0.08], fR: [0.36, -0.08], aL: 0.3, aR: 0.85 }],
+           // ...and on round behind him: the arm all but straight out behind at shoulder height and the racket swung
+           // back level with it - the longest lever on tour - the face shut
+           [0.13, { sy: -1.46, hy: -0.8, rh: [0.48, 1.46, -0.6], rt: [0.3, 0.25, -0.92], rn: [0.25, -0.96, 0.0], rp: [1, 0.4, -0.4], lh: [0.3, 1.3, 0.38] }],
+           // ...and on down: a deep loop behind his back...
+           [0.2, { sy: -1.36, hy: -0.7, cr: 0.1, rh: [0.52, 1.26, -0.52], rt: [0.3, -0.42, -0.86], rn: [0.3, -0.8, 0.52], lh: [0.36, 1.27, 0.42] }],
+           [0.27, { sy: -1.02, hy: -0.45, cr: 0.11, rh: [0.55, 1.07, -0.3], rt: [0.3, -0.66, -0.69], rn: [0.05, -0.45, 0.89], rp: [1, -0.15, -0.4], lh: [0.34, 1.24, 0.44] }],
+           // ...and a big lag: the hand leads, the head trails right back
+           [0.34, { sy: -0.45, hy: 0.02, rh: [0.52, 0.97, 0.04], rt: [0.4, -0.38, -0.83], rn: [0.45, -0.7, 0.55], lh: [0.14, 1.2, 0.42] }],
+           // the slap: flat, the arm bent
+           [0.42, { sy: 0.08, hy: 0.34, cr: 0.1, px: 0.0, rh: [0.4, 1.04, 0.36], rt: [0.96, 0.08, 0.25], rn: [-0.12, 0.05, 1], lh: [-0.1, 1.18, 0.26] }],
+           // a short extension: the head comes straight up...
+           [0.52, { sy: 0.6, hy: 0.54, airR: 0.03, rh: [0.24, 1.32, 0.6], rt: [0.2, 0.62, 0.76], rn: [-0.95, 0.2, 0.1], lh: [-0.3, 1.16, 0.14] }],
+           // ...and the arm wraps tight round his neck, the elbow rising high in front of his face; the left arm swings out
+           [0.6, { sy: 0.92, hy: 0.72, airR: 0.06, rh: [0.0, 1.56, 0.42], rt: [-0.5, 0.68, 0.53], rn: [-0.6, -0.3, -0.74], lh: [-0.46, 1.16, 0.12] }],
+           // (the right leg swings through and crosses in front of the left)
+           [0.72, { sy: 1.15, hy: 0.86, sp: 0.0, airR: 0.05, rh: [-0.15, 1.62, 0.2], rt: [-0.75, 0.3, -0.58], rn: [-0.4, 0.2, -0.9], lh: [-0.5, 1.14, 0.1], fR: [0.06, 0.1] }],
+           // (tight round the neck: the hand by the left ear, the elbow up in front of his face, the racket down his back)
+           [1, { sy: 1.32, hy: 0.98, cr: 0.09, sp: 0.0, airR: 0, rh: [-0.21, 1.58, 0.09], rt: [-0.3, -0.35, -0.89], rn: [-0.2, 0.3, -0.93], lg: 0.3, gp: 0.3, lh: [-0.36, 1.2, 0.2], hlR: 0.85, fR: [-0.06, 0.18], aR: 0.1 }]],
+      // very closed: the right foot steps right across; the hands go straight back LOW by the left hip, the tip down at
+      // the back fence; split grip
+      bh: [[0, { sy: 1.62, hy: 0.98, cr: 0.13, tl: 0.05, rh: [-0.4, 0.98, -0.3], rt: [-0.2, -0.5, -0.84], rn: [0.94, -0.3, -0.04], lg: 1, gp: 0.17, fL: [-0.24, -0.12], fR: [-0.3, 0.3], aL: -0.6, aR: -0.7 }],
+           [0.14, { sy: 1.7, hy: 0.95, rh: [-0.44, 0.96, -0.36], rt: [-0.16, -0.62, -0.77], rn: [0.92, -0.36, 0.1] }],
+           // the head dips under the hands as they start forward (the scoop)...
+           [0.25, { sy: 1.5, hy: 0.84, cr: 0.15, rh: [-0.46, 0.88, -0.22], rt: [-0.22, -0.66, -0.72], rn: [0.75, -0.36, 0.55] }],
+           [0.34, { sy: 1.08, hy: 0.62, tl: 0.1, rh: [-0.42, 0.86, 0.1], rt: [-0.62, -0.42, -0.66], rn: [0.45, -0.3, 0.84] }],
+           // ...met level with the front hip, both elbows bent, flat; the front shoulder dipped, leaning in
+           [0.42, { sy: 0.74, hy: 0.42, cr: 0.14, tl: 0.12, sp: 0.1, rh: [-0.34, 0.96, 0.4], rt: [-0.95, 0.08, 0.2], rn: [0.12, -0.02, 1] }],
+           // up and through, flat - the hands climbing, no rolling over
+           [0.53, { sy: 0.4, hy: 0.24, tl: 0.04, sp: 0.08, rh: [-0.15, 1.12, 0.66], rt: [-0.48, 0.5, 0.72], rn: [0.6, 0.05, 0.8] }],
+           // (the back leg stays back - a brake - instead of stepping through)
+           [0.64, { sy: 0.08, hy: 0.1, tl: -0.02, rh: [0.06, 1.32, 0.68], rt: [-0.06, 0.8, 0.6], rn: [0.85, 0.05, 0.52], fL: [-0.3, -0.3] }],
+           // the full, high finish: the hands right up by the right ear
+           [0.76, { sy: -0.22, hy: -0.08, sp: 0.04, rh: [0.24, 1.52, 0.46], rt: [0.6, 0.7, 0.38], rn: [0.7, -0.35, -0.6], rp: [0.25, -0.35, 1] }],
+           [0.88, { sy: -0.48, hy: -0.24, rh: [0.32, 1.56, 0.24], rt: [0.5, 0.48, -0.72], rn: [0.92, 0.3, -0.1], rp: [0.25, -0.35, 1] }],
+           [1, { sy: -0.6, hy: -0.3, cr: 0.11, rh: [0.36, 1.55, 0.12], rt: [0.36, 0.12, -0.92], rn: [0.92, 0.3, -0.1], rp: [0.25, -0.35, 1], hlL: 0.6 }]],
+      // (the racket has already started down past his leg as the ball leaves his hand)
+      srv: serveKeys({ stance: 1, knee: 0.1, turn: 1.25, arch: 0.24, toss: 2.24, tipBack: 0.2, drop: 0.8, leap: 0.05, land: 0.62, kick: 0.4 }).map(([s, k]) => s === 0 ? [s, Object.assign({}, k, { rh: [0.22, 0.88, 0.18], rt: [0.12, -0.6, 0.79], rn: [-0.99, -0.05, 0.1] })] : [s, k]),
+      oh: ohKeysFor({ leap: 0.8, fold: 1.0 }),
     } },
   // ---------------- CPU (fixed, tidy all-court style with a two-handed backhand) ----------------
   cpu: { hand: 1, headLock: 0.16, split: 1.1, bounce: 0.026, drive: 0.02,
@@ -5803,7 +5824,7 @@ function frontElbow(keys, fin) {
 }
 for (const p of ['nole', 'mur', 'zve', 'sin', 'waw', 'she', 'dpo', 'pete']) STYLE_DEFS[p].keys.fh = frontElbow(STYLE_DEFS[p].keys.fh);
 STYLE_DEFS.fri.keys.fh = frontElbow(STYLE_DEFS.fri.keys.fh, [-0.1, 0.78, 0.62]); // (Fritz: the elbow finishes HIGH, above the shoulder)
-STYLE_DEFS.med.keys.fh = frontElbow(STYLE_DEFS.med.keys.fh, [-0.12, 0.82, 0.56]); // (Medvedev: the arm wraps round his neck - the elbow finishes high)
+STYLE_DEFS.med.keys.fh = frontElbow(STYLE_DEFS.med.keys.fh, [-0.1, 0.9, 0.42]); // (Medvedev: the arm wraps tight round his neck - the elbow finishes up high, pointing at the net)
 STYLE_DEFS.rafa.alt.fh = frontElbow(STYLE_DEFS.rafa.alt.fh);
 // (v160) The reverse forehand: stretched out wide on the run, there is no time (or room) to turn the shoulders through,
 // so the forearm does not come across the body - the racket goes UP on the racket side and finishes over the hitting
