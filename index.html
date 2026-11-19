@@ -10485,6 +10485,31 @@ function netRelayLink(key, role, R, H) {
 }
 const NET_ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }], sdpSemantics: 'unified-plan' };
+// (v180) When the two networks block a direct link, the match goes through a TURN relay server, and the browser takes
+// the FIRST one listed whenever both work. The European one was always first, so two players in the Americas had every
+// message cross the Atlantic and back twice - a round trip of 300 ms or so. When you open Online, each server is asked
+// for a relay address at once (it answers after two round trips to it), and the one that answers first - the nearer -
+// goes first. If neither answers (a network that blocks them), the order stays as it was.
+function netTurnRace() {
+  if (netTurnRace.on || typeof RTCPeerConnection !== 'function') return; netTurnRace.on = true;
+  const T = NET_ICE.iceServers[2], urls = T.urls.slice(), pcs = [], t0 = performance.now();
+  const done = () => { for (const pc of pcs) { try { pc.close(); } catch (e) {} } pcs.length = 0; };
+  netTurnRace.t = {};
+  for (const u of urls) {
+    try {
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: u, username: T.username, credential: T.credential }], iceTransportPolicy: 'relay' });
+      pcs.push(pc); pc.createDataChannel('t');
+      pc.onicecandidate = e => {
+        const c = e.candidate; if (!c || !/ typ relay /.test(c.candidate || '') || netTurnRace.t[u] !== undefined) return;
+        netTurnRace.t[u] = Math.round(performance.now() - t0);
+        if (!netTurnRace.first) { netTurnRace.first = u; T.urls = [u, ...urls.filter(x => x !== u)]; }
+        if (Object.keys(netTurnRace.t).length >= urls.length) done();
+      };
+      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => {});
+    } catch (e) {}
+  }
+  setTimeout(done, 6000);
+}
 function netDualLink(code, role, R) {
   const id = 'night-session-tennis-' + code.toLowerCase(), rnd = R.rnd;
   let friendTok = null, pErr = null, rDead = false, rNo = false, p2pIn = 0, relayIn = 0, relay = null, peer = null, conn = null, p2pOpen = false;
@@ -10647,6 +10672,7 @@ function netStatus(msg) {
   const ok = netHere(); $('onCreate').disabled = !ok; $('onJoin').disabled = !ok; $('onRandom').disabled = !ok;
 }
 function showOnline() {
+  try { netTurnRace(); } catch (e) {}
   ['menu', 'end', 'pause', 'epics', 'doubles', 'rallies'].forEach(id => $(id).hidden = true);
   $('online').hidden = false; $('onPick').hidden = false; $('onWait').hidden = true; netStatus();
   $('onYou').textContent = (sim.PROFILES[settings.player] || sim.PROFILES.fed).name;
@@ -11014,15 +11040,19 @@ function netRemAnim(now, rdt, dB) {
 // between that and their stream: drawn straight from it, the friend jerked three to five times a second (v168: about
 // once in four seconds). On the friend's screen the host's player jerked when a few of the host's pictures came in late
 // together. A new point, or a gap of more than a metre and a half, is taken at once.
+// (v180: a gap of up to 4 m - their updates held up a third of a second or so, and in again all at once - is closed
+// quickly but smoothly, in about a fifth of a second, instead of the player jumping there: the one who joined saw the
+// other player teleport after every hiccup in the connection. Only a new point, or more than 4 m, is taken at once)
 const RB = { on: false, x: 0, z: 0, vx: 0, vz: 0, pe: -1 };
 function netRemBody(h, dt) {
   const pe = NET.role === 'guest' ? (NET.curPe || 0) : (sim.S.pe || 0); // (the point: its players are put in place at once)
-  if (!RB.on || RB.pe !== pe || Math.hypot(h.pos.x - RB.x, h.pos.z - RB.z) > 1.5) { RB.on = true; RB.pe = pe; RB.x = h.pos.x; RB.z = h.pos.z; RB.vx = h.vel.x; RB.vz = h.vel.z; }
+  if (!RB.on || RB.pe !== pe || Math.hypot(h.pos.x - RB.x, h.pos.z - RB.z) > 4) { RB.on = true; RB.pe = pe; RB.x = h.pos.x; RB.z = h.pos.z; RB.vx = h.vel.x; RB.vz = h.vel.z; }
   else if (dt > 0) {
     const w = 20, n = Math.max(1, Math.ceil(dt / 0.01)), st = dt / n;
     for (let i = 0; i < n; i++) {
+      const gap = Math.hypot(h.pos.x - RB.x, h.pos.z - RB.z), cap = 45 + Math.max(0, gap - 1.4) * 110;
       let ax = w * w * (h.pos.x - RB.x) + 2 * w * (h.vel.x - RB.vx), az = w * w * (h.pos.z - RB.z) + 2 * w * (h.vel.z - RB.vz);
-      const am = Math.hypot(ax, az); if (am > 45) { ax *= 45 / am; az *= 45 / am; }
+      const am = Math.hypot(ax, az); if (am > cap) { ax *= cap / am; az *= cap / am; }
       RB.vx += ax * st; RB.vz += az * st; RB.x += RB.vx * st; RB.z += RB.vz * st;
     }
   }
