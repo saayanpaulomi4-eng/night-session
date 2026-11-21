@@ -258,6 +258,7 @@ kbd.wide{min-width:52px}
 .stats td:nth-child(2){color:var(--muted);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
 .stats td[colspan]{font-size:13px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-family:var(--body);font-weight:500;width:auto}
 .stats td:first-child,.stats td:last-child{font-family:var(--display);font-weight:700;font-size:20px;width:22%}
+.stats td.cxl{font-family:var(--body);font-weight:500;font-size:11px;letter-spacing:.02em;text-transform:none;text-align:left;line-height:1.35;color:var(--muted);width:auto;padding:5px 4px}
 #finalSets{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:.08em}
 #glfail{position:fixed;inset:0;display:grid;place-items:center;padding:24px;text-align:center;z-index:20;background:var(--night)}
 @media (prefers-reduced-motion:reduce){#call{transition:opacity .1s}}
@@ -10295,7 +10296,8 @@ function showEnd(w) {
     $('toMenu').textContent = 'Leave';
   }
   $('statTable').querySelector('tbody').innerHTML = rows.map(r => `<tr><td>${r[1]}</td><td>${r[0]}</td><td>${r[2]}</td></tr>`).join('')
-    + `<tr><td colspan="3">Longest rally · ${sim.S.longest} shots</td></tr>`;
+    + `<tr><td colspan="3">Longest rally · ${sim.S.longest} shots</td></tr>`
+    + (cfg.net ? netCxLines().map(l => `<tr><td colspan="3" class="cxl">${l.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td></tr>`).join('') : ''); // (v181: how the connection went)
   clearInput();
   setTimeout(() => {
     $('hud').hidden = true; $('touch').hidden = true; $('end').hidden = false; rpButtons();
@@ -10325,8 +10327,10 @@ function netPingTick(now) {
   el.hidden = !(ms > 0);
   el.className = ms < 110 ? '' : ms < 220 ? 'mid' : 'bad';
   const rl = via === 'relay' || via === 'turn';
-  el.innerHTML = '<i></i>' + (rl ? 'Relay · ' : via === 'direct' ? 'Direct · ' : '') + ms + ' ms';
-  el.title = rl ? 'Your games couldn’t connect directly, so the match goes through a relay server: slower, and it can lag.' + (via === 'relay' ? ' The game keeps trying to connect directly.' : '') : via === 'direct' ? 'Your games are connected directly' : '';
+  // (v181: "TURN" when the link goes through a TURN relay server - the message relay carries the match alongside it)
+  el.innerHTML = '<i></i>' + (via === 'turn' ? 'TURN · ' : rl ? 'Relay · ' : via === 'direct' ? 'Direct · ' : '') + ms + ' ms';
+  el.title = (rl ? 'Your games couldn’t connect directly, so the match goes through a relay server: slower, and it can lag.' + (via === 'relay' ? ' The game keeps trying to connect directly.' : '') : via === 'direct' ? 'Your games are connected directly' : '') + (NET.cx ? '\n' + netCxLines().join('\n') : '');
+  if (NET.cx && ms > 0) { const C = NET.cx; C.ping.push(ms); if (C.ping.length > 4000) C.ping.shift(); C.via[via || '-'] = (C.via[via || '-'] || 0) + 1; }
   // (v171: say when the route changes - a relay is the usual reason a match lags badly, and it was easy to miss: the
   //  scoreboard was meant to say "relay" and never did)
   { const mine = netFps(), f = netPeerOf(), fr = NET.role === 'host' ? (f && f.presence && f.presence.g && f.presence.g.fr) : (NET.buf.length ? NET.buf[NET.buf.length - 1].fr : 0);
@@ -10341,7 +10345,33 @@ function netPingTick(now) {
     else if (was === 'relay' || was === 'turn') toast('Connected directly: smoother now', 2500, 1);
   }
 }
-window.__nightNet = () => ({ role: NET.role, live: NET.live, mid: NET.mid, started: NET.startedMid, ok: NET.R && NET.R.ok, err: NET.R && NET.R.err, remote: NET.R && NET.R.remote ? Object.keys(NET.R.remote).join(',') + '|go=' + NET.R.remote.go : null, rn: NET.R && NET.R.rn, sn: NET.R && NET.R.sn, buf: NET.buf.length, delay: Math.round(NET.delay), rtt: Math.round(NET.rtt), hold: window.__nightSession && window.__nightSession.S.netHold, via: NET.R && NET.R.link && NET.R.link.via ? NET.R.link.via() : null }); // (for testing)
+// (v181) The connection over the match, in words, for the match report (and the ping's tooltip): how the two games were
+// linked, the round trip, how often updates were held up, why there was no direct link - and which way got there first
+const netHostName = u => { try { const p = new URL(u).hostname.split('.'); return p.length > 1 ? p[p.length - 2] : p[0]; } catch (e) { return ''; } };
+function netCxLines() {
+  const C = NET.cx; if (!C) return [];
+  const v = C.via, ks = Object.keys(v).filter(k => k !== '-' && k !== 'none');
+  if (!ks.length) return [];
+  ks.sort((a, b) => v[b] - v[a]); const main = ks[0];
+  const P = C.ping.slice().sort((a, b) => a - b), med = P.length ? P[P.length >> 1] : 0, hi = P.length ? P[Math.floor(P.length * 0.9)] : 0;
+  const how = main === 'direct' ? 'direct' : main === 'turn' ? 'through a TURN relay server, and the message relay alongside' : 'through a relay server';
+  const out = [`Connection: ${how} · round trip ${med} ms${hi > med + 40 ? ` (up to ${hi})` : ''} · held up ${C.gaps} time${C.gaps === 1 ? '' : 's'}`];
+  if (main !== 'direct') {
+    const I = NET.ice || {}, mine = (I.lh || 0) + (I.lm || 0) + (I.ls || 0), theirs = (I.rh || 0) + (I.rm || 0) + (I.rs || 0);
+    out.push(typeof RTCPeerConnection !== 'function' ? 'No direct link: this browser can’t make one.'
+      : !mine && !theirs ? 'No direct link was tried.'
+      : !mine ? 'No direct link: this device didn’t offer one (a browser setting, an extension or a school or work device can block it).'
+      : !theirs ? 'No direct link: your friend’s device didn’t offer one (a browser setting, an extension or a school or work device can block it).'
+      : I.lip && I.lip === I.rip ? 'No direct link: you’re on the same network, but your devices couldn’t reach each other. Put both on the main Wi-Fi (not a guest network), with no VPN on.'
+      : 'No direct link: your two networks block one.');
+  }
+  const S = (NET.R && NET.R.rs) || {}, tw = Object.keys(S).reduce((a, k) => a + S[k].w, 0), T = NET.R && NET.R.link && NET.R.link.turn ? NET.R.link.turn() : {};
+  const nm = k => k[0] === 'r' ? (netHostName(NET_RELAYS[+k.slice(1)] || '') || 'relay') : k === 'd' ? (T.d ? 'TURN' : 'direct') : k === 'p' ? (T.p ? 'TURN (PeerJS)' : 'PeerJS') : k;
+  const parts = Object.keys(S).filter(k => S[k].n >= 20).map(k => { const s = S[k], L = s.lag.slice().sort((a, b) => a - b), ml = L.length ? Math.round(L[L.length >> 1]) : 0; return `${nm(k)} ${Math.round(100 * s.w / Math.max(1, tw))}%` + (ml ? ` (otherwise ${ml} ms behind)` : ''); });
+  if (parts.length > 1) out.push('First to arrive: ' + parts.join(' · '));
+  return out;
+}
+window.__nightNet = () => ({ role: NET.role, mix: NET.R ? !!NET.R.mix : null, resets: NET.rtResets || 0, cx: netCxLines(), ice: NET.ice || null, live: NET.live, mid: NET.mid, started: NET.startedMid, ok: NET.R && NET.R.ok, err: NET.R && NET.R.err, remote: NET.R && NET.R.remote ? Object.keys(NET.R.remote).join(',') + '|go=' + NET.R.remote.go : null, rn: NET.R && NET.R.rn, sn: NET.R && NET.R.sn, buf: NET.buf.length, delay: Math.round(NET.delay), rtt: Math.round(NET.rtt), hold: window.__nightSession && window.__nightSession.S.netHold, via: NET.R && NET.R.link && NET.R.link.via ? NET.R.link.via() : null }); // (for testing)
 const NET_PEERJS = ['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js', 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];
 const NET_TEST = (() => { try { const m = /[?&]nettest(?:=(\d+))?/.exec(location.search); const j = /[?&]netjit=(\d+)/.exec(location.search); return m ? { lat: +(m[1] || 0), jit: j ? +j[1] : 0 } : null; } catch (e) { return null; } })();
 const NET = { oppBg: false, mode: 'code', slot: 0, qGen: 0, qTries: 0, lib: null, libP: null, R: null, role: null, code: '', live: false, mid: null, timer: null, keep: null,
@@ -10378,11 +10408,14 @@ function netRoom(code, role, rnd) {
     flush() { if (R.ok && R.link && !R.closed) { R.lastOut = performance.now(); try { R.link.send({ n: ++R.sn, p: R.pres }); } catch (e) {} } },
     peers() { return R.remote ? [{ peer: 'friend', presence: R.remote, sameTab: false }] : []; },
     onPeers(cb, onClose) { R.cb = cb; R.onClose = onClose; return () => { R.cb = null; }; },
-    rx(d, via) {
+    rx(d, via, rk) {
       if (R.closed || !d || typeof d !== 'object') return;
       if (d.full) { R.fail('full'); return; }
+      const now = performance.now(), kind = via === 'r' ? 'r' : 'd';
+      netArrive(R, kind, rk || kind, d.n, now);
       if (!(d.n > R.rn) || !d.p || typeof d.p !== 'object') return; // (late or repeated)
-      R.rn = d.n; R.remote = d.p; R.lastIn = performance.now(); R.via = via === 'r' ? 'r' : 'd';
+      if (NET.live && NET.cx && R.lastIn && now - R.lastIn > 400 && now - (NET.liveT || 0) > 3000) NET.cx.gaps++; // (a hiccup: nothing new for 0.4 s)
+      R.rn = d.n; R.remote = d.p; R.lastIn = now; R.via = R.mix ? 'm' : kind;
       R.inbox.push(d.p); if (R.inbox.length > 40) R.inbox.shift(); // (every update, in order - not just the newest)
       if (R.cb) R.cb({ left: [] });
     },
@@ -10452,7 +10485,7 @@ function mqttOpen(urls, topic, onMsg, onState) {
 // other is dropped as a repeat) - so the match runs at the speed of the faster one, and carries on if either drops
 function mqttMulti(urls, topic, onMsg, onState) {
   const st = urls.map(() => 'conn');
-  const cs = urls.map((u, i) => mqttOpen([u], topic, onMsg, x => { st[i] = x; if (x === 'up') onState('up'); else if (x === 'dead' && st.every(v => v === 'dead')) onState('dead'); }));
+  const cs = urls.map((u, i) => mqttOpen([u], topic, m => onMsg(m, i), x => { st[i] = x; if (x === 'up') onState('up'); else if (x === 'dead' && st.every(v => v === 'dead')) onState('dead'); }));
   return { get up() { return cs.some(c => c.up); }, pub(t, o, drop) { for (const c of cs) if (c.up) c.pub(t, o, drop); }, close() { for (const c of cs) c.close(); } };
 }
 // one "room" on the relay: the host listens on .../h, a guest on .../g; hello -> welcome, then data both ways
@@ -10461,7 +10494,7 @@ function netRelayLink(key, role, R, H) {
   let other = null, tries = 0, helloT = null;
   const out = (k, x, drop) => C.pub(base + (role === 'host' ? 'g' : 'h'), Object.assign({ k, f: me }, x), drop);
   const hello = () => { if (R.closed || other || L.closed) return; if (++tries > 16) { H.relayNo(); return; } out('hello', { tok: H.tok }); helloT = setTimeout(hello, 700); };
-  const C = mqttMulti(NET_RELAYS, base + (role === 'host' ? 'h' : 'g'), m => {
+  const C = mqttMulti(NET_RELAYS, base + (role === 'host' ? 'h' : 'g'), (m, bi) => {
     if (!m || m.f === me || R.closed || L.closed) return;
     if (role === 'host') {
       if (m.k === 'hello') {
@@ -10470,7 +10503,7 @@ function netRelayLink(key, role, R, H) {
         other = m.f; out('welcome', { to: other }); H.up('relay'); return;
       }
     } else if (m.k === 'welcome' && m.to === me && !other) { other = m.f; clearTimeout(helloT); H.up('relay'); return; }
-    if (m.k === 'd' && m.to === me && (!other || m.f === other)) { if (other) H.inRelay(); H.rx(m.d); return; }
+    if (m.k === 'd' && m.to === me && (!other || m.f === other)) { if (other) H.inRelay(); H.rx(m.d, bi); return; }
     if (m.k === 'sig' && m.to === me && other && m.f === other) { H.sig(m.s); return; } // (v171: setting up the direct link)
     if (m.k === 'bye' && m.f === other) { other = null; H.down('relay'); }
   }, st => {
@@ -10485,39 +10518,47 @@ function netRelayLink(key, role, R, H) {
 }
 const NET_ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }, { urls: 'stun:stun.cloudflare.com:3478' },
   { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }], sdpSemantics: 'unified-plan' };
-// (v180) When the two networks block a direct link, the match goes through a TURN relay server, and the browser takes
-// the FIRST one listed whenever both work. The European one was always first, so two players in the Americas had every
-// message cross the Atlantic and back twice - a round trip of 300 ms or so. When you open Online, each server is asked
-// for a relay address at once (it answers after two round trips to it), and the one that answers first - the nearer -
-// goes first. If neither answers (a network that blocks them), the order stays as it was.
-function netTurnRace() {
-  if (netTurnRace.on || typeof RTCPeerConnection !== 'function') return; netTurnRace.on = true;
-  const T = NET_ICE.iceServers[2], urls = T.urls.slice(), pcs = [], t0 = performance.now();
-  const done = () => { for (const pc of pcs) { try { pc.close(); } catch (e) {} } pcs.length = 0; };
-  netTurnRace.t = {};
-  for (const u of urls) {
-    try {
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: u, username: T.username, credential: T.credential }], iceTransportPolicy: 'relay' });
-      pcs.push(pc); pc.createDataChannel('t');
-      pc.onicecandidate = e => {
-        const c = e.candidate; if (!c || !/ typ relay /.test(c.candidate || '') || netTurnRace.t[u] !== undefined) return;
-        netTurnRace.t[u] = Math.round(performance.now() - t0);
-        if (!netTurnRace.first) { netTurnRace.first = u; T.urls = [u, ...urls.filter(x => x !== u)]; }
-        if (Object.keys(netTurnRace.t).length >= urls.length) done();
-      };
-      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(() => {});
-    } catch (e) {}
-  }
-  setTimeout(done, 6000);
+// (v181) PeerJS's free TURN relay servers are shared and rate-limited, and the European one is listed first. v178 and
+// v180 put the US one first for players in the Americas, and both times the user's ping went up a lot (two players on
+// the same Wi-Fi). The order is v177's again.
+// (v181) What each device offered for a direct link (its own address on the network, its address on the internet, a
+// relay server's), what the other one offered, and how the tries went - so the match report can say why a match didn't
+// get a direct link. Addresses are only compared (the same internet address on both = the same network), never shown.
+function netIceNote(k, cs) {
+  const I = NET.ice || (NET.ice = {});
+  if (k !== 'l' && k !== 'r') { I[k] = (I[k] || 0) + 1; return; }
+  if (typeof cs !== 'string') return;
+  const p = cs.split(' '), ti = p.indexOf('typ'), t = ti > 0 ? p[ti + 1] : '', a = p[4] || '';
+  const key = k + (t === 'host' ? (/\.local$/i.test(a) ? 'm' : 'h') : t === 'srflx' ? 's' : t === 'relay' ? 'r' : t === 'prflx' ? 'p' : 'o');
+  I[key] = (I[key] || 0) + 1;
+  if (t === 'srflx' && /^\d+\.\d+\.\d+\.\d+$/.test(a)) I[k + 'ip'] = a;
+}
+// (v181) How each update came in: which way got it here first, and how far behind the other copies were (for the
+// match report). And whether updates are coming both ways at once - a TURN link backed up by the relay - when the
+// friend's clock must not be taken afresh each time the quicker copy switches from one way to the other.
+function netArrive(R, kind, rk, n, now) {
+  const L = R.lk || (R.lk = { r: [], d: [], tr: -1e9, td: -1e9 });
+  const q = L[kind]; q.push(now); while (q.length && q[0] < now - 1000) q.shift();
+  if (kind === 'r') L.tr = now; else L.td = now;
+  const o = L[kind === 'r' ? 'd' : 'r']; while (o.length && o[0] < now - 1000) o.shift();
+  if (!R.mix) { if (L.r.length >= 3 && L.d.length >= 3) R.mix = true; }
+  else if (now - L.tr > 2000 || now - L.td > 2000) R.mix = false;
+  if (typeof n !== 'number') return;
+  const F = R.fa || (R.fa = new Map()), S = R.rs || (R.rs = {}), s = S[rk] || (S[rk] = { n: 0, w: 0, lag: [] });
+  s.n++;
+  const f = F.get(n);
+  if (!f) { F.set(n, [now, rk]); s.w++; if (F.size > 240) F.delete(F.keys().next().value); }
+  else if (f[1] !== rk) { s.lag.push(now - f[0]); if (s.lag.length > 600) s.lag.shift(); }
 }
 function netDualLink(code, role, R) {
   const id = 'night-session-tennis-' + code.toLowerCase(), rnd = R.rnd;
+  NET.ice = {};
   let friendTok = null, pErr = null, rDead = false, rNo = false, p2pIn = 0, relayIn = 0, relay = null, peer = null, conn = null, p2pOpen = false;
   const H = { tok: Math.random().toString(36).slice(2, 12),
     claim: t => { t = t || 'x'; if (!friendTok || friendTok === t || !R.remote) { friendTok = t; return true; } return false; },
     up: via => { if (R.closed) return; if (!R.ok) { R.ok = true; R.lastIn = performance.now(); } R.flush(); matched(); if (via === 'relay') { relayUpAt = performance.now(); if (role === 'guest') rtcSoon(60); } },
     down: () => { if (!p2pOpen && !rtcLive() && !(relay && relay.up())) R.gone(); },
-    rx: d => R.rx(d, 'r'), inRelay: () => { relayIn = performance.now(); },
+    rx: (d, bi) => R.rx(d, 'r', 'r' + (bi | 0)), inRelay: () => { relayIn = performance.now(); },
     sig: s => rtcSig(s),
     relayNo: () => { rNo = true; decide(); }, relayDead: () => { rDead = true; decide(); } };
   // (v171) a direct link of our own, set up through the relay. The direct link through PeerJS needs PeerJS's free server
@@ -10538,19 +10579,23 @@ function netDualLink(code, role, R) {
   const rtcSoon = ms => { if (role !== 'guest' || R.closed || !RTC) return; clearTimeout(rtcT); rtcT = setTimeout(rtcGo, ms); };
   // (is a direct link really direct, or does it go through a TURN relay server - when the two devices can't reach each
   //  other at all? Said on the scoreboard either way)
-  let turnD = false, turnP = false;
-  const pairTurn = (c, set) => { try { if (!c || !c.getStats) return; c.getStats().then(st => { let pair = null; const cand = {}; st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId) || pair; if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && !pair) pair = r; if (r.type === 'local-candidate' || r.type === 'remote-candidate') cand[r.id] = r.candidateType; }); if (pair) set(cand[pair.localCandidateId] === 'relay' || cand[pair.remoteCandidateId] === 'relay'); }).catch(() => {}); } catch (e) {} };
+  // (v181: null until known. A link that isn't known to be truly direct - a TURN one, or one just opened - has the relay
+  //  carry the match alongside it: see send, below)
+  let turnD = null, turnP = null, turnIv = null;
+  const pairTurn = (c, set) => { try { if (!c || !c.getStats) return; c.getStats().then(st => { let pair = null; const cand = {}; st.forEach(r => { if (r.type === 'transport' && r.selectedCandidatePairId) pair = st.get(r.selectedCandidatePairId) || pair; if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && !pair) pair = r; if (r.type === 'local-candidate' || r.type === 'remote-candidate') cand[r.id] = r.candidateType; }); if (pair) { set(cand[pair.localCandidateId] === 'relay' || cand[pair.remoteCandidateId] === 'relay'); if (NET.ice) NET.ice.pair = (cand[pair.localCandidateId] || '?') + '/' + (cand[pair.remoteCandidateId] || '?'); } }).catch(() => {}); } catch (e) {} };
+  // (the connection can move to a better route after a while: asked again every 4 s while a link is up)
+  const turnWatch = () => { clearInterval(turnIv); turnIv = setInterval(() => { if (R.closed) { clearInterval(turnIv); return; } if (rtcLive()) pairTurn(pc, v => { turnD = v; }); if (p2pOpen && conn) pairTurn(conn.peerConnection, v => { turnP = v; }); }, 4000); };
   const rtcAttach = ch => {
     dc = ch;
-    ch.onopen = () => { if (R.closed || dc !== ch) return; dcOpen = true; dcIn = performance.now(); clearTimeout(rtcT); H.up('direct'); const c = pc; setTimeout(() => pairTurn(c, v => { turnD = v; }), 600); };
-    ch.onmessage = ev => { if (dc !== ch) return; dcIn = performance.now(); let d = null; try { d = JSON.parse(ev.data); } catch (e) {} if (d) R.rx(d, 'd'); };
-    ch.onclose = () => { if (dc !== ch) return; dcOpen = false; rtcSoon(3000); };
+    ch.onopen = () => { if (R.closed || dc !== ch) return; dcOpen = true; dcIn = performance.now(); clearTimeout(rtcT); netIceNote('open'); H.up('direct'); const c = pc; setTimeout(() => pairTurn(c, v => { turnD = v; }), 600); turnWatch(); };
+    ch.onmessage = ev => { if (dc !== ch) return; dcIn = performance.now(); let d = null; try { d = JSON.parse(ev.data); } catch (e) {} if (d) R.rx(d, 'd', 'd'); };
+    ch.onclose = () => { if (dc !== ch) return; dcOpen = false; turnD = null; rtcSoon(3000); };
   };
   const rtcNew = n => {
     const c = new RTC(NET_ICE); pc = c; rtcN = n; rtcRemote = false;
     rtcPend = rtcEarly.filter(x => x.n === n).map(x => x.c); rtcEarly = rtcEarly.filter(x => x.n > n);
-    c.onicecandidate = e => { if (pc === c && e.candidate) rtcSend({ t: 'c', n, c: e.candidate.toJSON ? e.candidate.toJSON() : { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } }); };
-    c.onconnectionstatechange = () => { if (pc === c && c.connectionState === 'failed') { dcOpen = false; rtcSoon(5000); } };
+    c.onicecandidate = e => { if (pc === c && e.candidate) { netIceNote('l', e.candidate.candidate); rtcSend({ t: 'c', n, c: e.candidate.toJSON ? e.candidate.toJSON() : { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } }); } };
+    c.onconnectionstatechange = () => { if (pc === c && c.connectionState === 'failed') { dcOpen = false; turnD = null; netIceNote('failed'); rtcSoon(5000); } };
     return c;
   };
   const rtcFlush = c => { const q = rtcPend; rtcPend = []; for (const x of q) c.addIceCandidate(x).catch(() => {}); };
@@ -10562,7 +10607,7 @@ function netDualLink(code, role, R) {
       rtcAttach(c.createDataChannel('ns', { ordered: false, maxRetransmits: 0 }));
       c.createOffer().then(o => c.setLocalDescription(o)).then(() => { if (pc === c) rtcSend({ t: 'o', n, d: rtcDesc(c.localDescription) }); }).catch(() => {});
     } catch (e) {}
-    rtcT = setTimeout(() => { if (!rtcLive()) { rtcDrop(); rtcSoon(Math.min(30000, 4000 * rtcTry)); } }, 12000);
+    rtcT = setTimeout(() => { if (!rtcLive()) { netIceNote('timeout'); rtcDrop(); rtcSoon(Math.min(30000, 4000 * rtcTry)); } }, 12000);
   };
   const rtcSig = s => {
     if (!s || typeof s !== 'object' || R.closed || !RTC) return;
@@ -10575,6 +10620,7 @@ function netDualLink(code, role, R) {
       } else if (role === 'guest' && s.t === 'a' && s.d && pc && s.n === rtcN && !rtcRemote) {
         const c = pc; rtcRemote = true; c.setRemoteDescription(s.d).then(() => rtcFlush(c)).catch(() => {});
       } else if (s.t === 'c' && s.c) {
+        netIceNote('r', s.c.candidate);
         if (pc && s.n === rtcN) { if (rtcRemote) pc.addIceCandidate(s.c).catch(() => {}); else rtcPend.push(s.c); }
         else if (s.n > rtcN) { rtcEarly.push({ n: s.n, c: s.c }); if (rtcEarly.length > 60) rtcEarly.shift(); }
       }
@@ -10592,9 +10638,9 @@ function netDualLink(code, role, R) {
   const startRelay = key => { if (!relay && !R.closed) relay = netRelayLink(key, role, R, H); };
   const attach = c => {
     conn = c;
-    c.on('open', () => { if (R.closed) { try { c.close(); } catch (e) {} return; } p2pOpen = true; p2pIn = performance.now(); H.up(); setTimeout(() => pairTurn(c.peerConnection, v => { turnP = v; }), 600); });
-    c.on('data', d => { p2pIn = performance.now(); R.rx(d, 'p'); });
-    c.on('close', () => { if (conn !== c) return; p2pOpen = false; if (!rtcLive() && !(relay && relay.up())) R.gone(); });
+    c.on('open', () => { if (R.closed) { try { c.close(); } catch (e) {} return; } p2pOpen = true; p2pIn = performance.now(); H.up(); setTimeout(() => pairTurn(c.peerConnection, v => { turnP = v; }), 600); turnWatch(); });
+    c.on('data', d => { p2pIn = performance.now(); R.rx(d, 'p', 'p'); });
+    c.on('close', () => { if (conn !== c) return; p2pOpen = false; turnP = null; if (!rtcLive() && !(relay && relay.up())) R.gone(); });
     c.on('error', () => {});
   };
   // a friend joining by code can always be found on the relay, even if the direct route's server can't be reached
@@ -10631,11 +10677,17 @@ function netDualLink(code, role, R) {
       if (dOk) { if (dc.bufferedAmount > NET_BUF) NET.held = (NET.held || 0) + 1; else try { dc.send(JSON.stringify(d)); } catch (e) {} }
       else if (pOk) { const ch = conn.dataChannel; if ((ch && ch.bufferedAmount > NET_BUF) || conn.bufferSize > 0) NET.held = (NET.held || 0) + 1; else try { conn.send(d); } catch (e) {} }
       // (the relay carries the match whenever no direct link is up, or it has gone quiet)
-      const dIn = Math.max(dOk ? dcIn : 0, pOk ? p2pIn : 0);
-      if (relay && relay.up() && (!(dOk || pOk) || now - dIn > 1200)) relay.send(d);
+      // (v181: and alongside a link that goes through a TURN relay server - or isn't known yet not to. Two players on the
+      //  same Wi-Fi whose devices can't reach each other got PeerJS's free TURN servers: shared, rate-limited, and the
+      //  first one in Europe, so every message crossed the Atlantic and back twice. The game used that link however slow
+      //  it was, and the message relay went quiet. Now every update goes both ways, and whichever copy gets there first
+      //  is used - the friend's game drops the later one, as it does for the two relay servers)
+      const dIn = Math.max(dOk ? dcIn : 0, pOk ? p2pIn : 0), viaTurn = dOk ? turnD !== false : pOk ? turnP !== false : false;
+      if (relay && relay.up() && (!(dOk || pOk) || now - dIn > 1200 || viaTurn)) relay.send(d);
     },
-    close: () => { clearTimeout(rtcT); rtcDrop(); try { if (conn) conn.close(); } catch (e) {} try { if (peer) peer.destroy(); } catch (e) {} try { if (relay) relay.close(); } catch (e) {} },
+    close: () => { clearTimeout(rtcT); clearInterval(turnIv); rtcDrop(); try { if (conn) conn.close(); } catch (e) {} try { if (peer) peer.destroy(); } catch (e) {} try { if (relay) relay.close(); } catch (e) {} },
     via: () => { const now = performance.now(), d = rtcLive() && now - dcIn < 1500, p = p2pOpen && now - p2pIn < 1500; return d ? (turnD ? 'turn' : 'direct') : p ? (turnP ? 'turn' : 'direct') : relay && relay.up() ? 'relay' : 'none'; },
+    turn: () => ({ d: turnD, p: turnP }),
     // (v171: still on the relay, with a direct link being set up: worth a moment's wait before starting the match)
     trying: () => { const now = performance.now(); return !!(RTC && relay && relay.up() && !rtcLive() && !(p2pOpen && now - p2pIn < 1500) && rtcTry <= 1 && (pc || now - relayUpAt < 2500)); },
   };
@@ -10672,7 +10724,6 @@ function netStatus(msg) {
   const ok = netHere(); $('onCreate').disabled = !ok; $('onJoin').disabled = !ok; $('onRandom').disabled = !ok;
 }
 function showOnline() {
-  try { netTurnRace(); } catch (e) {}
   ['menu', 'end', 'pause', 'epics', 'doubles', 'rallies'].forEach(id => $(id).hidden = true);
   $('online').hidden = false; $('onPick').hidden = false; $('onWait').hidden = true; netStatus();
   $('onYou').textContent = (sim.PROFILES[settings.player] || sim.PROFILES.fed).name;
@@ -10826,6 +10877,7 @@ function startNetMatch() {
   sim.newMatch();
   gvReset(); NET.lastSkK = null;
   NET.live = true; NET.tdS = null; NET.gTm = undefined; NET.gW = []; NET.gT = []; NET.gA = []; NET.gAt = undefined; _ra.T = null; _ra.w = 0; NET.gD = undefined; NET.gMin = undefined; NET.oppBg = false; NET.evq.length = 0; NET.evPend.length = 0; NET.buf.length = 0; NET.lastK = -1; NET.offs.length = 0; NET.off = null; NET.scKey = ''; NET.lastRx = performance.now(); NET.liveT = performance.now(); NET.ldq = []; NET.rtK = undefined; NET.rtAt = undefined; NET.viaShown = null; NET.lostShown = false;
+  NET.cx = { via: {}, ping: [], gaps: 0 }; NET.rtResets = 0; if (NET.R) { NET.R.rs = {}; NET.R.fa = new Map(); } // (v181: for the match report's connection lines)
   for (const h of sim.P) { h.charging = false; h.pending = null; }
   if (host) {
     NET.mid = Math.random().toString(36).slice(2, 10);
@@ -11158,7 +11210,8 @@ function netGuestRx1(pr, now) {
   // (v171: the pictures now come by another route - the relay, or a direct link: they can differ by a tenth of a second
   //  or more. The clock is taken afresh from the new route's pictures: crept towards, it had everything shown too early
   //  (or late) for a second or two, and the jitter allowance blown up by the old route's pictures for four)
-  { const rt = (NET.R && NET.R.via) || 'd'; if (NET.rtK !== rt) { if (NET.rtK !== undefined) { NET.offs.length = 0; NET.rtAt = now; } NET.rtK = rt; } }
+  // (v181: updates coming both ways at once count as one route, 'm', so the clock isn't taken afresh at every switch)
+  { const rt = (NET.R && NET.R.via) || 'd'; if (NET.rtK !== rt) { if (NET.rtK !== undefined) { NET.offs.length = 0; NET.rtAt = now; NET.rtResets = (NET.rtResets || 0) + 1; } NET.rtK = rt; } }
   if (s.ec && s.ec !== NET.lastEc) { NET.lastEc = s.ec; const r = now - s.ec; if (r > 0 && r < 3000) NET.rtt += (r - NET.rtt) * (r < NET.rtt ? 0.3 : 0.08); }
   // clock: the host's frame time minus ours; the largest recent value is the least-delayed delivery
   const v = s.w - now; NET.offs.push([v, now]); while (NET.offs.length && NET.offs[0][1] < now - 4000) NET.offs.shift();
