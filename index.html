@@ -1281,7 +1281,7 @@ function createSim(H, cfg) {
     o.pos.x = 0; o.pos.z = -17; // (out of the way: the machine stands in for the opponent)
     for (const a of P) {
       a.vel.x = a.vel.z = 0; a.charging = false; a.pending = null; a.awaitPress = false; a.plan = null; a.prevF = null;
-      a.anim.active = false; a.anim.s = 0; a.anim.cap = 0; a.anim.prep = false; a.anim.lat = undefined; a.cheer = 0; a.slump = 0;
+      a.anim.active = false; a.anim.s = 0; a.anim.cap = 0; a.anim.prep = false; a.anim.lat = undefined; a.anim.cross = undefined; a.cheer = 0; a.slump = 0;
     }
   }
   function machineBall() { ball.x = MACHINE.x; ball.y = MACHINE.y; ball.z = MACHINE.z; ball.vx = ball.vy = ball.vz = 0; ball.bounces = 0; ball.rolling = false; ball.wall = false; ball.spin = 0; }
@@ -1403,7 +1403,7 @@ function createSim(H, cfg) {
     }
     for (const a of P) {
       a.vel.x = a.vel.z = 0; a.charging = false; a.pending = null; a.awaitPress = false; a.plan = null; a.prevF = null;
-      a.anim.active = false; a.anim.s = 0; a.anim.cap = 0; a.anim.prep = false; a.anim.lat = undefined; a.cheer = 0; a.slump = 0;
+      a.anim.active = false; a.anim.s = 0; a.anim.cap = 0; a.anim.prep = false; a.anim.lat = undefined; a.anim.cross = undefined; a.cheer = 0; a.slump = 0;
       a.home = { x: a.pos.x, z: a.pos.z }; a.recover = { x: 0, z: a.side * (12.3 + (a.prof.rallyDeep || 0)) };
     }
     Object.assign(S.rally, { lastHitter: -1, lastAth: -1, isServe: false, shots: 0, touched: false, lastHitT: S.t });
@@ -1815,6 +1815,11 @@ function createSim(H, cfg) {
     // (v164) how fast the run was carrying the player out toward the side the ball is struck on: the running finishes
     //  (a reverse forehand, Sampras's, the hop-step) are for a ball you chase down - not for running round one
     a.runSide = Math.max(0, h.vel.x * h.right * h.hand * (info.side > 0 ? 1 : -1));
+    // (v183) how far ACROSS the court the ball goes - away from the side it was struck on (crosscourt from the forehand
+    //  corner, inside-out): 0 for a ball hit straight or down the line, 1 from about 14 degrees across. The finishes
+    //  that throw the racket up - the reverse forehand, the lasso, Sampras's running one - pull the ball across; down
+    //  the line the racket follows through toward the target
+    { const ang = Math.atan2(ball.vx * h.right * h.hand * (info.side > 0 ? 1 : -1), Math.abs(ball.vz) || 1); a.cross = clamp((-ang - 0.03) / 0.21, 0, 1); }
     a.cp = { x: ball.x, y: ball.y, z: ball.z }; a.lock = 0.3;
     const pred = predict(ball);
     for (const o of oppsOf(h)) {
@@ -2499,7 +2504,7 @@ function createSim(H, cfg) {
   // which wing a stroke is played on (1 forehand side, -1 backhand side, 0 neither)
   const wingOf = k => k === 'fh' || k === 'sfh' || k === 'dfh' || k === 'vfh' ? 1 : k === 'bh' || k === 'sbh' || k === 'dbh' || k === 'vbh' ? -1 : 0;
   const tcH0 = h => { const t = timeToCrossExact(h); return isFinite(t) ? t : Infinity; };
-  function startPrep(a, k) { a.cp = undefined; a.fwd = false; a.boostTo = 0; a.active = true; a.prep = true; a.kind = k; a.s = 0; a.cap = k === 'oh' ? 0.25 : 0; a.rate = k === 'oh' ? 1.4 : 0; a.lat = undefined; }
+  function startPrep(a, k) { a.cp = undefined; a.fwd = false; a.boostTo = 0; a.active = true; a.prep = true; a.kind = k; a.s = 0; a.cap = k === 'oh' ? 0.25 : 0; a.rate = k === 'oh' ? 1.4 : 0; a.lat = undefined; a.cross = undefined; }
   function updateAnims(dt) { for (const h of P) animOne(h, dt); }
   function animOne(h, dt) {
     {
@@ -5272,6 +5277,7 @@ const STYLE_DEFS = {
     // (v160) his forehand has two finishes: the lasso over the head on the heavy topspin balls (most of them), and the
     // conventional one round the far shoulder on the flat drives and the low balls he lifts
     altW: (kind, by, flat) => kind === 'fh' ? Math.max(flat ? 1 : 0, (0.95 - by) / 0.25) : 0,
+    altCross: 'main', // (v183: down the line the lasso gives way to the finish round the far shoulder)
     alt: { fh: [
       [0.52, { sy: 0.45, hy: 0.5, airR: 0.08, airL: 0.02, rh: [0.3, 1.26, 0.72], rt: [0.3, 0.5, 0.81], rn: [-0.88, 0.15, 0.45], lh: [-0.3, 1.15, 0.25], rp: [0.6, -0.45, 0.7] }],
       [0.62, { sy: 0.8, hy: 0.62, airR: 0.05, airL: 0, rh: [0.08, 1.42, 0.6], rt: [-0.5, 0.65, 0.57], rn: [-0.6, -0.35, -0.7], rp: [0.4, -0.12, 1] }],
@@ -5853,6 +5859,7 @@ const revFin = () => REV_FIN.map(([t, k]) => { const c = Math.cos(k.sy), sn = Ma
 for (const p of ['nole', 'mur', 'sin', 'alc', 'zve']) {
   const d = STYLE_DEFS[p]; d.alt = Object.assign({}, d.alt, { fh: revFin() });
   d.altW = (kind, by, flat, run) => kind === 'fh' ? (run - 2.8) / 1.6 : 0;
+  d.altCross = 'alt'; // (v183: only when pulling the ball across - down the line they follow through)
 }
 // (v161) Sampras volleyed like Federer - the racket set early beside the head with the wrist laid back and the head up,
 // a short firm punch that moves with the step in, met well in front, and the racket held pointing at the target for a
@@ -6647,10 +6654,18 @@ function syncAthlete0(h, Mo, dt) {
         const by = a.cp ? a.cp.y : h.plan && h.plan.spot && sim.incomingTo(h) ? h.plan.spot.y : 1;
         const flat = a.cp ? !!a.flat : h.idx === 0 && h.chKey === 'flat';
         const sideV = Math.max(0, h.vel.x * h.right * h.hand * (wingK(a.kind) || 1));
-        const tw = Math.max(0, Math.min(1, st.altW(a.kind, by, flat, a.cp ? (a.runSide !== undefined ? a.runSide : a.runIn || 0) : sideV)));
+        // (v183: ...and only as far as the ball goes across the court - down the line Sinner's reverse forehand threw
+        //  the racket straight up instead of following through toward the target. The weight is taken at once at the
+        //  strike: the two finishes are the same stroke until after contact)
+        //  (altCross 'alt': the alternate finish is the one that throws the racket up - the reverse forehand - and is
+        //   taken only as far as the ball goes across; 'main': the stroke's own finish is - Nadal's lasso - and the
+        //   alternate, round the far shoulder, is taken as far as it doesn't)
+        const cx = st.altCross && a.cp && a.cross !== undefined ? a.cross : 1;
+        let tw = Math.max(0, Math.min(1, st.altW(a.kind, by, flat, a.cp ? (a.runSide !== undefined ? a.runSide : a.runIn || 0) : sideV)));
+        tw = st.altCross === 'main' ? Math.max(tw, 1 - cx) : tw * cx;
         // (a new stroke - including one that only starts at the strike, late, at s 0.3 - takes its own weight at once)
-        Mo.altS = Mo.altS === undefined || a.s < 0.2 || a.s < (Mo.altPrevS || 0) - 0.05 ? tw : Mo.altS + (tw - Mo.altS) * Math.min(1, dt * 14);
-        Mo.altPrevS = a.s; ALT_W = Mo.altS;
+        Mo.altS = Mo.altS === undefined || a.s < 0.2 || a.s < (Mo.altPrevS || 0) - 0.05 || (a.cp && a.cp !== Mo.altCp) ? tw : Mo.altS + (tw - Mo.altS) * Math.min(1, dt * 14);
+        Mo.altPrevS = a.s; Mo.altCp = a.cp; ALT_W = Mo.altS;
       } else ALT_W = 0;
       Mo.prepT = 1; sampleStroke(st, a.kind, a.s, T);
       // the stroke can change type at contact (a slice that becomes a drop shot, a takeback read as a forehand
@@ -6839,7 +6854,7 @@ function syncAthlete0(h, Mo, dt) {
     if (loA > 0) { T.cr += 0.06 * loA; T.sp += 0.1 * loA; T.rh[1] += (-0.16 * pre + 0.14 * post) * loA; }
     // Sampras's running forehand: on the run the finish comes up by the RIGHT ear instead of across the body
     if (st.runFin && a.kind === 'fh' && !a.prep && a.s > 0.46) {
-      const rA = Math.max(0, Math.min(1, ((a.runSide !== undefined ? a.runSide : a.runIn || 0) - 2.2) / 2.2)) * smooth(Math.min(1, (a.s - 0.46) / 0.2));
+      const rA = Math.max(0, Math.min(1, ((a.runSide !== undefined ? a.runSide : a.runIn || 0) - 2.2) / 2.2)) * smooth(Math.min(1, (a.s - 0.46) / 0.2)) * (a.cross !== undefined ? a.cross : 1); // (v183: not down the line)
       if (rA > 0) { const RH = [0.3, 1.7, 0.32], RT = [0.12, 0.92, -0.36]; for (let j = 0; j < 3; j++) { T.rh[j] += (RH[j] - T.rh[j]) * rA; T.rt[j] += (RT[j] - T.rt[j]) * rA; } T.sy += (0.45 - T.sy) * rA * 0.6; }
     }
     // on the run: open stance, and the momentum carries into a hop-step through the finish
@@ -11009,7 +11024,7 @@ function netTrackIn(g, now, num) {
 }
 // (v169) the friend's own swing - as they made it on their screen - comes in with each update: kept in a short track
 // with when they sent it (on our clock, as for their position) and the match time it belongs to on their screen
-const NET_AK = { kind: 's', s: 'n', cap: 'n', rate: 'n', active: 'b', prep: 'b', fwd: 'b', fwdRate: 'n', boostTo: 'n', baseRate: 'n', flat: 'b', blendFrom: 's', lat: 'n', h: 'n', reachT: 'n', runIn: 'n', runSide: 'n', lock: 'n' };
+const NET_AK = { kind: 's', s: 'n', cap: 'n', rate: 'n', active: 'b', prep: 'b', fwd: 'b', fwdRate: 'n', boostTo: 'n', baseRate: 'n', flat: 'b', blendFrom: 's', lat: 'n', h: 'n', reachT: 'n', runIn: 'n', runSide: 'n', lock: 'n', cross: 'n' };
 const NET_KINDS = ['fh', 'bh', 'sfh', 'sbh', 'dfh', 'dbh', 'vfh', 'vbh', 'oh', 'srv', 'tw'];
 function netAnimIn(g) {
   const an = g.an;
@@ -11186,7 +11201,7 @@ function netRemModel(ft, last, sk, tcB) {
   if (S.rally.lastHitter !== 1 || dt < 0 || dt > 0.5 || !A.active || A.kind === 'srv') return null;
   // (on through the ball: the stroke it became and where it met the ball as our game has it, at the pace their swing
   //  carries out of the strike and settles from)
-  for (const k of ['kind', 'flat', 'blendFrom', 'cp', 'lat', 'h', 'reachT', 'runIn', 'runSide', 'lock', 'baseRate']) o[k] = A[k];
+  for (const k of ['kind', 'flat', 'blendFrom', 'cp', 'lat', 'h', 'reachT', 'runIn', 'runSide', 'cross', 'lock', 'baseRate']) o[k] = A[k];
   const base = A.baseRate || 1.6, r0 = Math.max(base, Math.min(3, Math.max(an.rate || 0, an.fwdRate || 0, 2.1)));
   o.prep = false; o.fwd = false; o.cap = 1; o.active = true; o.boostTo = 0; o.rate = base + (r0 - base) * Math.exp(-7 * dt);
   o.s = Math.min(0.999, cS + base * dt + (r0 - base) * (1 - Math.exp(-7 * dt)) / 7);
@@ -12292,7 +12307,7 @@ function menuCamera(now, dt) {
   const h = sim.P[0], an = h.anim;
   if (menuShow.swingAt && now >= menuShow.swingAt && !an.active) {
     const k = menuShow.kinds[menuShow.n++ % menuShow.kinds.length];
-    Object.assign(an, { kind: M.style.keys[k] ? k : 'fh', s: 0.02, cap: 1, rate: 0.9, active: true, prep: false, fwd: false, cp: undefined, flat: false, boostTo: 0, lat: undefined });
+    Object.assign(an, { kind: M.style.keys[k] ? k : 'fh', s: 0.02, cap: 1, rate: 0.9, active: true, prep: false, fwd: false, cp: undefined, flat: false, boostTo: 0, lat: undefined, cross: undefined });
     menuShow.swingAt = 0; menuShow.next = now + 4200;
   }
   if (an.active) { an.s = Math.min(1, an.s + an.rate * dt * (an.s < 0.12 ? 0.6 : an.s < 0.5 ? 1.15 : 0.75)); if (an.s >= 1) { an.active = false; an.s = 0; } }
