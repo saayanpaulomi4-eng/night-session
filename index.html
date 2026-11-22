@@ -1809,7 +1809,7 @@ function createSim(H, cfg) {
       // if the swing is running late, catch up quickly but continuously instead of snapping to the contact pose;
       // otherwise the racket carries the speed it came in with and only then settles to the finish pace
       if (a.s < 0.3) a.s = 0.3;
-      if (a.s < 0.4) { a.boostTo = 0.48; a.rate = Math.max(base, (0.48 - a.s) / 0.07); } else { a.boostTo = 0; a.rate = Math.max(0.9, Math.min(3, inRate)); }
+      if (a.s < 0.37) { a.boostTo = 0.48; a.rate = Math.max(base, (0.48 - a.s) / 0.07); } else { a.boostTo = 0; a.rate = Math.max(0.9, Math.min(3, inRate)); } // (v184: 0.37, was 0.4 - the swing now meets the ball a little before 0.42)
     }
     a.lat = (ball.x - h.pos.x) * h.right * h.hand; a.h = ball.y; a.reachT = 0.45; a.runIn = Math.hypot(h.vel.x, h.vel.z);
     // (v164) how fast the run was carrying the player out toward the side the ball is struck on: the running finishes
@@ -2546,9 +2546,17 @@ function createSim(H, cfg) {
         if (isFinite(tc)) {
           // the pace is re-aimed every frame at the ball's arrival, but never collapses near the end: if the ball is
           // a touch late the racket keeps travelling slowly through the contact zone instead of stopping dead at it
-          const r = (0.42 - a.s) / Math.max(0.03, tc);
-          if (!a.fwdRate) a.fwdRate = Math.max(0.9, Math.min(6, r));
-          a.rate = Math.max(0.7 * a.fwdRate, Math.min(8, r));
+          // (v184: slowing down is spread over a few frames - speeding up is still taken at once. In the last two frames
+          //  before the ball the time left is floored at 30 ms, so the pace was asked to drop by a third in one frame - a
+          //  hitch right at contact on almost every groundstroke - and went straight back up at the strike. Spread, it
+          //  eases off 10-15% instead, which still meets the ball as before - the strings line up on it - and a ball whose
+          //  arrival is re-judged by a few milliseconds no longer jolts it)
+          // (v184: aimed to be a lead's worth short of the contact pose as the ball arrives - the racket's aim now keeps the
+          //  lead the rest of the swing has (see the racket lag in syncAthlete0), and timed to 0.42 it met the ball a frame
+          //  early, swung through before the ball got there)
+          const r = (0.42 - Math.min(0.05, (a.fwdRate || 1.1) / 40) - a.s) / Math.max(0.03, tc);
+          if (!a.fwdRate) { a.fwdRate = Math.max(0.9, Math.min(6, r)); a.rate = Math.max(0.7 * a.fwdRate, Math.min(8, r)); }
+          else { const want = Math.max(0.7 * a.fwdRate, Math.min(8, r)); a.rate = want > a.rate ? want : Math.max(want, a.rate - 10 * dt); }
         }
         else if (a.s >= 0.4) { a.fwd = false; a.cap = 1; a.rate = 2.0; } // the ball went by without a strike: finish the swing
       } else if (a.fwd && !inc) { a.fwd = false; a.cap = 1; a.rate = 2.0; }
@@ -2563,7 +2571,10 @@ function createSim(H, cfg) {
         a.cap = Math.max(a.cap, Math.min(0.58, want)); a.rate = Math.max(a.rate, 2.4);
       }
       if (a.active) {
-        a.s = Math.min(a.cap, a.s + a.rate * dt);
+        // (v184: a forward swing waiting for a late ball eases into its hold instead of stopping dead at it)
+        // (and a serve eases into the trophy position instead of arriving at full speed and stopping dead there)
+        const ease = a.cap >= 1 ? 1 : a.kind === 'srv' ? Math.max(0.1, Math.min(1, (a.cap - a.s) / 0.06)) : a.fwd ? Math.max(0.12, Math.min(1, (a.cap - a.s) / 0.03)) : 1;
+        a.s = Math.min(a.cap, a.s + a.rate * dt * ease);
         if (a.s >= 1) { a.active = false; a.s = 0; a.cap = 0; }
       }
     }
@@ -5994,6 +6005,26 @@ function sampleStroke(st, kind, s, out) {
   }
   return out;
 }
+// (v184) the racket's aim and face at stroke phase sl, led by ah like the rest of the target (see lead in syncAthlete0)
+// and averaged over +-2 bw of the stroke either side (binomial weights): rounds a path that turns round in one frame
+function racketAimAt(Mo, st, kind, sl, ah, bw) {
+  const R = Mo.tmp2; sampleStroke(st, kind, sl, R);
+  if (ah <= 0 && bw <= 0) return R;
+  const t4 = Mo.tmp4 || (Mo.tmp4 = cloneSpec(st.readySpec)), BL = Mo.blurA || (Mo.blurA = [[0, 0, 0], [0, 0, 0]]);
+  for (let j = 0; j < 3; j++) { BL[0][j] = 0; BL[1][j] = 0; }
+  for (let q = -2; q <= 2; q++) {
+    const wq = [1, 4, 6, 4, 1][q + 2] / 16;
+    sampleStroke(st, kind, Math.max(0, Math.min(1, sl + ah + q * bw)), t4);
+    const nt = Math.hypot(t4.rt[0], t4.rt[1], t4.rt[2]) || 1, nn = Math.hypot(t4.rn[0], t4.rn[1], t4.rn[2]) || 1;
+    for (let j = 0; j < 3; j++) { BL[0][j] += wq * t4.rt[j] / nt; BL[1][j] += wq * t4.rn[j] / nn; }
+  }
+  const nt = Math.hypot(BL[0][0], BL[0][1], BL[0][2]), nn = Math.hypot(BL[1][0], BL[1][1], BL[1][2]);
+  if (nt > 0.2) for (let j = 0; j < 3; j++) BL[0][j] /= nt;
+  if (nn > 0.2) for (let j = 0; j < 3; j++) BL[1][j] /= nn;
+  const lt = Math.hypot(R.rt[0], R.rt[1], R.rt[2]) || 1, ln = Math.hypot(R.rn[0], R.rn[1], R.rn[2]) || 1;
+  for (let j = 0; j < 3; j++) { R.rt[j] += Math.max(-0.8, Math.min(0.8, BL[0][j] * lt - R.rt[j])); R.rn[j] += Math.max(-0.8, Math.min(0.8, BL[1][j] * ln - R.rn[j])); }
+  return R;
+}
 function warpFor(st, kind, s) {
   const W = st && st.warp && st.warp[kind];
   if (!W || s <= WARP_S0) return W ? s : swingWarp(kind, s);
@@ -6247,20 +6278,34 @@ function wristLimit(q, mem, dt, fast) {
   {
     const hy = _wq.y.set(0, -1, 0).applyQuaternion(q), sa = Math.acos(Math.max(-1, Math.min(1, -hy.y))), hpl = Math.hypot(hy.x, hy.z);
     let bx = hpl > 1e-6 ? hy.x / hpl : (mem && mem.b ? mem.bx : 1), bz = hpl > 1e-6 ? hy.z / hpl : (mem && mem.b ? mem.bz : 0);
-    if (mem && mem.b && (sa > 1.75 || mem.lag)) {
+    if (mem && mem.b && (sa > 1.55 || mem.lag)) {
       // (asked to bend well past what it can, the hand rolls round the wrist only so fast - the further past, the
       //  slower: a takeback or a smash's racket drop asking for a bend it can't make used to roll the racket round the
       //  wrist half a turn in a frame or two. Back within reach, what it is still behind is made up quickly but
       //  smoothly - switching straight back flicked the racket round in one frame)
       const rel = smooth(Math.max(0, Math.min(1, (hpl - 0.2) / 0.45))), a0 = Math.atan2(mem.bz, mem.bx), a1 = Math.atan2(bz, bx);
-      let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
-      const rate = sa > 1.75 ? (3 + 57 * rel) * (1 - 0.6 * smooth(Math.max(0, Math.min(1, (sa - 1.75) / 0.4)))) : 60;
+      const wrap = x => { while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
+      const da = wrap(a1 - a0), ff = mem.ta === undefined ? 0 : wrap(a1 - mem.ta); mem.ta = a1;
+      // (v184: the limit eases down from 60 a second as the bend deepens (1.55-1.85 rad) - it used to switch between 60 and
+      //  the slow roll at 1.75 - and what the hand is behind is made up on a curve: it follows the way it's asked to turn
+      //  plus a fifth of what is left each frame. Made up at the full limit and then stopped dead, the racket snapped
+      //  40-67 degrees in one frame as the forward swing came out of the drop, on most forehands)
+      const deep = smooth(Math.max(0, Math.min(1, (sa - 1.55) / 0.3)));
+      const rate = (60 + (3 + 57 * rel - 60) * deep) * (1 - 0.6 * smooth(Math.max(0, Math.min(1, (sa - 1.75) / 0.4)))) * (1 - 0.7 * smooth(Math.max(0, Math.min(1, (sa - 2.1) / 0.5)))); // (v184: and only slowly when asked to fold right back (over ~120 degrees) - chasing that, the racket spun round the wrist at 12-16 degrees a frame through two-handers' finishes while the arms were all but still)
       // (v174: in a finish and on the way back to the ready stance, at most ~12 degrees a frame either way: rolling or
       //  catching up at up to 60 a second there, the racket spun round the wrist at 30-55 degrees a frame for a few
       //  frames - Nadal after a very high ball, Sinner after a scooped low one, Federer's wrap)
-      const rateC = mem.calm ? Math.min(rate, 13) : rate;
-      const mx = (dt === undefined ? 1 / 60 : dt) * rateC * (1 + 3 * (fast || 0)); // (freer for the few frames through contact, where the racket really does whip round)
-      if (Math.abs(da) > mx) { const aa = a0 + Math.sign(da) * mx; bx = Math.cos(aa); bz = Math.sin(aa); mem.lag = true; } else mem.lag = false;
+      const rateC = mem.calm ? Math.min(rate, 13) : rate, ddt = dt === undefined ? 1 / 60 : dt;
+      const mx = ddt * rateC * (1 + 3 * (fast || 0)); // (freer for the few frames through contact, where the racket really does whip round)
+      let step = da;
+      if (mem.lag || Math.abs(da) > mx) {
+        // (the requested way round is only followed where it is well defined - near a straight wrist it is noise)
+        const ffw = ff * smooth(Math.max(0, Math.min(1, (hpl - 0.08) / 0.25)));
+        step = ffw + (da - ffw) * (1 - Math.exp(-(14 + 16 * (1 - deep)) * (1 + 3 * (fast || 0)) * ddt)); if (Math.abs(step) > mx) step = Math.sign(step) * mx; // (quicker within reach, and through contact)
+      }
+      // (caught up once what is left would move the hand under a degree or so: at a small bend the way round hardly shows)
+      const left = da - step; mem.lag = Math.abs(left) * Math.sin(Math.min(1.57, soft(sa, 1.05, 1.38))) > 0.015;
+      if (step !== da) { const aa = a0 + step; bx = Math.cos(aa); bz = Math.sin(aa); }
       mem.bx = bx; mem.bz = bz;
       // (the same clamp as below, done on the hand's direction: bent as far as asked or the furthest the wrist goes,
       //  toward bx/bz)
@@ -6268,7 +6313,7 @@ function wristLimit(q, mem, dt, fast) {
       q.premultiply(_wq.r.setFromUnitVectors(hy, hy2));
       return;
     }
-    if (mem) { mem.bx = bx; mem.bz = bz; mem.b = 1; mem.lag = false; }
+    if (mem) { mem.bx = bx; mem.bz = bz; mem.b = 1; mem.lag = false; mem.ta = Math.atan2(bz, bx); }
   }
   // twist about the forearm (the hand's own long axis), then the bend left over
   const t = _wq.t.set(0, q.y, 0, q.w); if (t.lengthSq() < 1e-10) t.set(0, 0, 0, 1); t.normalize();
@@ -6681,6 +6726,7 @@ function syncAthlete0(h, Mo, dt) {
       const sdT = a.s < a.cap ? a.rate * Math.min(1, (a.cap - a.s) / 0.03) : 0;
       Mo.sdS = spring(Mo.sdS || 0, Mo.sdV || 0, sdT, 30, dt); Mo.sdV = _spV;
       const sd = Math.max(0, Mo.sdS);
+      Mo.leadA = sd > 0.01 ? Math.min(0.11, sd * (2 / 80)) : 0; Mo.altUsed = ALT_W; // (v184: the racket lag below samples with the same lead)
       // (the lead now looks AHEAD ALONG THE PATH - the pose the stroke reaches one spring-lag later - instead of
       //  extrapolating the path's tangent: where the path bends hard, just after contact as the racket turns up into
       //  the wiper, the straight-line extrapolation shot far outside the curve and the racket flicked straight up
@@ -6776,25 +6822,35 @@ function syncAthlete0(h, Mo, dt) {
     }
     if (!a.prep && s > 0.2 && s < 0.46) {
       // hips open first while the shoulders hold back (the stretch that powers the swing)
-      const bump = Math.sin(Math.PI * Math.min(1, (s - 0.2) / 0.26));
+      const bump = Math.pow(Math.sin(Math.PI * Math.min(1, (s - 0.2) / 0.26)), 2); // (v184: sin^2 - level at both ends; sin started and stopped the hips' turn in one frame)
       T.hy += sgn * (one ? 0.15 : 0.35) * bump; T.sy -= sgn * 0.12 * bump;
-      // racket lag: the head trails the hand until just before contact, then whips through
-      if (s > 0.22 && s < 0.42) {
-        const sl = 0.22 + 0.2 * Math.pow((s - 0.22) / 0.2, 1.35); // (a gentler lag: the head trails, then whips through, without stalling just before the ball)
-        sampleStroke(st, a.kind, sl, Mo.tmp2);
-        for (let j = 0; j < 3; j++) { T.rt[j] = Mo.tmp2.rt[j]; T.rn[j] = Mo.tmp2.rn[j]; }
-      }
+    }
+    // racket lag: the head trails the hand until just before contact, then whips through
+    // (v184) The lag eases in and out - it trails by at most 0.022 mid-window and is level with the stroke at both ends -
+    //  and the racket's aim keeps the lead the rest of the target has. The lag used to start from a standstill (the racket
+    //  froze for a frame at 0.22) and to end on the path without the lead: at contact the racket's aim jumped on by the
+    //  lead in one frame, 45-65 degrees, on every forehand and backhand. (Led all the way, the racket would reach the ball
+    //  a frame early: the swing is now paced to arrive that much later - see the forward swing in updateAnims.)
+    //  Through the window the aim is also averaged over a short stretch of the swing either side, widest mid-window: where
+    //  the racket drops into the slot and comes back up, the authored path turns round in one frame - the racket stopped
+    //  dead at the bottom of the drop and then shot off the other way, on most forehands. Averaged, it slows into the turn
+    //  and speeds out of it; at both ends of the window the average is over nothing, so the joins are seamless.
+    if (!a.prep && s > 0.22 && s < 0.42) {
+      const u = (s - 0.22) / 0.2, aw = ALT_W; ALT_W = Mo.altUsed || 0;
+      const R = racketAimAt(Mo, st, a.kind, s - 0.022 * Math.pow(Math.sin(Math.PI * u), 2), Mo.leadA || 0, 0.03 * Math.sin(Math.PI * u));
+      ALT_W = aw;
+      for (let j = 0; j < 3; j++) { T.rt[j] = R.rt[j]; T.rn[j] = R.rn[j]; }
     }
     // shoulder line and weight: the hitting shoulder dips as the racket loops down and the weight loads onto
     // the back leg; through contact the weight moves forward and across and the shoulders tilt up into the finish
-    const loadW = a.prep ? 0.5 : s < 0.32 ? 0.5 + 0.5 * s / 0.32 : Math.max(0, 1 - (s - 0.32) / 0.12);
+    const loadW = a.prep ? 0.5 : s < 0.32 ? 0.5 + 0.5 * smooth(s / 0.32) : 1 - smooth(Math.min(1, (s - 0.32) / 0.12)); // (v184: eased - the linear ramps kinked at 0.32 and 0.44)
     const finW = !a.prep && s > 0.42 ? smooth(Math.min(1, (s - 0.42) / 0.35)) : 0;
     T.tl += sgn * (0.1 * loadW - 0.12 * finW);
     T.pz += -0.04 * loadW + 0.07 * finW;
     T.px += sgn * (0.05 * loadW - 0.05 * finW);
     if (!a.prep && s < 0.62) {
       // the legs power the swing: the knees load as the racket drops into the slot, then drive up through the ball
-      const ld = Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.1) / 0.3))), up = Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.36) / 0.26)));
+      const ld = Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.1) / 0.3))), 2), up = Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.36) / 0.26))), 2); // (v184: sin^2, level at both ends)
       T.cr += 0.045 * ld - 0.04 * up;
     }
     if (!a.prep && s > 0.5) {
@@ -6812,6 +6868,11 @@ function syncAthlete0(h, Mo, dt) {
       if (sgn > 0) { T.hlR = Math.max(T.hlR, 0.75 * f); T.aR -= 0.35 * f; }
       else if (!one) { T.hlL = Math.max(T.hlL, 0.6 * f); T.aL += 0.3 * f; }
     }
+  }
+  // (v184) the overhead's racket drop behind the head turns round in one frame the same way: averaged too
+  if (swinging && a.kind === 'oh' && !a.prep && !mood && a.s > 0.25 && a.s < 0.42) {
+    const u = (a.s - 0.25) / 0.17, R = racketAimAt(Mo, st, 'oh', a.s, Mo.leadA || 0, 0.03 * Math.sin(Math.PI * u));
+    for (let j = 0; j < 3; j++) { T.rt[j] = R.rt[j]; T.rn[j] = R.rn[j]; }
   }
   // ---- 1b. shot variants (TopSpin picks one of nine per stroke by ball height, direction and run speed) ----
   if (swinging && a.kind !== 'srv' && a.kind !== 'oh' && a.kind !== 'tw' && !mood) {
