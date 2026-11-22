@@ -1203,15 +1203,15 @@ function createSim(H, cfg) {
   /* ---------------- signature abilities (your player) ---------------- */
   // Federer: volleys play at 115 once he is at half stamina or below.  Nadal: 25% more stamina (drains slower).
   // Djokovic: one guaranteed MEGA PERFECT backhand when stamina drops to 30% (re-arms after recovering past 50%).
-  // Sinner: +8 forehand and backhand at 40% stamina or below.  Alcaraz: the forehand is 140 at full stamina and fades
-  // with it, down to 93 when empty.  Kyrgios: like Djokovic, on the forehand.  Wawrinka: none.  Del Potro: a 140
-  // forehand at 35% stamina or below.
+  // Sinner: +8 forehand and backhand at 40% stamina or below.  Alcaraz (v185): a forehand charge - his forehands go
+  // 117, 128, 140, then back to 117, round and round through the match.  Kyrgios: like Djokovic, on the forehand.
+  // Wawrinka: none.  Del Potro: a 140 forehand at 35% stamina or below.
   const ABILITY = {
     fed: { name: 'Net genius', desc: 'Volleys jump to 115 at half stamina or below.' },
     rafa: { name: 'Endless engine', desc: '25% more stamina: tires much more slowly.' },
     nole: { name: 'Rubber-band backhand', desc: 'One guaranteed MEGA PERFECT backhand when stamina hits 30%.' },
     sin: { name: 'Second wind', desc: '+8 forehand and backhand at 40% stamina or below.' },
-    alc: { name: 'Fresh legs fire', desc: 'Forehand 140 at full stamina, fading with it (93 when empty).' },
+    alc: { name: 'Forehand charge', desc: 'His forehands build up: the first plays at 117, the second at 128, the third at 140 - then back to 117.' },
     kyr: { name: 'Showtime', desc: 'One guaranteed MEGA PERFECT forehand when stamina hits 30%.' },
     zve: { name: 'Sky toss', desc: 'First serves play at 109 (second serves stay at 102).' },
     waw: { name: 'Big-point Stan', desc: 'On break, set and match points: +10 backhand, +8 forehand, +6 serve.' },
@@ -1222,6 +1222,8 @@ function createSim(H, cfg) {
     she: { name: 'Overhead hammer', desc: 'Every overhead is struck GOOD or better, whatever the timing, and with a 95 volley rating (other volleys stay at 75).' },
     med: { name: 'Deep wall', desc: 'From 2 m or more behind the baseline his forehand and backhand both play at 118, and his returns of serve are never worse than GOOD.' },
   };
+  // (Alcaraz's forehand charge: the rating of his 1st, 2nd and 3rd forehand, then round again; h.alcN = which is next)
+  const ALC_FH = [117, 128, 140];
   // (how far behind his own baseline a player stands, in metres - Medvedev's Deep wall)
   const behindBase = h => h.side * h.pos.z - 11.885;
   // online 1v1 (cfg.net): both players are people - the far one plays from a friend's device
@@ -1233,7 +1235,7 @@ function createSim(H, cfg) {
     const st = h.stamina, key = h.prof.key;
     if (key === 'fed' && kind === 'net' && st <= 0.5) v = Math.max(v, 115);
     if (key === 'sin' && (kind === 'fh' || kind === 'bh') && st <= 0.4) v += 8;
-    if (key === 'alc' && kind === 'fh') v = 93 + 47 * clamp(st, 0, 1);
+    if (key === 'alc' && kind === 'fh') v = ALC_FH[(h.alcN || 0) % 3];
     if (key === 'dpo' && kind === 'fh' && st <= 0.35) v = Math.max(v, 140);
     if (key === 'zve' && kind === 'serve' && S.faults === 0) v += 7;
     if (key === 'pete' && kind === 'serve' && S.pressure && S.pressure.w === 1 - h.team && S.srvAth === h.idx) v += 12;
@@ -1246,7 +1248,7 @@ function createSim(H, cfg) {
   function abilityActive(h) {
     const key = h.prof.key, st = h.stamina;
     if (!isMe(h)) return false;
-    return key === 'fed' ? st <= 0.5 : key === 'sin' ? st <= 0.4 : key === 'dpo' ? st <= 0.35 : key === 'waw' ? !!S.pressure : key === 'pete' ? !!(S.pressure && S.pressure.w === 1 - h.team && S.srvAth === h.idx) : key === 'alc' ? st > 0.6 : key === 'mur' ? st < 0.5 : key === 'rafa' ? true : (key === 'nole' || key === 'kyr') ? !!h.megaArmed : key === 'med' ? behindBase(h) >= 2 : false;
+    return key === 'fed' ? st <= 0.5 : key === 'sin' ? st <= 0.4 : key === 'dpo' ? st <= 0.35 : key === 'waw' ? !!S.pressure : key === 'pete' ? !!(S.pressure && S.pressure.w === 1 - h.team && S.srvAth === h.idx) : key === 'alc' ? (h.alcN || 0) % 3 === 2 : key === 'mur' ? st < 0.5 : key === 'rafa' ? true : (key === 'nole' || key === 'kyr') ? !!h.megaArmed : key === 'med' ? behindBase(h) >= 2 : false;
   }
   // abilities that switch on at a stamina threshold announce themselves
   function abilityTick(h) {
@@ -1565,7 +1567,10 @@ function createSim(H, cfg) {
     const Q = QUAL[q], sure = q === 'ultra' || q === 'mega' || (q === 'perfect' && (isMe(h) ? Math.random() < 0.8 : cfg.diff === 3 && Math.random() < 0.55));
     // slice and drop shots are rated on their own (touch and feel), from either wing; volleys and overheads on the net rating
     // (Shelton: his overheads are struck with a 95 volley rating, whatever his volley rating says)
-    const stat = type === 'drop' ? statFor(h, 'drop') : type === 'smash' && h.prof.key === 'she' && isMe(h) ? Math.max(95, statFor(h, 'net')) : (volley || type === 'smash' || halfV) ? statFor(h, 'net') : type === 'slice' ? statFor(h, 'slice') : side > 0 ? statFor(h, 'fh') : statFor(h, 'bh'), k = rk(stat);
+    const sKind = type === 'drop' ? 'drop' : (volley || type === 'smash' || halfV) ? 'net' : type === 'slice' ? 'slice' : side > 0 ? 'fh' : 'bh';
+    const stat = type === 'smash' && h.prof.key === 'she' && isMe(h) ? Math.max(95, statFor(h, 'net')) : statFor(h, sKind), k = rk(stat);
+    // Alcaraz: every forehand struck on his forehand rating moves the charge on (117 -> 128 -> 140 -> 117 ...)
+    if (sKind === 'fh' && h.prof.key === 'alc' && isMe(h)) h.alcN = ((h.alcN || 0) + 1) % 3;
     // the stroke's rating decides how hard and how accurate it is
     let err = Q.err * (0.75 + 0.55 * power) * Math.max(0.32, 1 - 0.22 * k);
     let sp = (P0.s0 + P0.s1 * power) * Q.sp * (1 + 0.05 * k);
@@ -2870,7 +2875,7 @@ function createSim(H, cfg) {
       as(P[2], cfg.partner); as(P[1], cfg.opp1); as(P[3], cfg.opp2);
       NAME[0] = P[0].prof.short + '·' + P[2].prof.short; NAME[1] = P[1].prof.short + '·' + P[3].prof.short;
     }
-    for (const a of P) { a.stamina = 1; a.cheer = 0; a.slump = 0; a.megaArmed = false; a.megaSpent = false; a.abilOn = false; }
+    for (const a of P) { a.stamina = 1; a.cheer = 0; a.slump = 0; a.megaArmed = false; a.megaSpent = false; a.abilOn = false; a.alcN = 0; }
     S.fading = false;
     if (cfg.practice) { NAME[1] = 'MACHINE'; practiceStart(); return; }
     setupPoint();
@@ -2897,14 +2902,14 @@ function createSim(H, cfg) {
     dryStrike(i, b0, t) {
       const h = P[i], st = S.stats[h.team];
       const kb = Object.assign({}, ball), kt = S.t, kr = Object.assign({}, S.rally), kst = Object.assign({}, st), kS = { slowT: S.slowT, lastServeKmh: S.lastServeKmh };
-      const HK = ['stamina', 'pending', 'charging', 'awaitPress', 'megaArmed', 'megaSpent', 'prevF', 'lastAttack', 'hop'], kh = {}; for (const k of HK) kh[k] = h[k];
+      const HK = ['stamina', 'pending', 'charging', 'awaitPress', 'megaArmed', 'megaSpent', 'alcN', 'prevF', 'lastAttack', 'hop'], kh = {}; for (const k of HK) kh[k] = h[k];
       const ka = Object.assign({}, h.anim), ko = P.filter(o => o !== h).map(o => ({ o, plan: o.plan, planT: o.planT, hop: o.hop, prevF: o.prevF }));
       const kH = {}; for (const k in H) if (typeof H[k] === 'function') { kH[k] = H[k]; H[k] = () => {}; }
       let cap = null, out = null; H.strike = (idx, info) => { cap = info; };
       try {
         Object.assign(ball, b0); S.t = t; h.prevF = -1e-4;
         crossingCheck(h);
-        if (cap && S.rally.lastHitter === h.team) out = { b: Object.assign({}, ball), info: cap, mega: [h.megaArmed, h.megaSpent] };
+        if (cap && S.rally.lastHitter === h.team) out = { b: Object.assign({}, ball), info: cap, mega: [h.megaArmed, h.megaSpent, h.alcN || 0] };
       } finally {
         for (const k in kH) H[k] = kH[k];
         for (const k in ball) if (!(k in kb)) delete ball[k]; Object.assign(ball, kb);
@@ -2915,7 +2920,7 @@ function createSim(H, cfg) {
       }
       return out;
     },
-    applyStrike(i, B, info, mega) { const h = P[i]; Object.assign(ball, B); if (mega) { h.megaArmed = mega[0]; h.megaSpent = mega[1]; } afterStrike(h, Object.assign({}, info)); for (const a of P) a.prevF = null; },
+    applyStrike(i, B, info, mega) { const h = P[i]; Object.assign(ball, B); if (mega) { h.megaArmed = mega[0]; h.megaSpent = mega[1]; if (mega[2] !== undefined) h.alcN = mega[2]; } afterStrike(h, Object.assign({}, info)); for (const a of P) a.prevF = null; },
     animTick(i, dt) { animOne(P[i], dt); },
     // (v169) the players are drawn against the ball as it is drawn: on the online host that is a moment behind the
     // game's own (see hostDisp), and the poses read where the ball is, whether it is coming to them and when it gets
@@ -6241,6 +6246,39 @@ function squareFace(rt, rn, mem, dt) {
   rn[0] = px * nl; rn[1] = py * nl; rn[2] = pz * nl;
   mem.x = px; mem.y = py; mem.z = pz; mem.ok = true;
 }
+// (v185) the face rn carried from last frame's racket aim to this one's by the smallest rotation, then turned about the
+// racket toward the face it is asked for: exactly (w 0), or easing in at most 4.5 rad/s (w 1)
+function twistLimit(rt, rn, mem, w, dt) {
+  const tl = Math.hypot(rt[0], rt[1], rt[2]), nl = Math.hypot(rn[0], rn[1], rn[2]); if (tl < 1e-6 || nl < 1e-6) { mem.ok = false; return; }
+  const yx = rt[0] / tl, yy = rt[1] / tl, yz = rt[2] / tl;
+  const dn = (rn[0] * yx + rn[1] * yy + rn[2] * yz) / nl;
+  let ax = rn[0] / nl - dn * yx, ay = rn[1] / nl - dn * yy, az = rn[2] / nl - dn * yz; const al = Math.hypot(ax, ay, az);
+  if (al < 1e-4) { mem.ok = false; return; }
+  ax /= al; ay /= al; az /= al;
+  if (mem.ok && w > 0.001) {
+    // carry the old face from the old aim to the new one (Rodrigues about old x new)
+    let kx = mem.y[1] * yz - mem.y[2] * yy, ky = mem.y[2] * yx - mem.y[0] * yz, kz = mem.y[0] * yy - mem.y[1] * yx;
+    const s = Math.hypot(kx, ky, kz), c = mem.y[0] * yx + mem.y[1] * yy + mem.y[2] * yz;
+    let fx = mem.f[0], fy = mem.f[1], fz = mem.f[2];
+    if (s > 1e-7) {
+      kx /= s; ky /= s; kz /= s; const th = Math.atan2(s, c), cs = Math.cos(th), sn = Math.sin(th), kd = kx * fx + ky * fy + kz * fz;
+      const cx = ky * fz - kz * fy, cy = kz * fx - kx * fz, cz = kx * fy - ky * fx;
+      fx = fx * cs + cx * sn + kx * kd * (1 - cs); fy = fy * cs + cy * sn + ky * kd * (1 - cs); fz = fz * cs + cz * sn + kz * kd * (1 - cs);
+    }
+    const fd = fx * yx + fy * yy + fz * yz; fx -= fd * yx; fy -= fd * yy; fz -= fd * yz; const fl = Math.hypot(fx, fy, fz);
+    if (fl > 1e-4) {
+      fx /= fl; fy /= fl; fz /= fl;
+      // the twist still to go, about the racket, and the share of it taken this frame
+      const tw = Math.atan2((fy * az - fz * ay) * yx + (fz * ax - fx * az) * yy + (fx * ay - fy * ax) * yz, fx * ax + fy * ay + fz * az);
+      const dd = dt === undefined ? 1 / 60 : dt, cap = 4.5 * dd;
+      let lim = tw * (1 - Math.exp(-10 * dd)); if (Math.abs(lim) > cap) lim = Math.sign(lim) * cap;
+      const st = tw + (lim - tw) * Math.min(1, w), cs = Math.cos(st), sn = Math.sin(st), qx = yy * fz - yz * fy, qy = yz * fx - yx * fz, qz = yx * fy - yy * fx;
+      ax = fx * cs + qx * sn; ay = fy * cs + qy * sn; az = fz * cs + qz * sn;
+    }
+  }
+  rn[0] = ax * nl; rn[1] = ay * nl; rn[2] = az * nl;
+  mem.y = [yx, yy, yz]; mem.f = [ax, ay, az]; mem.ok = true;
+}
 function orientRacketHand(Mo, rtW, rnW, dt, fast) {
   const y = _fq.y.copy(rtW).normalize(), z = _fq.z.copy(rnW).addScaledVector(y, -rnW.dot(y)), zl = z.length();
   const mem = Mo.faceW || (Mo.faceW = new THREE.Vector3());
@@ -6273,6 +6311,7 @@ function orientRacketHand(Mo, rtW, rnW, dt, fast) {
 // frame: the racket jumped from one side of the forearm to the other, ~150 degrees in a frame, on every smash. Pinned at
 // the limit, the hand now gives way the way it was already going, turning on to the new way only at a sane rate.
 const _wq = { t: new THREE.Quaternion(), s: new THREE.Quaternion(), i: new THREE.Quaternion(), r: new THREE.Quaternion(), y: new THREE.Vector3(), y2: new THREE.Vector3() };
+const _rr = { y: new THREE.Vector3(), z: new THREE.Vector3(), zc: new THREE.Vector3(), c: new THREE.Vector3(), q: new THREE.Quaternion(), q0: new THREE.Quaternion(), qt: new THREE.Quaternion(), rw: new THREE.Quaternion(), inv: new THREE.Matrix4() };
 function wristLimit(q, mem, dt, fast) {
   const soft = (a, a0, a1) => a <= a0 ? a : a0 + (a1 - a0) * (1 - Math.exp(-(a - a0) / (a1 - a0)));
   {
@@ -7111,6 +7150,18 @@ function syncAthlete0(h, Mo, dt) {
   //  end up 150-170 degrees apart - nearly opposite - and "across the racket" was then all but undefined: the strings
   //  spun round in a frame (the CPU's forehand takeback, hundreds of times a match). The face aim is squared to the
   //  racket aim here, and again after the springs below
+  // (v185) No spinning after the strike. Through the follow-through and the way back the strings turn about the racket's
+  //  own handle only so fast: last frame's face is carried along as the racket's aim swings (no twist of its own) and
+  //  turned toward the stroke's face by at most ~4 degrees a frame, easing in and out. The stroke paths roll the racket
+  //  round its handle 100-300 degrees after contact, in bursts of up to 50 degrees a frame (Alcaraz's forehand), 124 in
+  //  a frame on Wawrinka's and 114 on the CPU's backhand: the racket spun in the hand after every shot. Up to contact
+  //  the face goes exactly where the stroke puts it, so the strings still meet the ball square.
+  {
+    const cS = a.kind === 'srv' ? 0.6 : CONTACT_S;
+    const slow = !mood && ((swinging && !a.prep && (a.s > cS || !!a.cp)) || (!swinging && (Mo.postT || 0) < 0.9)); // (from the strike on)
+    Mo.twW = slow ? 1 : Math.max(0, (Mo.twW || 0) - dt * 6); // (on at once - the face is exactly the stroke's then - and handed back over a sixth of a second)
+    twistLimit(T.rt, T.rn, Mo.tw || (Mo.tw = {}), Mo.twW, dt);
+  }
   squareFace(T.rt, T.rn, Mo.fT || (Mo.fT = {}), dt);
   // ---- 3. smooth toward the target ----
   // Critically damped springs instead of plain easing: when the target pose changes (a takeback starts, a
@@ -7405,6 +7456,38 @@ function syncAthlete0(h, Mo, dt) {
       Mo.armR.sh.updateMatrixWorld(true);
       orientRacketHand(Mo, rtW, rnW, 0);
     }
+  }
+  // (v185) ...and the racket as drawn never spins in the hand after the strike. Where a stroke asks the wrist to fold
+  //  back further than it can (Zverev's, Kyrgios's and Fritz's forehand finishes, two-handers' finishes), the hand gives
+  //  way along the shortest turn, and as the arm moves that turn's axis swings about: the racket spun round its handle
+  //  up to 57 degrees a frame. (Turning the hand to keep the strings' facing instead made two-handers' finishes jump.)
+  //  So the racket turns about its own handle by at most ~6 degrees a frame beyond what its swing carries it round. It
+  //  is held back by turning the hand about the handle - but never so far that the wrist bends past ~100 degrees (or
+  //  past what it was already): held back regardless, the wrist bent up to 147 degrees in Kyrgios's finish and 160 in
+  //  Zverev's (with the face asked for not held back, above). Two-handers' finishes bend it to 83-95 degrees for a few
+  //  frames (the wrist's own stop is ~80). The free hand takes the racket after this.
+  if (Mo.racket) {
+    const cS2 = a.kind === 'srv' ? 0.6 : CONTACT_S, slowR = !mood && ((swinging && !a.prep && (a.s > cS2 || !!a.cp)) || (!swinging && (Mo.postT || 0) < 0.9));
+    const hand = Mo.armR.hand, hq = hand.quaternion;
+    hand.updateMatrixWorld(true);
+    const e = Mo.racket.matrixWorld.elements, ry = _rr.y.set(e[4], e[5], e[6]).normalize(), rz = _rr.z.set(e[8], e[9], e[10]);
+    rz.addScaledVector(ry, -rz.dot(ry)).normalize();
+    const RM = Mo.rollM || (Mo.rollM = { y: new THREE.Vector3(), z: new THREE.Vector3(), ok: false, cap: 80 });
+    RM.cap = slowR ? 6.5 : Math.min(80, RM.cap + dt * 120); // (let go of over ~half a second, not in one frame)
+    if (RM.ok && RM.cap < 80 && dt > 0) {
+      const zc = _rr.zc.copy(RM.z).applyQuaternion(_rr.q.setFromUnitVectors(RM.y, ry)); zc.addScaledVector(ry, -zc.dot(ry)).normalize();
+      const tw = Math.atan2(_rr.c.crossVectors(zc, rz).dot(ry), zc.dot(rz)), cap = RM.cap * dt;
+      if (Math.abs(tw) > cap) {
+        // (turned in the hand's own frame: a left-hander is the whole figure mirrored, which turns a twist the other way)
+        const corr = Math.sign(tw) * cap - tw, PM = hand.parent.matrixWorld, axL = _rr.c.copy(ry).transformDirection(_rr.inv.copy(PM).invert()), sg = PM.determinant() < 0 ? -corr : corr;
+        // (the wrist's bend: the hand off the forearm's line - never past ~100 degrees, or past what it was already)
+        const bend = q => Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (q.x * q.x + q.z * q.z)))), q0 = _rr.q0.copy(hq), lim = Math.max(1.75, bend(q0));
+        const at = u => _rr.qt.copy(q0).premultiply(_rr.rw.setFromAxisAngle(axL, sg * u));
+        let u = 1; if (bend(at(1)) > lim) { let lo = 0, hi = 1; for (let k = 0; k < 10; k++) { const m = (lo + hi) / 2; if (bend(at(m)) > lim) hi = m; else lo = m; } u = lo; }
+        if (u > 0) { hq.copy(at(u)); hand.updateMatrixWorld(true); rz.applyAxisAngle(ry, corr * u); }
+      }
+    }
+    RM.y.copy(ry); RM.z.copy(rz); RM.ok = true;
   }
   // ---- 8. free arm: own target, or on the racket ----
   Mo.armR.hand.updateMatrixWorld(true);
