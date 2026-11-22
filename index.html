@@ -5167,7 +5167,7 @@ const STYLE_DEFS = {
   // head stays on the contact point. One-handed backhand: left hand on the throat until late, chest sideways,
   // arms spread at the finish. Serve: platform stance, toss across toward the sideline, deep knee bend, shallow
   // racket drop, land on the front foot with the back leg kicking up.
-  fed: { hand: 1, oneHand: true, headLock: 0.5, waitUp: { fh: 0.3 }, hiLag: 1.4, choke: 0.03, keepTiming: ['vfh', 'vbh'], reach: { fh: { tb: 0.9, tbFh: 0.62, ct: 0.96, ex: 0.97 }, bh: { tb: 0.86, ct: 0.97, ex: 0.97 } }, split: 1.0, bounce: 0.026, drive: 0.02,
+  fed: { hand: 1, oneHand: true, headLock: 0.5, waitUp: { fh: 0.3 }, hiLag: 1.4, hiFin: true, choke: 0.03, keepTiming: ['vfh', 'vbh'], reach: { fh: { tb: 0.9, tbFh: 0.62, ct: 0.96, ex: 0.97 }, bh: { tb: 0.86, ct: 0.97, ex: 0.97 } }, split: 1.0, bounce: 0.026, drive: 0.02,
     ready: { cr: 0.15, sp: 0.14, rh: [0.12, 0.98, 0.37], fL: [-0.26, 0.04], fR: [0.26, 0] },
     keys: {
       // Federer forehand (slow-motion breakdowns): a quiet unit turn, the left arm straight across pointing at the ball
@@ -5268,7 +5268,7 @@ const STYLE_DEFS = {
   // Low, wide base and constant bounce; big looping takeback with the racket high and the wrist laid back; open
   // stance and explosive leg drive; extreme low-to-high swing ending in the "lasso" finish over the head on the
   // hitting side. Compact two-handed backhand. Simple serve with a modest knee bend.
-  rafa: { hand: -1, headLock: 0.18,
+  rafa: { hand: -1, headLock: 0.18, retD: 0.48, // (v182: his backhand's way back turns the racket furthest - 230 degrees - so it takes a little longer)
     // (v160) his forehand has two finishes: the lasso over the head on the heavy topspin balls (most of them), and the
     // conventional one round the far shoulder on the flat drives and the low balls he lifts
     altW: (kind, by, flat) => kind === 'fh' ? Math.max(flat ? 1 : 0, (0.95 - by) / 0.25) : 0,
@@ -6531,12 +6531,18 @@ function strideSwing(Mo, h, spd, dt) {
 // follow-through: the body and the hands evenly, the elbow round to its place early (RET_LP of the way), and the racket's
 // aim along an arc out over the shoulder it finished on (RET_VIA: up, out to that side, a little forward), so it
 // passes beside the head, never stood up above it. The springs follow closely (RET_W) and only smooth it.
-const RET_D = 0.56, RET_LP = 0.4, RET_VIA = [0.5, 0.85, 0.15], RET_W = 20;
+// (v182) ...in one movement: 0.38 s (was 0.56), on a curve that gets going at once and settles slowly (its speed peaks a
+// third of the way, not half way - smoothstep's slow start on top of the finish's own slowing held the racket still
+// beside the head for a quarter of a second), with the elbow coming round over most of the way (it led by itself,
+// and the racket turned in two pushes)
+const RET_D = 0.38, RET_LP = 0.7, RET_VIA = [0.5, 0.85, 0.15], RET_W = 34; // (v182: the springs follow the path closer - at 20 they trailed it by a tenth of a second and held the racket still at its start)
+const RET_S0 = 0.78; // (v182: the way back starts as the follow-through reaches its finish - from 0.83 it sat there first)
+const retEase = u => { const v = 1 - u; return 1 - v * v * v * (1 + 3 * u); };
 const FIN2H_RP = [0.25, -1, 0.35]; // (v175: a two-hander's elbow pole in the finish - under the hands, a little forward)
 const retKind = (k, st) => k === 'bh' && !st.oneHand && st.bhRet !== false;
 const _rp = { a: [0, 0, 0], b: [0, 0, 0] };
 function retPath(R, F, Rdy, out) {
-  const u = Math.min(1, R.t / RET_D), us = smooth(u), up = smooth(Math.min(1, u / RET_LP));
+  const u = Math.min(1, R.t / (R.D || RET_D)), us = retEase(u), up = retEase(Math.min(1, u / RET_LP));
   if (R.V === null) {
     // (the arc goes out to the side only for a turn of over ~100 degrees - from a finish over the shoulder)
     const nf = Math.hypot(F.rt[0], F.rt[1], F.rt[2]) || 1, nr = Math.hypot(Rdy.rt[0], Rdy.rt[1], Rdy.rt[2]) || 1;
@@ -6813,6 +6819,17 @@ function syncAthlete0(h, Mo, dt) {
     }
     // high ball: racket set high, upright chest, flatter finish across the shoulders
     if (hiA > 0) { T.rh[1] += (0.22 * pre - 0.12 * post) * hiA; T.cr -= 0.04 * hiA; T.sp -= 0.05 * hiA; }
+    // (v182) Federer's forehand on a ball above the shoulder comes through level: the brush up after contact stood the
+    //  racket straight up above his head first (the hand is already up at the ball - see the reach, below)
+    //  ...and finishes high round the far shoulder: the hand further round to the left (finishing in front of his face,
+    //  the racket couldn't point back past his head and was forced up over it) and the racket down behind the shoulder
+    //  (from a ball at the shoulder, 1.45 m, in full from 1.85 m: lower ones are played as before)
+    const hiB = st.hiFin && !a.prep && a.kind === 'fh' ? Math.max(0, Math.min(1, (by - 1.45) / 0.4)) : 0;
+    if (hiB > 0) {
+      const thr = smooth(Math.max(0, Math.min(1, (ss - 0.42) / 0.05))), fin = smooth(Math.max(0, Math.min(1, (ss - 0.6) / 0.16)));
+      T.rt[1] -= hiB * (0.38 * thr * (1 - fin) + 0.55 * fin);
+      T.rh[0] -= 0.16 * hiB * fin; T.rh[2] -= 0.08 * hiB * fin;
+    }
     // (v165) a forehand that drops the racket back and DOWN into the slot (Federer's) keeps it level behind him on a
     //  high ball: with the hand raised to a ball at the shoulder the forearm points up, a tip still aimed back and down
     //  was beyond the wrist, and the racket swung straight up over the hand and back down in two frames (a 100-160
@@ -6887,6 +6904,17 @@ function syncAthlete0(h, Mo, dt) {
       let liftH = (du + (vol ? 0 : knees)) * wu;
       const cRh = st.contactRh && st.contactRh[a.kind];
       if (!vol && !a.prep && a.s > CONTACT_S && du > 0 && cRh !== undefined) liftH = Math.min(liftH, Math.max(0, Math.max(T.rh[1], cRh + du + 0.1) - T.rh[1]));
+      // (v182) ...but it does go on across at that height. The lift let go within a tenth of the swing, and on a ball
+      //  above the shoulder Federer's hand dropped half a metre straight after contact: the racket chopped down from
+      //  over his head to his left hip, the elbow left up above the hand and the racket hanging. Now the hand comes
+      //  across in front of his face and finishes by his left shoulder, a little under half a metre below the ball,
+      //  never lower than the stroke's own (kept any higher, the arm was raised nearly straight up, the forearm
+      //  pointed up, and the wrist couldn't lay the racket level: it stood up above his head)
+      if (st.hiFin && a.kind === 'fh' && !a.prep && a.s > CONTACT_S && du > 0 && cRh !== undefined) {
+        const hiF = Math.max(0, Math.min(1, (cw.y - 1.45) / 0.4));
+        const keep = Math.max(0, cRh + du - 0.16 - 0.32 * smooth(Math.min(1, (a.s - CONTACT_S) / 0.3)) - T.rh[1]);
+        liftH += (keep - liftH) * hiF; // (both ways: the lift itself held the hand up near 1.9 m for a tenth of the swing after contact)
+      }
       T.rh[0] += dr * wh * 0.5; T.rh[1] += liftH; T.rh[2] += df * wh * 0.6;
       // (v162) ...and the body goes over to a far ball WITH its feet: the shift is set from the set-up on (as soon as
       //  the ball's line is known), the feet step across under it, it is held through the shot and let go at the end
@@ -6963,18 +6991,20 @@ function syncAthlete0(h, Mo, dt) {
   //  shortest way round stood the racket straight up above the head, and the looser springs of v174 held it there:
   //  the "weird animation" after every two-hander's backhand. Every other stroke ends as before.
   if (swinging && !a.prep && !mood && bh2) {
-    if (a.s > 0.83) {
+    if (a.s > RET_S0) {
       let R = Mo.ret;
-      if (!R || !R.live || R.kind !== a.kind) R = Mo.ret = { kind: a.kind, t: 0, ti: 0, live: true, F: cloneSpec(T), Rd: null, V: null };
+      // (v182: from the pose the follow-through has reached when the way back starts. It used to follow the stroke's own
+      //  last stretch - still wrapping the racket on back over the shoulder - while the way back pulled it forward, and
+      //  the two all but cancelled: the racket sat out beside the head for a fifth of a second before coming down)
+      if (!R || !R.live || R.kind !== a.kind) R = Mo.ret = { kind: a.kind, t: 0, ti: 0, live: true, F: cloneSpec(T), Rd: null, V: null, D: st.retD || RET_D };
       else R.t += dt;
-      lerpSpec(T, T, 0, R.F); // (the stroke's own pose this frame, as if there were no way back)
       retPath(R, R.F, st.readySpec, T);
     } else if (Mo.ret) Mo.ret.live = false;
   } else if (swinging && !a.prep && !mood) {
     const r0 = a.kind === 'srv' ? 0.8 : a.kind === 'oh' || a.kind === 'tw' ? 0.76 : a.kind === 'fh' || a.kind === 'bh' ? 0.83 : 0.74, u0 = a.s > r0 ? Math.min(1, (a.s - r0) / (1 - r0)) : 0, r = u0 * u0 * u0 * (u0 * (u0 * 6 - 15) + 10);
     if (r > 0) { const rs = st.readySpec; for (const key of SC) if (!FAST_KEYS[key]) T[key] += (rs[key] - T[key]) * r; for (const key of V3K) { if (key === 'rt' || key === 'rn' || key === 'rp') slerpDir(T[key], rs[key], r, T[key]); else for (let j = 0; j < 3; j++) T[key][j] += (rs[key][j] - T[key][j]) * r; } for (const key of V2K) for (let j = 0; j < 2; j++) T[key][j] += (rs[key][j] - T[key][j]) * r; }
     if (Mo.ret) Mo.ret.live = false;
-  } else if (!swinging && !mood && Mo.ret && Mo.ret.live && Mo.ret.t < RET_D) {
+  } else if (!swinging && !mood && Mo.ret && Mo.ret.live && Mo.ret.t < (Mo.ret.D || RET_D)) {
     // (the stroke is over: on from the finish it last had to the stance as it now is. The path was headed for the plain
     //  ready stance; if the stance differs - the carry on the run - that is blended in over 0.15 s, rather than by the
     //  crossfade below, which held the target still for a few frames)
