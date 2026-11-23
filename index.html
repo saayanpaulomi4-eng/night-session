@@ -1474,7 +1474,9 @@ function createSim(H, cfg) {
     ball.x = h.pos.x - h.right * h.hand * 0.24; ball.y = h.prof.tossY || TOSS_Y; ball.z = h.pos.z + h.fwd * 0.26;
     ball.vx = h.right * h.hand * 0.66; ball.vz = h.fwd * 0.3; ball.vy = tossVy(h); ball.g = G; ball.ax = 0; ball.mag = 0;
     ball.bounces = 0; ball.rolling = false; ball.netTouched = ball.netHit = false; ball.wall = false; ball.ev = .6; ball.fh = .6;
-    Object.assign(h.anim, { kind: 'srv', s: 0, cap: 0.4, rate: 0.4 / Math.max(0.3, tossIdeal(h) - 0.02), active: true });
+    // (v186: cp cleared - the last serve's contact point stayed set through the next serve, so the contact pass and the head's
+    //  lock aimed at it and the racket was treated as past the strike from the toss on)
+    Object.assign(h.anim, { kind: 'srv', s: 0, cap: 0.4, rate: 0.4 / Math.max(0.3, tossIdeal(h) - 0.02), active: true, cp: undefined });
     H.sfx('toss', ball.x);
   }
   function reToss() {
@@ -6311,7 +6313,7 @@ function orientRacketHand(Mo, rtW, rnW, dt, fast) {
 // frame: the racket jumped from one side of the forearm to the other, ~150 degrees in a frame, on every smash. Pinned at
 // the limit, the hand now gives way the way it was already going, turning on to the new way only at a sane rate.
 const _wq = { t: new THREE.Quaternion(), s: new THREE.Quaternion(), i: new THREE.Quaternion(), r: new THREE.Quaternion(), y: new THREE.Vector3(), y2: new THREE.Vector3() };
-const _rr = { y: new THREE.Vector3(), z: new THREE.Vector3(), zc: new THREE.Vector3(), c: new THREE.Vector3(), q: new THREE.Quaternion(), q0: new THREE.Quaternion(), qt: new THREE.Quaternion(), rw: new THREE.Quaternion(), inv: new THREE.Matrix4() };
+const _rr = { y: new THREE.Vector3(), z: new THREE.Vector3(), zc: new THREE.Vector3(), c: new THREE.Vector3(), Y: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(), q0: new THREE.Quaternion(), qt: new THREE.Quaternion(), rw: new THREE.Quaternion(), inv: new THREE.Matrix4() };
 function wristLimit(q, mem, dt, fast) {
   const soft = (a, a0, a1) => a <= a0 ? a : a0 + (a1 - a0) * (1 - Math.exp(-(a - a0) / (a1 - a0)));
   {
@@ -7469,6 +7471,29 @@ function syncAthlete0(h, Mo, dt) {
   if (Mo.racket) {
     const cS2 = a.kind === 'srv' ? 0.6 : CONTACT_S, slowR = !mood && ((swinging && !a.prep && (a.s > cS2 || !!a.cp)) || (!swinging && (Mo.postT || 0) < 0.9));
     const hand = Mo.armR.hand, hq = hand.quaternion;
+    // (v186) The hand never turns round on the forearm after the strike: from the strike to 0.9 s after the swing its
+    //  twist on the forearm (as the forearm turns it, about the hand's own length) stays within ~110 degrees either way
+    //  of how it was turned at contact. Asked for more, it holds there, and comes back with the pose. Wawrinka's
+    //  forehand turned the hand 435 degrees round the forearm through the finish and the way back (v185: 196), Federer's
+    //  serve 155-165 the other way; a real forearm turns about half a turn in all. Swung round to the far side all at
+    //  once, it goes back at ~6 degrees a frame. Afterwards what it was held off by is eased away at ~3 rad/s.
+    //  TW.r: the twist asked for (carried on from frame to frame), TW.u: as drawn, TW.c: as drawn at the strike.
+    { const TW = Mo.twM || (Mo.twM = { u: 0, r: 0, c: 0, s: false, ok: false }), wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const t0 = wrap(2 * Math.atan2(hq.y, hq.w)), ur = TW.ok ? TW.r + wrap(t0 - TW.r) : t0;
+      if (slowR && !TW.s) TW.c = ur; // (the strike: as it is turned this frame - through contact it turns up to ~65 degrees a frame)
+      TW.s = slowR;
+      let uo = ur;
+      if (TW.ok && dt > 0) {
+        if (slowR) {
+          // (asked round past the stop by a whole turn or more - Kyrgios's forehand finish asks for 1.5 turns - it stays
+          //  at the stop: following the turn round into the window again flicked the hand back 51 degrees in a frame)
+          const tg = Math.max(TW.c - 1.92, Math.min(TW.c + 1.92, ur));
+          let d = tg - TW.u; if (Math.abs(d) > 1) d = Math.sign(d) * Math.min(Math.abs(d), 6.5 * dt);
+          uo = TW.u + d;
+        } else { const o = wrap(TW.u - TW.r); uo = ur + Math.sign(o) * Math.max(0, Math.abs(o) - 3 * dt); }
+        if (Math.abs(wrap(uo - ur)) > 1e-5) hq.multiply(_rr.rw.setFromAxisAngle(_rr.Y, uo - ur));
+      }
+      TW.u = uo; TW.r = ur; TW.ok = true; }
     hand.updateMatrixWorld(true);
     const e = Mo.racket.matrixWorld.elements, ry = _rr.y.set(e[4], e[5], e[6]).normalize(), rz = _rr.z.set(e[8], e[9], e[10]);
     rz.addScaledVector(ry, -rz.dot(ry)).normalize();
@@ -7480,10 +7505,13 @@ function syncAthlete0(h, Mo, dt) {
       if (Math.abs(tw) > cap) {
         // (turned in the hand's own frame: a left-hander is the whole figure mirrored, which turns a twist the other way)
         const corr = Math.sign(tw) * cap - tw, PM = hand.parent.matrixWorld, axL = _rr.c.copy(ry).transformDirection(_rr.inv.copy(PM).invert()), sg = PM.determinant() < 0 ? -corr : corr;
-        // (the wrist's bend: the hand off the forearm's line - never past ~100 degrees, or past what it was already)
+        // (the wrist's bend: the hand off the forearm's line - never past ~100 degrees, or past what it was already;
+        //  and after the strike, never turning the hand on the forearm past its stop above)
         const bend = q => Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (q.x * q.x + q.z * q.z)))), q0 = _rr.q0.copy(hq), lim = Math.max(1.75, bend(q0));
+        const TW = Mo.twM, twx = q => TW && TW.s ? Math.abs(Math.atan2(Math.sin(2 * Math.atan2(q.y, q.w) - TW.c), Math.cos(2 * Math.atan2(q.y, q.w) - TW.c))) : 0, tlim = Math.max(1.94, twx(q0));
+        const bad = q => bend(q) > lim || twx(q) > tlim;
         const at = u => _rr.qt.copy(q0).premultiply(_rr.rw.setFromAxisAngle(axL, sg * u));
-        let u = 1; if (bend(at(1)) > lim) { let lo = 0, hi = 1; for (let k = 0; k < 10; k++) { const m = (lo + hi) / 2; if (bend(at(m)) > lim) hi = m; else lo = m; } u = lo; }
+        let u = 1; if (bad(at(1))) { let lo = 0, hi = 1; for (let k = 0; k < 10; k++) { const m = (lo + hi) / 2; if (bad(at(m))) hi = m; else lo = m; } u = lo; }
         if (u > 0) { hq.copy(at(u)); hand.updateMatrixWorld(true); rz.applyAxisAngle(ry, corr * u); }
       }
     }
