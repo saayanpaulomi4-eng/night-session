@@ -7366,7 +7366,7 @@ function syncAthlete0(h, Mo, dt) {
     if (Mo.ewS === undefined) { Mo.ewS = Ew0; Mo.ewV = 0; } Mo.ewS = spring(Mo.ewS, Mo.ewV, Ew0, 18, dt); Mo.ewV = _spV; const Ew = Mo.ewS; // (eases between strokes' reach)
     const wE = smooth(Math.max(0, Math.min(1, (Ew - 0.2) / 0.3))) * (swinging && !a.prep ? 1 - smooth(Math.max(0, Math.min(1, (a.s - 0.5) / 0.2))) : 1); // (fades out with the reach and through the finish instead of switching off at a threshold)
     if (Mo.reachW > 0.01 && wE > 0) {
-      const shp = Mo.armR.sh.getWorldPosition(_rs.a), L = ARM * Math.min(Ew, 0.9); // (never locked straight: a hitting arm keeps a little bend - a fully stretched arm read as rubbery)
+      const shp = Mo.armR.sh.getWorldPosition(_rs.a), L = ((Mo.uL || UPPER) + (Mo.fL || FORE)) * Math.min(Ew, 0.9); // (never locked straight: a hitting arm keeps a little bend - a fully stretched arm read as rubbery)
       const dx = wristL.x - shp.x, dy = wristL.y - shp.y, dz = wristL.z - shp.z, d0 = Math.hypot(dx, dy, dz);
       if (d0 < L && d0 > 0.05) {
         // straighten the elbow along the arm's own line (not out sideways), letting the hand sink or rise at most
@@ -7377,7 +7377,7 @@ function syncAthlete0(h, Mo, dt) {
         // hand let go of the racket on one-handed slices)
         const gw = Math.max(0, Math.min(1, (S.lg - 0.2) / 0.4));
         if (gw > 0) {
-          const lsh = Mo.armL.sh.getWorldPosition(_rs.b), lim = (ARM + 0.02) * 0.97;
+          const lsh = Mo.armL.sh.getWorldPosition(_rs.b), lim = ((Mo.uL || UPPER) + (Mo.fL || FORE) + 0.02) * 0.97;
           const ok = ff => { const q = pos(ff); return Math.hypot(q[0] - lsh.x, q[1] + 0.05 - lsh.y, q[2] - lsh.z) <= lim; };
           if (!ok(f)) { let lo = 1, hi = f; for (let i = 0; i < 10; i++) { const m = (lo + hi) / 2; if (ok(m)) lo = m; else hi = m; } f = f + (lo - f) * gw; }
         }
@@ -7391,7 +7391,7 @@ function syncAthlete0(h, Mo, dt) {
   // (the new hands hold the racket in the fist, a hand's length past the wrist and at the grip's angle: the wrist goes
   //  where it has to for the racket to be exactly where the swing puts it)
   if (Mo.grip) gripShift(Mo, wristL, rtW, rnW);
-  twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, UPPER, FORE, wristL, _sv.pole, 1, 1, Mo.ikR || (Mo.ikR = {}), dt);
+  twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, Mo.uL || UPPER, Mo.fL || FORE, wristL, _sv.pole, 1, 1, Mo.ikR || (Mo.ikR = {}), dt);
   Mo.armR.sh.updateMatrixWorld(true);
   const fastC = swinging && !a.prep ? Math.exp(-Math.pow((a.s - (a.kind === 'srv' ? 0.6 : CONTACT_S)) / 0.035, 2)) : 0;
   // (the push that keeps the racket out of the body - see below - carries on from frame to frame, easing off)
@@ -7454,7 +7454,7 @@ function syncAthlete0(h, Mo, dt) {
     for (const ax of ['x', 'y', 'z']) { Mo.corr[ax] = spring(Mo.corr[ax], Mo.corrV[ax], _cw[ax], 45, dt); Mo.corrV[ax] = _spV; }
     if (Mo.corr.lengthSq() > 1e-6) {
       wristL.add(Mo.corr);
-      twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, UPPER, FORE, wristL, _sv.pole, 1, 1, Mo.ikR, 0);
+      twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, Mo.uL || UPPER, Mo.fL || FORE, wristL, _sv.pole, 1, 1, Mo.ikR, 0);
       Mo.armR.sh.updateMatrixWorld(true);
       orientRacketHand(Mo, rtW, rnW, 0);
     }
@@ -7544,7 +7544,7 @@ function syncAthlete0(h, Mo, dt) {
   Mo.runArm = (Mo.runArm || 0) + ((Mo.runArmT || 0) - (Mo.runArm || 0)) * Math.min(1, dt * 8); Mo.runArmT = 0;
   const ei = Math.max(Mo.runArm, 0.6 * (Mo.elbIn || 0));
   _sv.pole.set(1 - 0.75 * ei, -1 + 0.7 * Mo.runArm, -0.5 - 0.5 * ei).normalize();
-  twoBone(Mo.chest, Mo.armL.sh, Mo.armL.elbow, UPPER, FORE + 0.02, lhW, _sv.pole, 1, 1, Mo.ikL || (Mo.ikL = {}), dt);
+  twoBone(Mo.chest, Mo.armL.sh, Mo.armL.elbow, Mo.uL || UPPER, (Mo.fL || FORE) + 0.02, lhW, _sv.pole, 1, 1, Mo.ikL || (Mo.ikL = {}), dt);
   Mo.armL.hand.rotation.set(0.2, 0, 0);
   if (Mo.grip) {
     const g = Mo.racket && lgW > 0.01 ? lgW : 0;
@@ -7595,8 +7595,10 @@ const LOOKS = {
   // hair with a little texture on top, thick dark brows; his 2026 look: a sleeveless white Nike-style top with a bold
   // diagonal sweep of green edged in black across the lower half, black shorts, a yellow-and-black Babolat-style frame
   // (generic face, build, colouring and kit only - no facial likeness)
+  // (v187: arms 8% shorter - build.armLen, upper arm and forearm alike - and a racket frame 30% thicker in the beam,
+  //  rkThick: his arms read long, bare from the shoulder in the sleeveless top)
   alc:  { face: { nose: 1.0, noseW: 1.06, jaw: 1.06, chin: 1.02, brow: 1.4, stubble: 0.16, eye: 0x3b2616 }, skin: 0xcf9870, shirt: 0xf5f6f2, print: 2, printC: 0x1f9e5c, shorts: 0x15171a, collar: 0x15171a, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x1f9e5c, hair: 0x281a12, hairStyle: 'crop', headwear: 'none', racket: 0xf0d43a, height: 0.99, sleeves: false,
-          build: { arm: 1.16, fore: 1.1, racketArm: 1.03, leg: 1.16, chest: 1.12, waist: 0.97, shorts: 0.36 } },
+          build: { arm: 1.16, fore: 1.1, racketArm: 1.03, leg: 1.16, chest: 1.12, waist: 0.97, shorts: 0.36, armLen: 0.92 }, rkThick: 1.3 },
   // Wawrinka: stocky and powerful, short dark hair, navy shirt and red-checked shorts
   waw:  { face: { nose: 1.12, noseW: 1.1, jaw: 1.12, chin: 1.1, stubble: 0.45, eye: 0x5a6a5a }, skin: 0xdcae8a, shirt: 0x24345a, shorts: 0xa8243a, collar: 0xffffff, sock: 0xffffff, shoe: 0xf2f2f2, sole: 0x24345a, hair: 0x2a1f18, hairStyle: 'crop', headwear: 'none', racket: 0x1f3d8a, height: 0.99, sleeves: true,
           build: { arm: 1.16, fore: 1.12, racketArm: 1.04, leg: 1.14, chest: 1.12, waist: 1.08, shorts: 0.4, sleeve: 0.42 } },
@@ -7994,12 +7996,13 @@ function sculptBody(B, look, H) {
   for (const sgn of [-1, 1]) {
     const SH = sgn < 0 ? SHR : SHL, EL = sgn < 0 ? ELR : ELL, HA = sgn < 0 ? HAR : HAL, HI = sgn < 0 ? HIR : HIL, KN = sgn < 0 ? KNR : KNL, FT = sgn < 0 ? FTR : FTL;
     const sx = sgn * 0.2, sy = 1.47, ak = B.arm * (sgn < 0 ? B.racketArm : 1), fk = B.fore * (sgn < 0 ? B.racketArm : 1);
+    const UA = UPPER * (B.armLen || 1), FA = FORE * (B.armLen || 1); // (v187: a player's own arm length)
     const armR0 = [[-0.1, 0.012], [-0.07, 0.027], [-0.03, 0.042], [0.02, 0.051], [0.14, 0.056], [0.3, 0.054], [0.45, 0.056], [0.6, 0.051], [0.86, 0.042], [1.08, 0.04]];
     const armRad = t => lerpT(armR0, t) * ak + (ak - 1) * 0.035 * gs(t, 0.45, 0.2);
     const pivA = [sx, sy], pivL = [sgn * 0.1, HIP_Y], phA = sgn * BODY_APOSE.arm, phL = sgn * BODY_APOSE.leg;
     // upper arm: deltoid cap, biceps, triceps, the elbow's point
-    L.push({ side: sgn, piv: pivA, ph: phA, t0: -0.1, t1: 1.12, len: UPPER, k: 0.04,
-      c: t => [sx - sgn * 0.022 * (1 - sstep(-0.1, 0.12, t)), sy - t * UPPER, 0],
+    L.push({ side: sgn, piv: pivA, ph: phA, t0: -0.1, t1: 1.12, len: UA, k: 0.04,
+      c: t => [sx - sgn * 0.022 * (1 - sstep(-0.1, 0.12, t)), sy - t * UA, 0],
       r: (t, a) => { const lat = Math.cos(a) * sgn, sa = Math.sin(a), r = armRad(t);
         const m = (1 + 0.15 * gs(t, 0.1, 0.13) * (0.4 + 0.6 * lat) + 0.05 * gs(t, 0.45, 0.2)) * (1 - 0.14 * gs(t, 0.97, 0.08) * sa * sa);
         return ellR(r * 0.97, r * 0.98, a) * m + (sa > 0 ? sa * 0.015 * gs(t, 0.52, 0.17) * ak : -sa * -(0.012 * gs(t, 0.34, 0.2) * ak + 0.009 * gs(t, 1.0, 0.06))); },
@@ -8008,8 +8011,8 @@ function sculptBody(B, look, H) {
       w: t => { const a = sstep(-0.08, 0.2, t), e = sstep(0.7, 1.04, t) * 0.5; return [[CHE, (1 - a) * 0.6], [SH, (a + (1 - a) * 0.4) * (1 - e)], [EL, e]]; } });
     // forearm: the muscle mass below the elbow on the thumb side, the flexors, a flat wrist
     const fore = [[-0.1, 0.042], [-0.04, 0.044], [0.04, 0.048], [0.12, 0.052], [0.22, 0.053], [0.32, 0.05], [0.45, 0.045], [0.6, 0.039], [0.75, 0.034], [0.88, 0.031], [0.96, 0.03], [1.06, 0.031]];
-    L.push({ side: sgn, piv: pivA, ph: phA, t0: -0.14, t1: 1.04, len: FORE, k: 0.03,
-      c: t => [sx + sgn * 0.004 * gs(t, 0.2, 0.15), sy - UPPER - t * FORE, 0],
+    L.push({ side: sgn, piv: pivA, ph: phA, t0: -0.14, t1: 1.04, len: FA, k: 0.03,
+      c: t => [sx + sgn * 0.004 * gs(t, 0.2, 0.15), sy - UA - t * FA, 0],
       r: (t, a) => { const lat = Math.cos(a) * sgn, sa = Math.sin(a), r = lerpT(fore, t), kk = t < 0.7 ? fk : 1 + (fk - 1) * 0.4;
         const m = (1 + 0.09 * gs(t, 0.16, 0.13) * Math.max(0, 0.7 * lat + 0.7 * sa) + 0.06 * gs(t, 0.22, 0.16) * Math.max(0, -0.7 * lat + 0.7 * sa)) * (1 - 0.12 * sstep(0.6, 0.95, t) * sa * sa);
         return ellR(r * (1.02 + 0.14 * sstep(0.4, 0.95, t)) * kk, r * (1 - 0.1 * sstep(0.45, 0.95, t)) * kk, a) * m + (sa < 0 ? -sa * 0.008 * gs(t, -0.02, 0.07) : 0); },
@@ -8866,12 +8869,13 @@ function mhShape(look) {
     chin: sc((F.chin - 1) * 5 + (rnd(6) - 0.5) * 0.3), brow: cl((F.brow - 1) * 1.2), oval: 0.45 * rnd(7), round: 0.35 * rnd(8), rect: 0.35 * rnd(9) }, look.mh || {});
 }
 function mhGeometry(look) {
-  const D = mhData(), sh = mhShape(look), key = JSON.stringify(sh);
+  const D = mhData(), sh = mhShape(look), kA = (look.build && look.build.armLen) || 1, key = JSON.stringify(kA === 1 ? sh : [sh, kA]);
   if (D.geo[key]) return D.geo[key];
   const N = D.H.N, PS = D.H.PS, DS = D.H.DS, p = new Float32Array(N * 3);
   for (let i = 0; i < N * 3; i++) p[i] = D.pos[i] * PS;
   for (const k of D.H.shapes) { const w = sh[k] || 0; if (!w) continue; const d = D.d[k]; for (let i = 0; i < N * 3; i++) p[i] += d[i] * DS * w; }
   for (const k in D.f) { const w = sh[k] || 0; if (!w) continue; const { i: ix, d } = D.f[k]; for (let n = 0; n < ix.length; n++) { const o = ix[n] * 3; p[o] += d[n * 3] * DS * w; p[o + 1] += d[n * 3 + 1] * DS * w; p[o + 2] += d[n * 3 + 2] * DS * w; } }
+  if (kA !== 1) mhArmLength(p, D, kA, N);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(p, 3));
   g.setIndex(new THREE.BufferAttribute(D.idx, 1));
@@ -8886,6 +8890,29 @@ function mhGeometry(look) {
     g.morphAttributes.position = [new THREE.BufferAttribute(m, 3)]; g.morphTargetsRelative = true; } // (stored as an offset from the closed hand)
   g.computeBoundingSphere();
   return (D.geo[key] = g);
+}
+// (v187) A player's own arm length (build.armLen): the body is bound in the A-pose, arms hanging out along known lines
+// from the shoulders, so each arm vertex is moved with the bones it hangs from - the upper arm and the forearm squeezed
+// along their length toward the shoulder and the (new) elbow, the hand carried up with the wrist. The bones are made
+// the same length (makeModel), so the skin fits them.
+function mhArmLength(p, D, k, N) {
+  const SI = D.si, SW = D.sw;
+  for (const sgn of [-1, 1]) {
+    const th = sgn * BODY_APOSE.arm, dx = Math.sin(th), dy = -Math.cos(th), Sx = sgn * 0.2, Sy = 1.01 + 0.26 + 0.2;
+    const Ex = Sx + dx * UPPER, Ey = Sy + dy * UPPER, Wx = Ex + dx * FORE, Wy = Ey + dy * FORE;
+    const E2x = Sx + dx * UPPER * k, E2y = Sy + dy * UPPER * k, W2x = E2x + dx * FORE * k, W2y = E2y + dy * FORE * k;
+    const bSH = sgn < 0 ? 5 : 8, bEL = bSH + 1, bHA = bSH + 2;
+    for (let i = 0; i < N; i++) {
+      let mx = 0, my = 0, mz = 0, any = false; const x = p[i * 3], y = p[i * 3 + 1];
+      for (let j = 0; j < 4; j++) {
+        const b = SI[i * 4 + j], w = SW[i * 4 + j] / 255; if (!w) continue;
+        if (b === bSH) { const t = (x - Sx) * dx + (y - Sy) * dy; mx += w * (k - 1) * t * dx; my += w * (k - 1) * t * dy; any = true; }
+        else if (b === bEL) { const t = (x - Ex) * dx + (y - Ey) * dy; mx += w * (E2x - Ex + (k - 1) * t * dx); my += w * (E2y - Ey + (k - 1) * t * dy); any = true; }
+        else if (b === bHA) { mx += w * (W2x - Wx); my += w * (W2y - Wy); any = true; }
+      }
+      if (any) { p[i * 3] += mx; p[i * 3 + 1] += my; p[i * 3 + 2] += mz; }
+    }
+  }
 }
 // clothing masks (shared by the vertex shader, which puffs the cloth out, and the fragment shader, which colours it)
 const MH_GLSL = `
@@ -9082,7 +9109,8 @@ function makeModel(look, style) {
   const chest = bone(0, 0.26, 0, torso);             // y 1.27
   const neck = bone(0, 0.28, 0, chest);              // y 1.55
   const headG = bone(0, 0.054, 0, neck);             // y 1.604
-  const mkArm = sgn => { const sh = bone(sgn * 0.2, 0.2, 0, chest); sh.rotation.order = 'XZY'; const elbow = bone(0, -UPPER, 0, sh); const hand = bone(0, -FORE, 0, elbow); return { sh, elbow, hand }; };
+  const kA = (look.build && look.build.armLen) || 1, uL = UPPER * kA, fL = FORE * kA; // (v187: a player's own arm length)
+  const mkArm = sgn => { const sh = bone(sgn * 0.2, 0.2, 0, chest); sh.rotation.order = 'XZY'; const elbow = bone(0, -uL, 0, sh); const hand = bone(0, -fL, 0, elbow); return { sh, elbow, hand }; };
   const armR = mkArm(-1), armL = mkArm(1);
   const mkLeg = sgn => { const hip = bone(sgn * 0.1, HIP_Y, 0, body); const knee = bone(-sgn * 0.005, -THIGH, 0, hip); const foot = bone(0, -SHIN, 0, knee); return { hip, knee, foot }; };
   const legL = mkLeg(1), legR = mkLeg(-1);
@@ -9174,15 +9202,16 @@ function makeModel(look, style) {
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.0163, 0.0175, 0.175, 8), gripM); handle.position.y = -0.0325; racket.add(handle);
     const butt = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.0185, 0.018, 8), M(0x15171b, 0.45)); butt.position.y = 0.062; racket.add(butt);
     const tape = new THREE.Mesh(new THREE.CylinderGeometry(0.0158, 0.0166, 0.009, 8), M(0x15171b, 0.6)); tape.position.y = -0.1215; racket.add(tape);
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0118, 0.0148, 0.032, 8), frameM); shaft.position.y = -0.138; racket.add(shaft);
+    const kT = look.rkThick || 1; // (v187: how thick the frame's beam is - Alcaraz's 30% thicker)
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0118 * kT, 0.0148 * kT, 0.032, 8), frameM); shaft.position.y = -0.138; racket.add(shaft);
     // frame: a deep, narrow beam (scaled torus) in the player's colour with a dark accent along the top and a bumper guard
     // (the throat's arms run from the neck, just above the grip, out to the head)
-    const tL = new THREE.Mesh(new THREE.CylinderGeometry(0.0075, 0.009, 0.198, 8), frameM); tL.position.set(0.034, -0.24, 0); tL.rotation.z = 0.2864; tL.scale.z = 1.6; racket.add(tL);
+    const tL = new THREE.Mesh(new THREE.CylinderGeometry(0.0075 * kT, 0.009 * kT, 0.198, 8), frameM); tL.position.set(0.034, -0.24, 0); tL.rotation.z = 0.2864; tL.scale.z = 1.6; racket.add(tL);
     const tR = tL.clone(); tR.position.x = -0.034; tR.rotation.z = -0.2864; racket.add(tR);
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.012, 0.02), frameM); bridge.position.y = -0.345; racket.add(bridge);
-    const rhead = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.0075, 8, 56), frameM); rhead.position.y = -0.47; rhead.scale.set(1, 1.26, 1.65); racket.add(rhead);
-    const accent = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.0079, 8, 24, Math.PI * 0.62), accentM); accent.position.y = -0.47; accent.scale.set(1, 1.26, 1.7); accent.rotation.z = Math.PI * 0.19; racket.add(accent);
-    const bumper = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.0085, 6, 12, Math.PI * 0.28), accentM); bumper.position.y = -0.47; bumper.scale.set(1, 1.26, 1.4); bumper.rotation.z = -Math.PI / 2 - Math.PI * 0.14; racket.add(bumper);
+    const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.012 * kT, 0.02 * kT), frameM); bridge.position.y = -0.345; racket.add(bridge);
+    const rhead = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.0075 * kT, 8, 56), frameM); rhead.position.y = -0.47; rhead.scale.set(1, 1.26, 1.65); racket.add(rhead);
+    const accent = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.0079 * kT, 8, 24, Math.PI * 0.62), accentM); accent.position.y = -0.47; accent.scale.set(1, 1.26, 1.7); accent.rotation.z = Math.PI * 0.19; racket.add(accent);
+    const bumper = new THREE.Mesh(new THREE.TorusGeometry(0.128, 0.0085 * kT, 6, 12, Math.PI * 0.28), accentM); bumper.position.y = -0.47; bumper.scale.set(1, 1.26, 1.4); bumper.rotation.z = -Math.PI / 2 - Math.PI * 0.14; racket.add(bumper);
     // string bed: a real cross-hatched pattern you can see through
     const strings = new THREE.Mesh(new THREE.CircleGeometry(0.124, 32), new THREE.MeshBasicMaterial({ map: stringTex, transparent: true, alphaTest: 0.08, side: THREE.DoubleSide, depthWrite: false }));
     strings.position.y = -0.47; strings.scale.y = 1.26; racket.add(strings);
@@ -9191,7 +9220,7 @@ function makeModel(look, style) {
     const head = new THREE.Object3D(); head.position.y = -0.47; racket.add(head); racket.userData.head = head;
     racket.userData.throat = throat; racket.userData.tip = tip;
     racket.traverse(o => { if (o.isMesh && o !== strings) o.castShadow = true; });
-    if (look.band) add(armR.elbow, MHB_ ? new THREE.CylinderGeometry(0.031, 0.029, 0.06, 14) : new THREE.CylinderGeometry(0.034, 0.034, 0.06, 12), M(look.band, 0.7), 0, -FORE + 0.045, 0); // wristband
+    if (look.band) add(armR.elbow, MHB_ ? new THREE.CylinderGeometry(0.031, 0.029, 0.06, 14) : new THREE.CylinderGeometry(0.034, 0.034, 0.06, 12), M(look.band, 0.7), 0, -fL + 0.045, 0); // wristband
   }
   headG.rotation.order = 'YXZ';
   scene.add(root);
@@ -9204,7 +9233,7 @@ function makeModel(look, style) {
   if (racket && st.choke) racket.position.addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(racket.quaternion), st.choke / (look.height || 1));
   if (st.hand < 0) root.scale.x = -root.scale.x; // left-handed: mirror the whole player
   const Mo = { root, body, torso, chest, neck, headG, legL, legR, armR, armL, racket, skinned, style: st, look, grip: MHB_ && racket ? MH_GRIPQ : null,
-    run: 0, yaw: 0, idleT: Math.random() * 10, headYaw: 0, headPitch: 0 };
+    run: 0, yaw: 0, idleT: Math.random() * 10, headYaw: 0, headPitch: 0, uL, fL };
   mergeBoneParts(Mo);
   // low-graphics shadows from the body, head and racket only (hands and shoes sit inside the body's shadow and the foot blobs)
   if (look.lod !== 2) addPlanarShadow(Mo.root, o => o.isSkinnedMesh || o.parent === Mo.headG || o.parent === Mo.racket); // staff get theirs once baked
