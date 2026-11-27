@@ -6398,6 +6398,10 @@ function orientRacketHand(Mo, rtW, rnW, dt, fast) {
 // the limit, the hand now gives way the way it was already going, turning on to the new way only at a sane rate.
 const _wq = { t: new THREE.Quaternion(), s: new THREE.Quaternion(), i: new THREE.Quaternion(), r: new THREE.Quaternion(), y: new THREE.Vector3(), y2: new THREE.Vector3() };
 const _rr = { y: new THREE.Vector3(), z: new THREE.Vector3(), zc: new THREE.Vector3(), c: new THREE.Vector3(), Y: new THREE.Vector3(0, 1, 0), q: new THREE.Quaternion(), q0: new THREE.Quaternion(), qt: new THREE.Quaternion(), rw: new THREE.Quaternion(), inv: new THREE.Matrix4() };
+// (the wrist's stop: the bend eases off from ~60 degrees into a hard stop at ~79. v189 tried 52 and 68: the racket then
+//  missed its line by more through the forward swing and caught up at contact - a kink in the head's speed there half
+//  as big again, and jerkier swings)
+const WR_S0 = 1.05, WR_S1 = 1.38;
 function wristLimit(q, mem, dt, fast) {
   const soft = (a, a0, a1) => a <= a0 ? a : a0 + (a1 - a0) * (1 - Math.exp(-(a - a0) / (a1 - a0)));
   {
@@ -6429,12 +6433,12 @@ function wristLimit(q, mem, dt, fast) {
         step = ffw + (da - ffw) * (1 - Math.exp(-(14 + 16 * (1 - deep)) * (1 + 3 * (fast || 0)) * ddt)); if (Math.abs(step) > mx) step = Math.sign(step) * mx; // (quicker within reach, and through contact)
       }
       // (caught up once what is left would move the hand under a degree or so: at a small bend the way round hardly shows)
-      const left = da - step; mem.lag = Math.abs(left) * Math.sin(Math.min(1.57, soft(sa, 1.05, 1.38))) > 0.015;
+      const left = da - step; mem.lag = Math.abs(left) * Math.sin(Math.min(1.57, soft(sa, WR_S0, WR_S1))) > 0.015;
       if (step !== da) { const aa = a0 + step; bx = Math.cos(aa); bz = Math.sin(aa); }
       mem.bx = bx; mem.bz = bz;
       // (the same clamp as below, done on the hand's direction: bent as far as asked or the furthest the wrist goes,
       //  toward bx/bz)
-      const sl = soft(sa, 1.05, 1.38), cs = Math.cos(sl), sn = Math.sin(sl), hy2 = _wq.y2.set(bx * sn, -cs, bz * sn);
+      const sl = soft(sa, WR_S0, WR_S1), cs = Math.cos(sl), sn = Math.sin(sl), hy2 = _wq.y2.set(bx * sn, -cs, bz * sn);
       q.premultiply(_wq.r.setFromUnitVectors(hy, hy2));
       return;
     }
@@ -6446,7 +6450,7 @@ function wristLimit(q, mem, dt, fast) {
   let ta = 2 * Math.atan2(t.y, t.w); if (ta > Math.PI) ta -= 2 * Math.PI; if (ta < -Math.PI) ta += 2 * Math.PI;
   const tl = ta; // (the forearm's turn is left free: this rig's resting twist isn't anatomical neutral, and limiting it pinned the forearm)
   if (sw.w < 0) { sw.x = -sw.x; sw.y = -sw.y; sw.z = -sw.z; sw.w = -sw.w; }
-  const sa = 2 * Math.acos(Math.min(1, sw.w)), sl = soft(sa, 1.05, 1.38);
+  const sa = 2 * Math.acos(Math.min(1, sw.w)), sl = soft(sa, WR_S0, WR_S1);
   if (sl < sa - 1e-4 && sa > 1e-4) { const k = Math.sin(sl / 2) / Math.sin(sa / 2); sw.x *= k; sw.y *= k; sw.z *= k; sw.w = Math.cos(sl / 2); }
   if (Math.abs(tl - ta) > 1e-4) t.set(0, Math.sin(tl / 2), 0, Math.cos(tl / 2));
   q.copy(sw).multiply(t);
@@ -6734,6 +6738,8 @@ function retPath(R, F, Rdy, out) {
 }
 // ---------- the per-frame solve ----------
 const _cc = new THREE.Vector3(), _cw = new THREE.Vector3(), _cv = new THREE.Vector3();
+const _ew = { m: new THREE.Matrix4(), M: new THREE.Matrix4(), q: new THREE.Quaternion(), t: new THREE.Vector3(), x: new THREE.Vector3(), y: new THREE.Vector3(), z: new THREE.Vector3(), n: new THREE.Vector3(), n1: new THREE.Vector3(), m0: new THREE.Vector3(), u: new THREE.Vector3(), f: new THREE.Vector3(), w: new THREE.Vector3(), hx: new THREE.Vector3(), hy: new THREE.Vector3(), hz: new THREE.Vector3(), xf: new THREE.Vector3(), yf: new THREE.Vector3(), zf: new THREE.Vector3() };
+const _tc = { a: new THREE.Vector3(), b: new THREE.Vector3(), w: new THREE.Vector3(), o: new THREE.Vector3(), pole: new THREE.Vector3(), m: new THREE.Matrix4(), r: new THREE.Matrix4(), q0: new THREE.Quaternion(), q1: new THREE.Quaternion() };
 const _sv = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), pole: new THREE.Vector3(), q: new THREE.Quaternion(), e: new THREE.Euler() };
 const _shT = [0, 0, 0, 0]; // (the reach shift's targets: standing [right, forward], on the run [right, forward])
 const wingK = k => k === 'fh' || k === 'sfh' || k === 'dfh' || k === 'vfh' ? 1 : k === 'bh' || k === 'sbh' || k === 'dbh' || k === 'vbh' ? -1 : 0; // (1 forehand side, -1 backhand)
@@ -7498,6 +7504,65 @@ function syncAthlete0(h, Mo, dt) {
   // (the new hands hold the racket in the fist, a hand's length past the wrist and at the grip's angle: the wrist goes
   //  where it has to for the racket to be exactly where the swing puts it)
   if (Mo.grip) gripShift(Mo, wristL, rtW, rnW);
+  // (v189) The elbow helps hold the racket. With the hand where the swing puts it, the elbow can sit anywhere on a
+  //  circle round the shoulder-wrist line, and each stroke's pole picked one point - often one that left the forearm
+  //  pointing well off the way the racket hand had to point: the wrist sat bent at its stop through most forehands'
+  //  forward swings and two-handers' take-backs and finishes, and with the forearm all but still the racket swung and
+  //  turned over on the end of it - the loose, floppy wrist. Now, in the take-back and between strokes, the elbow turns
+  //  round that line (by at most ~40 degrees, easing in and out) to where the hand is least bent off the forearm and
+  //  least turned round on it - the arm carries the racket and the wrist bends less. (Not in the serve or the smash:
+  //  their arm whips up through the ball from a high elbow - turned there it jolted through contact, and in the serve's
+  //  wind-up it made the racket's flick up behind the back no better; nor in the tweener.)
+  if (Mo.grip) {
+    const E = _ew, inv = E.m.copy(Mo.chest.matrixWorld).invert(), T = E.t.copy(wristL).applyMatrix4(inv).sub(Mo.armR.sh.position), cR = T.length();
+    if (Mo.elbPhi === undefined || !isFinite(Mo.elbPhi)) { Mo.elbPhi = 0; Mo.elbPhiV = 0; }
+    let want = 0;
+    // (only in the take-back, between strokes and on the way back to the stance - not in a celebration or a slump:
+    //  turned through the forward swing the racket caught up at the strike - a kink in the head's speed two and a half
+    //  times as big - and through the finish the hand was turned round on the forearm up to 48 degrees in a frame where
+    //  the wrist ran out of bend)
+    if (cR > 1e-3 && !mood && a.kind !== 'srv' && a.kind !== 'oh' && a.kind !== 'tw' && !(swinging && !a.prep)) {
+      const L1 = Mo.uL || UPPER, L2 = Mo.fL || FORE; let c = cR;
+      { const Lm = (L1 + L2) * 0.999, ds = Lm * 0.94; if (c > ds) c = ds + (Lm - ds) * (1 - Math.exp(-(c - ds) / (Lm - ds))); } c = Math.max(Math.abs(L1 - L2) + 0.02, c); // (as twoBone reaches)
+      T.multiplyScalar(1 / cR);
+      const al = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + c * c - L2 * L2) / (2 * L1 * c)))), a1 = c - L1 * Math.cos(al), a2 = L1 * Math.sin(al);
+      // the hand as the racket's aim and the grip want it, in the chest's frame
+      const yv = E.y.copy(rtW).transformDirection(inv).negate(), zv = E.z.copy(rnW).transformDirection(inv); zv.addScaledVector(yv, -zv.dot(yv));
+      const n0 = E.n.crossVectors(T, _sv.pole);
+      if (zv.lengthSq() > 1e-8 && n0.lengthSq() > 1e-8 && a2 > 0.02 * L1) {
+        zv.normalize(); n0.normalize(); const xv = E.x.crossVectors(yv, zv), G = Mo.grip;
+        if (!G.hkx) { G.hkx = new THREE.Vector3(1, 0, 0).applyQuaternion(G.qInv); G.hky = new THREE.Vector3(0, 1, 0).applyQuaternion(G.qInv); }
+        const hX = E.hx.set(0, 0, 0).addScaledVector(xv, G.hkx.x).addScaledVector(yv, G.hkx.y).addScaledVector(zv, G.hkx.z);
+        const hY = E.hy.set(0, 0, 0).addScaledVector(xv, G.hky.x).addScaledVector(yv, G.hky.y).addScaledVector(zv, G.hky.z), hZ = E.hz.crossVectors(hX, hY);
+        // round the circle: the upper arm along T*cos(al) + m*sin(al), m = n x T, the forearm along a1*T - a2*m; the
+        //  forearm's frame as twoBone builds it; the hand on it: how far bent (b) and turned (t) - each only past a
+        //  comfortable ~35 and ~80 degrees
+        const cost = ph => {
+          const n = E.n1.copy(n0).applyAxisAngle(T, ph), m = E.m0.crossVectors(n, T), u = E.u.copy(T).multiplyScalar(Math.cos(al)).addScaledVector(m, Math.sin(al));
+          const f = E.f.copy(T).multiplyScalar(a1).addScaledVector(m, -a2).normalize(), w = E.w.copy(f).addScaledVector(u, -f.dot(u)).normalize();
+          const xf = E.xf.crossVectors(u, w).negate().normalize(), yf = E.yf.copy(f).negate(), zf = E.zf.crossVectors(xf, yf);
+          const b = Math.acos(Math.max(-1, Math.min(1, yf.dot(hY))));
+          E.M.set(xf.dot(hX), xf.dot(hY), xf.dot(hZ), 0, yf.dot(hX), yf.dot(hY), yf.dot(hZ), 0, zf.dot(hX), zf.dot(hY), zf.dot(hZ), 0, 0, 0, 0, 1);
+          const q = E.q.setFromRotationMatrix(E.M); let t = Math.abs(2 * Math.atan2(q.y, q.w)); if (t > Math.PI) t = 2 * Math.PI - t;
+          const eb = Math.max(0, b - 0.6), et = Math.max(0, t - 1.4);
+          return eb * eb + et * et + 0.03 * ph * ph + 0.15 * (ph - Mo.elbPhi) * (ph - Mo.elbPhi);
+        };
+        let best = 0, bc = Infinity;
+        for (let k = -8; k <= 8; k++) { const ph = 0.7 * k / 8, cc = cost(ph); if (cc < bc) { bc = cc; best = ph; } }
+        // (eased in as the arm bends: a straight arm's elbow turning round its own line changes nothing)
+        want = best * smooth(Math.max(0, Math.min(1, a2 / L1 / 0.35)));
+      }
+    }
+    // (on a spring, and never turning faster than ~2.5 degrees a frame)
+    { const p0 = Mo.elbPhi; Mo.elbPhi = spring(p0, Mo.elbPhiV, want, 10, dt); Mo.elbPhiV = _spV; const mx = 2.5 * dt;
+      if (Math.abs(Mo.elbPhi - p0) > mx) { Mo.elbPhi = p0 + Math.sign(Mo.elbPhi - p0) * mx; Mo.elbPhiV = Math.sign(Mo.elbPhiV) * Math.min(Math.abs(Mo.elbPhiV), 2.5); } }
+    // (from the take-back into the forward swing it goes back to the stroke's own elbow by the swing's clock, over its
+    //  first few frames, so none of it is left by contact)
+    const fw = swinging && !a.prep ? smooth(Math.max(0, Math.min(1, (a.s - 0.15) / 0.07))) : 0;
+    const phE = Mo.elbPhi * (1 - fw);
+    if (Math.abs(phE) > 1e-4 && cR > 1e-3) _sv.pole.applyAxisAngle(E.t.copy(wristL).applyMatrix4(inv).sub(Mo.armR.sh.position).normalize(), phE);
+  }
+  (Mo.poleR || (Mo.poleR = new THREE.Vector3())).copy(_sv.pole); // (the closure below solves this arm again with it)
   twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, Mo.uL || UPPER, Mo.fL || FORE, wristL, _sv.pole, 1, 1, Mo.ikR || (Mo.ikR = {}), dt);
   Mo.armR.sh.updateMatrixWorld(true);
   const fastC = swinging && !a.prep ? Math.exp(-Math.pow((a.s - (a.kind === 'srv' ? 0.6 : CONTACT_S)) / 0.035, 2)) : 0;
@@ -7635,15 +7700,56 @@ function syncAthlete0(h, Mo, dt) {
     // (v173: a two-hander's top hand sits right above the bottom one - the strokes' "on the grip" (0.14) was drawn for
     //  the old, longer handle and left a hand's width of bare grip between the two; the throat (0.3 and up) is where it was)
     const gp = Mo.grip ? (S.gp <= 0.14 ? 0.085 : S.gp >= 0.3 ? S.gp : 0.085 + (S.gp - 0.14) * (0.3 - 0.085) / 0.16) : S.gp;
-    Mo.racket.localToWorld(_sv.c.set(0, -gp, 0));
-    if (Mo.grip) {
-      // turn last frame's hand so its fist lines up with the racket's handle, and put the wrist where that fist then
-      // closes on the grip point (scale and a left-hander's mirror included)
-      const mw = Mo.armL.hand.matrixWorld;
-      _gx.copy(Mo.grip.axL).transformDirection(mw); _gy.set(0, -1, 0).transformDirection(Mo.racket.matrixWorld);
-      Mo.gripLq = (Mo.gripLq || new THREE.Quaternion()).setFromUnitVectors(_gx, _gy);
-      _gv.copy(Mo.grip.cL).applyMatrix4(mw); _gz.setFromMatrixPosition(mw); _gv.sub(_gz).applyQuaternion(Mo.gripLq);
-      _sv.c.sub(_gv); Mo.gripLm = (Mo.gripLm || new THREE.Matrix4()).extractRotation(mw).premultiply(_gm.makeRotationFromQuaternion(Mo.gripLq));
+    const gripAt = () => {
+      Mo.racket.localToWorld(_sv.c.set(0, -gp, 0));
+      if (Mo.grip) {
+        // turn last frame's hand so its fist lines up with the racket's handle, and put the wrist where that fist then
+        // closes on the grip point (scale and a left-hander's mirror included)
+        const mw = Mo.armL.hand.matrixWorld;
+        _gx.copy(Mo.grip.axL).transformDirection(mw); _gy.set(0, -1, 0).transformDirection(Mo.racket.matrixWorld);
+        Mo.gripLq = (Mo.gripLq || new THREE.Quaternion()).setFromUnitVectors(_gx, _gy);
+        _gv.copy(Mo.grip.cL).applyMatrix4(mw); _gz.setFromMatrixPosition(mw); _gv.sub(_gz).applyQuaternion(Mo.gripLq);
+        _sv.c.sub(_gv); Mo.gripLm = (Mo.gripLm || new THREE.Matrix4()).extractRotation(mw).premultiply(_gm.makeRotationFromQuaternion(Mo.gripLq));
+      }
+    };
+    gripAt();
+    // (v189) ...and the racket stays where that hand can hold it. Through contact and on into the follow-through the
+    //  two-handers' swings took the racket 10-30 cm further out than the free arm reaches (the racket arm just went
+    //  straight), and the top hand let go of the handle and hung in the air beside it for 5-10 frames - every two-hander,
+    //  every backhand. Now, as far as the free arm is short, the racket comes in toward that shoulder: the racket arm is
+    //  solved again to its wrist moved by as much, the racket hand keeping its turn in the world, so the racket only
+    //  slides. (Eased in over the last 5 cm of the free arm's reach.)
+    {
+      // (only for a hand that is holding on: one hovering by the racket, half let go, doesn't pull it in)
+      const T = _tc.a.copy(_sv.c).applyMatrix4(_tc.m.copy(Mo.chest.matrixWorld).invert()).sub(Mo.armL.sh.position), c = T.length();
+      const R = 0.975 * 0.999 * ((Mo.uL || UPPER) + (Mo.fL || FORE) + 0.02), dl = 0.025, gw = smooth(Math.max(0, Math.min(1, (lgW - 0.6) / 0.35)));
+      const ex = (c <= R - dl ? 0 : c >= R + dl ? c - R : (c - R + dl) * (c - R + dl) / (4 * dl)) * gw;
+      if (ex > 1e-4 && c > 1e-3) {
+        const hand = Mo.armR.hand; hand.updateMatrixWorld(true);
+        Mo.armL.sh.getWorldPosition(_tc.b); const wr = _tc.w.setFromMatrixPosition(hand.matrixWorld);
+        wr.addScaledVector(_tc.b.sub(_sv.c), ex / c); // (toward the free shoulder by what that arm is short, in world units)
+        _tc.r.extractRotation(hand.matrixWorld); _tc.q0.copy(hand.quaternion);
+        _tc.pole.copy(Mo.poleR);
+        twoBone(Mo.chest, Mo.armR.sh, Mo.armR.elbow, Mo.uL || UPPER, Mo.fL || FORE, wr, _tc.pole, 1, 1, Mo.ikR || (Mo.ikR = {}), 0);
+        Mo.armR.sh.updateMatrixWorld(true);
+        const q1 = _tc.q1.setFromRotationMatrix(_tc.m.extractRotation(Mo.armR.elbow.matrixWorld).invert().multiply(_tc.r));
+        // (...but never bending the wrist much past its stop, or past how far it was bent: over that, the bend eases into
+        //  at most ~9 degrees more and the racket turns that little bit with the arm - a hard stop there switched in and
+        //  out and turned the hand 45 degrees in a frame)
+        const sq = q1.x * q1.x + q1.z * q1.z, sa = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * sq))), b0 = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (_tc.q0.x * _tc.q0.x + _tc.q0.z * _tc.q0.z))));
+        const cap = Math.max(WR_S1, b0);
+        if (sa > cap && sa > 1e-4) {
+          // (the bend scaled down about its own direction, the twist about the forearm kept: q = twist * swing)
+          const tl = Math.hypot(q1.y, q1.w) || 1, ty = q1.y / tl, tw = q1.w / tl, sl = cap + 0.15 * (1 - Math.exp(-(sa - cap) / 0.15));
+          let sx = q1.x * tw - q1.z * ty, sz = q1.z * tw + q1.x * ty, sww = q1.w * tw + q1.y * ty; // (swing = twist^-1 * q: x, z and w; its y is 0)
+          if (sww < 0) { sx = -sx; sz = -sz; sww = -sww; }
+          const k = Math.sin(sl / 2) / Math.max(1e-6, Math.hypot(sx, sz)); sx *= k; sz *= k; sww = Math.cos(sl / 2);
+          // (twist * swing again)
+          hand.quaternion.set(sx * tw + sz * ty, sww * ty, sz * tw - sx * ty, sww * tw);
+        } else hand.quaternion.copy(q1);
+        hand.updateMatrixWorld(true);
+        gripAt(); // (where the grip has gone)
+      }
     }
     lhW.lerp(_sv.c, lgW);
   }
@@ -7655,7 +7761,9 @@ function syncAthlete0(h, Mo, dt) {
   Mo.armL.hand.rotation.set(0.2, 0, 0);
   if (Mo.grip) {
     const g = Mo.racket && lgW > 0.01 ? lgW : 0;
-    if (g > 0 && Mo.gripLm) { Mo.armL.elbow.updateMatrixWorld(true); _gm.extractRotation(Mo.armL.elbow.matrixWorld).invert().multiply(Mo.gripLm); _gq.setFromRotationMatrix(_gm); Mo.armL.hand.quaternion.slerp(_gq, g); }
+    // (v189: from the shoulder down - the forearm's turn in the world was worked out from the shoulder as it was last
+    //  frame, and through a two-hander's swing the fist was turned up to 36 degrees off the handle)
+    if (g > 0 && Mo.gripLm) { Mo.armL.sh.updateMatrixWorld(true); _gm.extractRotation(Mo.armL.elbow.matrixWorld).invert().multiply(Mo.gripLm); _gq.setFromRotationMatrix(_gm); Mo.armL.hand.quaternion.slerp(_gq, g); }
     if (Mo.skinned.morphTargetInfluences) Mo.skinned.morphTargetInfluences[0] = 1 - smooth(Math.min(1, g * 1.4)); // (open when it lets go)
   }
   // ---- 9. head: track the ball, hold still on the contact point after hitting ----
