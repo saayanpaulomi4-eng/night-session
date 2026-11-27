@@ -755,6 +755,10 @@ function createSim(H, cfg) {
   // each server has their own toss: height, and how far up it they like to strike it (1 = at the top)
   const tossVy = h => h.prof.tossVy || TOSS_VY, tossIdeal = h => tossVy(h) / G * (h.prof.tossHit || 1);
   const SWING_DELAY = 0.1, CF = 0.6; // CF: contact point distance in front of the body
+  // (v188) the takeback's loop clock for a groundstroke, u from 0 (0.75 s before the ball) to 1 (0.25 s, as the forward
+  //  swing sets off): even to start with (0.3 of its average pace), gathering to 1.2 of it at the end - 0.36 a second.
+  //  (The friend's swing replayed online uses the same curve: loopS in nightSessionBoot)
+  const loopS = u => (u * (0.3 + u * (1.2 - 0.5 * u))) * 0.15;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const rand = (a, b) => a + Math.random() * (b - a);
   const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
@@ -1476,7 +1480,7 @@ function createSim(H, cfg) {
     ball.bounces = 0; ball.rolling = false; ball.netTouched = ball.netHit = false; ball.wall = false; ball.ev = .6; ball.fh = .6;
     // (v186: cp cleared - the last serve's contact point stayed set through the next serve, so the contact pass and the head's
     //  lock aimed at it and the racket was treated as past the strike from the toss on)
-    Object.assign(h.anim, { kind: 'srv', s: 0, cap: 0.4, rate: 0.4 / Math.max(0.3, tossIdeal(h) - 0.02), active: true, cp: undefined });
+    Object.assign(h.anim, { kind: 'srv', s: 0, cap: 0, rate: 0, pace: 0.57 / Math.max(0.3, tossIdeal(h)), active: true, cp: undefined }); // (v188: the clock is run from the toss's own time - see animOne)
     H.sfx('toss', ball.x);
   }
   function reToss() {
@@ -1803,7 +1807,9 @@ function createSim(H, cfg) {
     h.pending = null; h.charging = false; h.awaitPress = false;
     const a = h.anim;
     a.prep = false;
-    if (info.serve) { a.kind = 'srv'; a.cap = 1; a.active = true; a.fwd = false; a.baseRate = 1.7; if (a.s < 0.56) { a.boostTo = 0.6; a.rate = Math.max(1.7, (0.6 - a.s) / 0.08); } else { a.boostTo = 0; a.rate = 1.7; } }
+    // (v188: the follow-through at 1.35 a second, not 1.7 - re-timed by distance (buildSrvWarp), at 1.7 it was over in a tenth of
+    //  a second; and on from the toss's own pace, about 1.1, without a jump to half as fast again two frames before contact)
+    if (info.serve) { a.kind = 'srv'; a.cap = 1; a.active = true; a.fwd = false; a.baseRate = 1.35; if (a.s < 0.555) { a.boostTo = 0.6; a.rate = Math.max(1.35, (0.6 - a.s) / 0.08); } else { a.boostTo = 0; a.rate = 1.35; } }
     else {
       const f = info.side > 0;
       const k = info.tweener ? 'tw' : info.smash ? 'oh' : info.volley ? (f ? 'vfh' : 'vbh') : info.type === 'drop' ? (f ? 'dfh' : 'dbh') : info.type === 'slice' ? (f ? 'sfh' : 'sbh') : (f ? 'fh' : 'bh');
@@ -2540,13 +2546,16 @@ function createSim(H, cfg) {
       }
       // takeback keeps moving as the ball comes: in the last half second the racket starts into its loop
       // (instead of a frozen pose until the forward swing)
-      // groundstrokes: over the last ~0.5 s the racket travels on round the back of the loop (to about a third of the
-      // way to contact), eased in and out, so the takeback flows into the forward swing instead of a held pose
-      // followed by a sudden swing
+      // groundstrokes: over the last ~0.5 s the racket travels on round the back of the loop (the clock to 0.15, which the
+      // pose spreads over the loop up to the player's prepCap), so the takeback flows into the forward swing instead of a
+      // held pose followed by a sudden swing
+      // (v188: at an even pace, a little quicker toward the end, and still moving as the forward swing sets off - which
+      //  leaves the loop at the loop's own speed (see buildWarp). It used to ease in and out, to a stop at the back of the
+      //  loop just as the forward swing set off, and then the swing's re-timing took the racket back along its path)
       if (a.prep && a.active && inc && a.kind !== 'oh') { const tc = timeToCrossExact(h); if (isFinite(tc)) {
         const gs = a.kind === 'fh' || a.kind === 'bh', u = Math.max(0, Math.min(1, gs ? (0.75 - tc) / 0.5 : (0.6 - tc) / 0.4));
-        const want = gs ? u * u * (3 - 2 * u) * 0.15 : u * 0.09;
-        if (want > a.s) { a.s = Math.min(want, a.s + (gs ? 0.45 : 0.6) * dt); a.cap = Math.max(a.cap, a.s); } } }
+        const want = gs ? loopS(u) : u * 0.09;
+        if (want > a.s) { a.s = Math.min(want, a.s + (gs ? 0.6 : 0.6) * dt); a.cap = Math.max(a.cap, a.s); } } }
       // forward swing: pace it so the racket reaches the contact pose exactly when the ball arrives
       if (a.fwd && a.active && inc) {
         const tc = tcFor(h);
@@ -2563,20 +2572,28 @@ function createSim(H, cfg) {
           //  early, swung through before the ball got there)
           const r = (0.42 - Math.min(0.05, (a.fwdRate || 1.1) / 40) - a.s) / Math.max(0.03, tc);
           if (!a.fwdRate) { a.fwdRate = Math.max(0.9, Math.min(6, r)); a.rate = Math.max(0.7 * a.fwdRate, Math.min(8, r)); }
-          else { const want = Math.max(0.7 * a.fwdRate, Math.min(8, r)); a.rate = want > a.rate ? want : Math.max(want, a.rate - 10 * dt); }
+          // (v188: and eased off more gently still - at most 3 a second, a twentieth a frame: 10 a second still took the pace
+          //  down by a third over the last two frames before the ball, and back up at the strike - the racket slowed into the
+          //  ball and then jumped through it)
+          else { const want = Math.max(0.7 * a.fwdRate, Math.min(8, r)); a.rate = want > a.rate ? want : Math.max(want, a.rate - 3 * dt); }
         }
         else if (a.s >= 0.4) { a.fwd = false; a.cap = 1; a.rate = 2.0; } // the ball went by without a strike: finish the swing
       } else if (a.fwd && !inc) { a.fwd = false; a.cap = 1; a.rate = 2.0; }
       if (a.boostTo && a.s >= a.boostTo) a.boostTo = 0;
       // after contact the pace eases to the stroke's own finish speed (no step change in racket speed)
       if (a.active && !a.fwd && !a.prep && !a.boostTo && a.baseRate && a.kind !== 'srv' && a.s > 0.3) a.rate += (a.baseRate - a.rate) * Math.min(1, dt * 7);
-      // serve: reach the trophy position ~0.27 s before the ideal strike, then let the racket drop down the back and
-      // swing up as the toss falls, so the motion arrives at contact as the ball is struck (not 80 ms after it)
+      // serve (v188): the swing clock runs evenly from the toss to the ideal strike (0.57 there - the strike carries it on to
+      //  contact at 0.6 at the serve's own pace); a late strike finds it creeping on toward contact and waiting there.
+      //  How fast the racket moves along the way is the serve's own re-timing (buildSrvWarp): a wind-up that starts
+      //  gently and slows into the trophy without stopping there, then the drop and the swing up gathering speed into
+      //  the ball. (It used to run to the trophy at 2.4 a second - the racket head flung round at ~30 m/s in a sixth of a
+      //  second - and wait there, frozen, until the drop.) a.pace is the clock's speed, for the pose's look-ahead.
       if (a.kind === 'srv' && S.phase === 'toss' && S.srvAth === h.idx && a.cap < 1) {
-        const ti = tossIdeal(h), el = S.t - S.tossStart, tT = Math.max(0.25, ti - 0.27);
-        const want = el < tT ? 0.4 * el / tT : 0.4 + 0.18 * Math.min(1, (el - tT) / Math.max(0.1, ti - tT));
-        a.cap = Math.max(a.cap, Math.min(0.58, want)); a.rate = Math.max(a.rate, 2.4);
-      }
+        const ti = Math.max(0.3, tossIdeal(h)), el = Math.max(0, S.t - S.tossStart), k = 0.57 / ti;
+        const want = el <= ti ? k * el : 0.6 - 0.03 * Math.exp(-(el - ti) * k / 0.03);
+        if (want > a.s) a.s = want;
+        a.cap = Math.max(a.cap, a.s); a.rate = 0; a.pace = el <= ti ? k : k * Math.exp(-(el - ti) * k / 0.03);
+      } else if (a.pace !== undefined) a.pace = undefined;
       if (a.active) {
         // (v184: a forward swing waiting for a late ball eases into its hold instead of stopping dead at it)
         // (and a serve eases into the trophy position instead of arriving at full speed and stopping dead there)
@@ -4971,6 +4988,8 @@ const wrapPi = a => a - TAU * Math.floor((a + Math.PI) / TAU);
 // arm segments (shoulder-elbow, elbow-wrist): about a third of standing height, as on a real 1.85 m player
 const UPPER = 0.315, FORE = 0.28, ARM = UPPER + FORE;
 const CONTACT_S = 0.42;
+// (v188) the takeback's loop clock for a groundstroke, as the sim runs it (createSim's loopS) - for the friend's swing online
+const loopS = u => (u * (0.3 + u * (1.2 - 0.5 * u))) * 0.15;
 const _rs = { a: new THREE.Vector3(), b: new THREE.Vector3() };
 // Real players swing with long levers: the hitting hand stays well away from the body through the takeback, the
 // drop, contact and the extension toward the target (only the wrap finish comes back in round the shoulder).
@@ -5920,45 +5939,100 @@ for (const k in STYLES) { const st = STYLES[k]; st.contactRh = {}; for (const ki
 // was fastest just BEFORE the ball and then lost half its speed in one frame at contact - the swing looked like it
 // hit a wall. Here the forward swing is re-paced so the head speeds up smoothly into the ball, is fastest through
 // contact, and slows down smoothly through the finish (contact still lands at the same moment of the stroke).
-const WARP_N = 240, WARP_S0 = 0.1;
+// (v188) A forehand's or backhand's table starts where the takeback's loop ends - clock WARP_SL, which the loop maps
+// evenly onto the keys up to that player's prepCap (see prepKeyS) - and the forward swing leaves it at the loop's own
+// pace. The table used to start at 0.1 from standing still, behind where the loop had already taken the racket: as
+// the forward swing set off, the racket went back along its path for a few frames, stopped, then set off again.
+// Each table is { s0: clock where it starts, k0: key it starts at, t: keys for the clock from s0 to 1 }.
+const WARP_N = 240, WARP_S0 = 0.1, WARP_SL = 0.15;
 function buildWarp(st, kind, arm) {
   const k = st.keys[kind]; if (!k) return null;
+  const loop = (kind === 'fh' || kind === 'bh') && st.prepCap && st.prepCap[kind] > 0.02;
+  const S0 = loop ? WARP_SL : WARP_S0, K0 = loop ? st.prepCap[kind] : WARP_S0, kS = Math.min(K0, WARP_S0);
   // "distance" travelled = racket head + hand (counted double) + the turn of the shoulders and hips, so a phase
   // where the head barely moves but the body unwinds (the drop and lag) still gets its share of time
   const T = cloneSpec(st.readySpec), M = 600, cum = [0], feat = p => { sampleTrack(k, p, T); const n = Math.hypot(T.rt[0], T.rt[1], T.rt[2]) || 1; return [T.rh[0] + T.rt[0] / n * 0.6, T.rh[1] + T.rt[1] / n * 0.6, T.rh[2] + T.rt[2] / n * 0.6, T.rh[0], T.rh[1], T.rh[2], T.sy, T.hy]; };
-  let prev = feat(WARP_S0);
+  let prev = feat(kS);
   for (let i = 1; i <= M; i++) {
-    const q = feat(WARP_S0 + (1 - WARP_S0) * i / M);
-    // (the body's turn counts fully while the hips and shoulders start the swing and through the finish, but only a
-    // little in the last part of the forward swing: there the racket head itself must speed up all the way into the
-    // ball - when the turn counted fully, the head visibly slowed mid-swing while the hips unwound, then whipped)
+    const q = feat(kS + (1 - kS) * i / M);
     // (the body's turn counts fully while the hips and shoulders start the swing and through the finish, but only a
     // little in the last part of the forward swing, and the hand counts less there too: the racket head itself must
     // speed up all the way into the ball - when the turn counted fully, the head visibly slowed mid-swing while the
     // hips unwound, then whipped through)
-    const sv = WARP_S0 + (1 - WARP_S0) * i / M, wY = sv < 0.27 ? 1 : sv < 0.35 ? 1 - 0.8 * (sv - 0.27) / 0.08 : sv < 0.46 ? 0.2 : sv < 0.6 ? 0.2 + 0.8 * (sv - 0.46) / 0.14 : 1;
+    const sv = kS + (1 - kS) * i / M, wY = sv < 0.27 ? 1 : sv < 0.35 ? 1 - 0.8 * (sv - 0.27) / 0.08 : sv < 0.46 ? 0.2 : sv < 0.6 ? 0.2 + 0.8 * (sv - 0.46) / 0.14 : 1;
     const wH = 2 - 1.5 * (1 - wY) / 0.8;
     const d = Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]) + wH * Math.hypot(q[3] - prev[3], q[4] - prev[4], q[5] - prev[5]) + wY * (0.45 * Math.abs(q[6] - prev[6]) + 0.35 * Math.abs(q[7] - prev[7]));
     cum.push(cum[i - 1] + d); prev = q;
   }
-  const ci = Math.round((CONTACT_S - WARP_S0) / (1 - WARP_S0) * M), La = cum[ci], Lb = cum[M] - La;
-  if (La < 0.15 || Lb < 0.15) return null;
-  const soft = kind[0] === 'd' || kind[0] === 'v', c = CONTACT_S, s0 = WARP_S0;
+  const cumAt = x => { const f = Math.max(0, Math.min(M, (x - kS) / (1 - kS) * M)), i = Math.min(M - 1, Math.floor(f)); return cum[i] + (cum[i + 1] - cum[i]) * (f - i); };
+  const Dc = cumAt(CONTACT_S), DK = cumAt(K0), La = Dc - DK, La0 = Dc - cumAt(WARP_S0), Lb = cum[M] - Dc;
+  if (La < 0.15 || La0 < 0.15 || Lb < 0.15) return null;
+  const soft = kind[0] === 'd' || kind[0] === 'v', c = CONTACT_S, s0 = S0;
   // speed into contact grows like u^a, out of it falls like (1-u)^m, with the same speed on both sides of the ball
-  let a = soft ? 1.4 : 1.8, m = 0;
-  for (let it = 0; it < 8; it++) { m = (a + 1) * La * (1 - c) / ((c - s0) * Lb) - 1; if (m < 0.8) a += 0.25; else if (m > (soft ? 9 : 4.5)) a -= 0.25; else break; a = Math.max(0.8, Math.min(3.2, a)); }
+  // (worked out as it always was - from 0.1 at rest - so the stroke after contact keeps its timing: v188 tried it
+  //  with the loop's start below, and Zverev's forehand finish, where the wrist is asked to fold right back, was
+  //  re-timed into a run of 60-95 degree rolls of the racket about its handle)
+  let a0 = soft ? 1.4 : 1.8, m = 0;
+  for (let it = 0; it < 8; it++) { m = (a0 + 1) * La0 * (1 - c) / ((c - WARP_S0) * Lb) - 1; if (m < 0.8) a0 += 0.25; else if (m > (soft ? 9 : 4.5)) a0 -= 0.25; else break; a0 = Math.max(0.8, Math.min(3.2, a0)); }
   m = Math.max(0.6, Math.min(soft ? 10 : 5, m));
+  // (v188) a forehand or backhand starts where the loop ends (K0, at clock S0) at the loop's own pace in keys per unit of
+  //  clock (K0 / S0 - and the loop ends at 0.36 a second, loopS, the forward swing paced at about 1: so 0.4 of it): a
+  //  share b of the way to contact covered at that even pace, the rest speeding up into the ball like u^a, to the same
+  //  speed through contact as before
+  const dP = (cumAt(K0 + 0.01) - DK) / 0.01, b = loop ? Math.max(0, Math.min(0.45, 0.4 * K0 / S0 * dP * (c - s0) / La)) : 0;
+  const a = loop ? Math.max(0.5, Math.min(3.5, (Lb * (m + 1) / (1 - c) * (c - s0) / La - b) / (1 - b) - 1)) : a0;
   const out = new Float32Array(WARP_N + 1);
   let j = 0;
   for (let i = 0; i <= WARP_N; i++) {
-    const sv = s0 + (1 - s0) * i / WARP_N;
-    const D = sv <= c ? La * Math.pow((sv - s0) / (c - s0), a + 1) : La + Lb * (1 - Math.pow(1 - (sv - c) / (1 - c), m + 1));
+    const sv = s0 + (1 - s0) * i / WARP_N, u = (sv - s0) / (c - s0);
+    const D = DK + (sv <= c ? La * (b * u + (1 - b) * Math.pow(u, a + 1)) : La + Lb * (1 - Math.pow(1 - (sv - c) / (1 - c), m + 1)));
     while (j < M - 1 && cum[j + 1] < D) j++;
     const f = cum[j + 1] > cum[j] ? Math.max(0, Math.min(1, (D - cum[j]) / (cum[j + 1] - cum[j]))) : 0;
-    out[i] = s0 + (1 - s0) * (j + f) / M;
+    out[i] = kS + (1 - kS) * (j + f) / M;
   }
-  out[0] = s0; out[WARP_N] = 1;
-  return out;
+  out[0] = K0; out[WARP_N] = 1;
+  return { s0, k0: K0, t: out };
+}
+// (v188) The serve re-timed the same way, by the distance its racket, hands and body travel. Its keys are evenly spaced
+// in s, so at an even pace the racket head was flung round the wind-up (up to ~50 m/s for a frame on the way to the
+// trophy), stalled through the drop, and in the follow-through slowed to a few m/s and then sped up again. Now the
+// wind-up starts gently, peaks and slows into the trophy - passing through it at a quarter of its average pace, not
+// stopping - the drop and the swing up gather speed into contact, and the follow-through slows all the way to the
+// finish. The trophy stays at 0.4 and contact at 0.6.
+function buildSrvWarp(st) {
+  const k = st.keys.srv; if (!k) return null;
+  const T = cloneSpec(st.readySpec), M = 600, cum = [0];
+  const feat = p => { sampleTrack(k, p, T); const n = Math.hypot(T.rt[0], T.rt[1], T.rt[2]) || 1; return [T.rh[0] + T.rt[0] / n * 0.6, T.rh[1] + T.rt[1] / n * 0.6, T.rh[2] + T.rt[2] / n * 0.6, T.rh[0], T.rh[1], T.rh[2], T.lh[0], T.lh[1], T.lh[2], T.sy, T.hy, T.cr, T.lift || 0]; };
+  let prev = feat(0);
+  for (let i = 1; i <= M; i++) {
+    const q = feat(i / M);
+    // (the largest of the racket head's, the hitting hand's, the tossing hand's and the body's moves counts, plus a little of
+    //  the rest: summed, the head still burst through where it swings round the hand while the hand itself barely moves)
+    const dd = [Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]), 2 * Math.hypot(q[3] - prev[3], q[4] - prev[4], q[5] - prev[5]), 0.6 * Math.hypot(q[6] - prev[6], q[7] - prev[7], q[8] - prev[8]),
+      0.45 * Math.abs(q[9] - prev[9]) + 0.35 * Math.abs(q[10] - prev[10]) + 0.8 * Math.abs(q[11] - prev[11]) + 0.8 * Math.abs(q[12] - prev[12])];
+    const d = Math.max(dd[0], dd[1], dd[2], dd[3]) + 0.25 * (dd[0] + dd[1] + dd[2] + dd[3]);
+    cum.push(cum[i - 1] + d); prev = q;
+  }
+  const iT = Math.round(0.4 * M), iC = Math.round(0.6 * M), L1 = cum[iT], L2 = cum[iC] - L1, L3 = cum[M] - cum[iC];
+  if (L1 < 0.1 || L2 < 0.1 || L3 < 0.1) return null;
+  // wind-up: distance x^2 (3 - k1) + x^3 (k1 - 2) - from rest, ending at k1 of its average pace; the drop starts at that
+  // pace (b) and speeds up like u^a; the follow-through falls like (1-u)^m, at the same pace either side of contact
+  const k1 = 0.25, b = Math.min(0.6, k1 * L1 / 0.4 * 0.2 / L2);
+  let a = 1.6, m = 0;
+  for (let it = 0; it < 10; it++) { m = L2 * (b + (1 - b) * (a + 1)) / 0.2 * 0.4 / L3 - 1; if (m < 1) a += 0.2; else if (m > 3.2) a -= 0.2; else break; a = Math.max(1, Math.min(4, a)); }
+  m = Math.max(0.6, Math.min(5, m));
+  const out = new Float32Array(WARP_N + 1); let j = 0;
+  for (let i = 0; i <= WARP_N; i++) {
+    const s = i / WARP_N; let D;
+    if (s <= 0.4) { const x = s / 0.4; D = L1 * ((3 - k1) * x * x + (k1 - 2) * x * x * x); }
+    else if (s <= 0.6) { const x = (s - 0.4) / 0.2; D = L1 + L2 * (b * x + (1 - b) * Math.pow(x, a + 1)); }
+    else { const x = (s - 0.6) / 0.4; D = L1 + L2 + L3 * (1 - Math.pow(1 - x, m + 1)); }
+    while (j < M - 1 && cum[j + 1] < D) j++;
+    const f = cum[j + 1] > cum[j] ? Math.max(0, Math.min(1, (D - cum[j]) / (cum[j + 1] - cum[j]))) : 0;
+    out[i] = (j + f) / M;
+  }
+  out[0] = 0; out[WARP_N] = 1;
+  return { s0: 0, k0: 0, t: out, p: [L1, L2, L3, a, m, b] };
 }
 // The "lag" key of each forehand / backhand (racket head trailing low behind the hand, just before it whips through)
 // is eased part of the way toward the contact direction: authored at full lag, the head all but stopped there while the
@@ -5974,20 +6048,32 @@ for (const k in STYLES) {
     K[li][1] = Object.assign({}, K[li][1], { rt: slerpDir(K[li][1].rt, K[ni][1].rt, E[j], [0, 0, 0]) });
   });
 }
-for (const k in STYLES) { const st = STYLES[k]; st.warp = {}; st.warpA = {}; for (const kind of ['fh', 'bh', 'sfh', 'sbh', 'dfh', 'dbh', 'vfh', 'vbh']) { if (st.keepTiming && st.keepTiming.includes(kind)) continue; /* (timed as drawn: re-pacing by distance skipped the held 'stick' of Federer's volleys) */ const w = buildWarp(st, kind); if (w) st.warp[kind] = w; } }
 // how far each takeback may travel round its loop while the ball is still coming (see updateAnims): up to the point
 // where that player's racket head starts to point down into the slot - some players drop it early, and holding a
 // dropped racket by the feet for half a second looks wrong
+// (v188: worked out before the re-timing tables below, which start from it)
 for (const k in STYLES) { const st = STYLES[k]; st.prepCap = {}; const t = cloneSpec(st.readySpec);
   for (const kind of ['fh', 'bh']) { const tr = st.keys[kind]; if (!tr) continue; let cap = 0;
     let tip0 = null; for (let u = 0; u <= 0.1501; u += 0.005) { sampleTrack(tr, u, t); const tip = t.rt[1] / (Math.hypot(t.rt[0], t.rt[1], t.rt[2]) || 1); if (tip0 === null) tip0 = tip; if (tip < Math.min(0.25, tip0 - 0.15)) break; cap = u; }
     st.prepCap[kind] = cap; } }
+for (const k in STYLES) { const st = STYLES[k]; st.warp = {}; st.warpA = {}; for (const kind of ['fh', 'bh', 'sfh', 'sbh', 'dfh', 'dbh', 'vfh', 'vbh']) { if (st.keepTiming && st.keepTiming.includes(kind)) continue; /* (timed as drawn: re-pacing by distance skipped the held 'stick' of Federer's volleys) */ const w = buildWarp(st, kind); if (w) st.warp[kind] = w; }
+  const ws = buildSrvWarp(st); if (ws) st.warp.srv = ws; }
+// (v188) the key a takeback is at for swing clock s: the loop runs evenly over the keys up to the player's prepCap as the
+// clock goes to WARP_SL, the same mapping the forward swing's table starts from (see buildWarp)
+function prepKeyS(st, kind, s) {
+  const W = st && st.warp && st.warp[kind];
+  if (W && W.s0 === WARP_SL) return Math.min(s, W.s0) * W.k0 / W.s0;
+  return st && st.prepCap && st.prepCap[kind] !== undefined ? Math.min(s, st.prepCap[kind]) : s;
+}
 function warpArm(st, kind, s) {
   const W = st && st.warpA && st.warpA[kind];
   if (!W) return warpFor(st, kind, s);
-  if (s <= WARP_S0) return s;
-  const x = Math.min(WARP_N, (s - WARP_S0) / (1 - WARP_S0) * WARP_N), i = Math.min(WARP_N - 1, Math.floor(x)), f = x - i;
-  return W[i] + (W[i + 1] - W[i]) * f;
+  return warpTab(W, s);
+}
+function warpTab(W, s) {
+  if (s <= W.s0) return W.s0 > 0 ? s * W.k0 / W.s0 : s;
+  const x = Math.min(WARP_N, (s - W.s0) / (1 - W.s0) * WARP_N), i = Math.min(WARP_N - 1, Math.floor(x)), f = x - i;
+  return W.t[i] + (W.t[i + 1] - W.t[i]) * f;
 }
 // a stroke's pose at swing phase s: the body on its own timing, the arm and racket on theirs (both meet at contact)
 const ARM_SC = ['lg', 'gp'], _armT = {}, _altT = {};
@@ -6034,9 +6120,7 @@ function racketAimAt(Mo, st, kind, sl, ah, bw) {
 }
 function warpFor(st, kind, s) {
   const W = st && st.warp && st.warp[kind];
-  if (!W || s <= WARP_S0) return W ? s : swingWarp(kind, s);
-  const x = Math.min(WARP_N, (s - WARP_S0) / (1 - WARP_S0) * WARP_N), i = Math.min(WARP_N - 1, Math.floor(x)), f = x - i;
-  return W[i] + (W[i + 1] - W[i]) * f;
+  return W ? warpTab(W, s) : swingWarp(kind, s);
 }
 
 // mood poses
@@ -6661,9 +6745,9 @@ function syncAthlete(h, Mo, dt) {
   // The finish of a groundstroke and the return to ready play out at the body's own pace (about a third of a second)
   // even though the game's swing clock is already done: the clock races through the last part of the stroke at the
   // speed of the hit, and the body used to snap from the finish to the ready stance in a tenth of a second.
-  const tailK = Mo.svKind === 'fh' || Mo.svKind === 'bh';
+  const tailK = Mo.svKind === 'fh' || Mo.svKind === 'bh' || Mo.svKind === 'srv'; // (v188: and the serve - its way back to the stance went by in a tenth of a second, the racket swung up from the left hip at 25-30 m/s)
   if (tailK && Mo.svS !== undefined && Mo.svS > 0.8 && Mo.svS < 1 && !a.prep && (!a.active || (a.kind === Mo.svKind && real >= Mo.svS))) {
-    Mo.svS = Math.min(1, Mo.svS + dt * 0.75);
+    Mo.svS = Math.min(1, Mo.svS + dt * (Mo.svKind === 'srv' ? 0.45 : 0.75)); // (v188: a serve's way back to the stance takes nearly half a second - landing, then the racket brought up in front)
     if (Mo.svS >= 1) Mo.svS = real;
   } else if (!(a.active || a.s > 0) || Mo.svS === undefined || real < Mo.svS - 0.15 || (a.prep && a.kind !== Mo.svKind)) Mo.svS = real;
   else if (real > Mo.svS) Mo.svS = Math.min(real, Mo.svS + Math.max(0.006, (a.rate || 1) * dt * 1.7));
@@ -6687,6 +6771,15 @@ function syncAthlete(h, Mo, dt) {
   h.pos.x = Mo.rpos.x; h.pos.z = Mo.rpos.z; h.vel.x = Mo.rvel.x; h.vel.z = Mo.rvel.z;
   try { syncAthlete0(h, Mo, dt); } finally { a.s = real; a.active = realAct; a.kind = realKind; h.pos.x = sx; h.pos.z = sz; h.vel.x = svx; h.vel.z = svz; }
 }
+// (v188) a groundstroke's loading as the ball comes (weight L, 0-1), on top of the kinetic chain's coil (1a): knees a
+// little deeper, shoulders and hips wound a touch further round, the free hand (if off the racket) lower and a little
+// further out toward the ball
+function addLoad(T, kind, L) {
+  if (!(L > 0)) return;
+  const cd = kind === 'fh' ? -1 : 1;
+  T.sy += cd * 0.06 * L; T.hy += cd * 0.03 * L; T.cr += 0.03 * L;
+  if (T.lg < 0.5) { const f = (0.5 - T.lg) * 2; T.lh[1] -= 0.08 * L * f; T.lh[2] += 0.04 * L * f; }
+}
 function syncAthlete0(h, Mo, dt) {
   const a = h.anim, b = sim.ball, phase = sim.S.phase, st = Mo.style;
   if (!Mo.spec) { Mo.spec = cloneSpec(st.readySpec); Mo.tgt = cloneSpec(st.readySpec); Mo.tmp = cloneSpec(st.readySpec); Mo.tmp2 = cloneSpec(st.readySpec); Mo.feet = [makeFoot(), makeFoot()]; Mo.prepT = 0; Mo.stepCool = 0; }
@@ -6699,7 +6792,7 @@ function syncAthlete0(h, Mo, dt) {
     const k = st.keys[a.kind];
     if (a.prep) {
       Mo.prepT += dt;
-      sampleTrack(k, st.prepCap && st.prepCap[a.kind] !== undefined ? Math.min(a.s, st.prepCap[a.kind]) : a.s, Mo.tmp);
+      sampleTrack(k, prepKeyS(st, a.kind, a.s), Mo.tmp); // (v188: the loop spread evenly over the whole wait - see prepKeyS)
       // the takeback builds as the ball arrives: on a long run only the shoulders start to turn, the full
       // backswing comes in the last half second (TopSpin-style set-up instead of sprinting with the racket back)
       if (sim.incomingTo(h) && a.kind === 'tw') setup = 1;
@@ -6733,6 +6826,13 @@ function syncAthlete0(h, Mo, dt) {
         if (a.kind === 'fh' || a.kind === 'bh') { const wu = st.waitUp === undefined ? 1 : typeof st.waitUp === 'object' ? (st.waitUp[a.kind] === undefined ? 1 : st.waitUp[a.kind]) : st.waitUp; T.rt[1] += 0.45 * wait * wu; T.rh[1] += 0.07 * wait * wu; T.rh[2] += 0.07 * wait; T.rh[0] -= 0.04 * wait; }
         const fo = 0.1 * wait; if (st2 % 2) T.fL[1] += fo * (st2 % 4 === 1 ? 1 : -0.6); else T.fR[1] += fo * (st2 % 4 === 0 ? -0.6 : 1);
       }
+      // (v188) loading into the shot: over the last half second before the forward swing the knees sink a little further,
+      //  the shoulders and hips wind a touch more and the free hand comes down toward the ball; the forward swing unwinds
+      //  it (see LOAD below). Set early, the whole body stood frozen in the takeback - only the racket's loop moved
+      if ((a.kind === 'fh' || a.kind === 'bh') && sim.incomingTo(h)) {
+        const tc = sim.timeToCrossExact(h), L = isFinite(tc) ? smooth(Math.max(0, Math.min(1, (0.8 - tc) / 0.55))) * wPrep : 0;
+        addLoad(T, a.kind, L); Mo.loadE = L; Mo.loadK = a.kind;
+      } else Mo.loadE = 0;
     } else {
       // (v160) how much of this player's alternate finish this shot gets: decided by the planned contact height (the
       // real one once struck) and the shot, on a spring so it never switches in one frame
@@ -6764,7 +6864,7 @@ function syncAthlete0(h, Mo, dt) {
       // amplified); the springs then follow the authored path and only smooth the joins.
       // swing speed for the lead: eases off as the swing reaches a hold (waiting at contact for the strike) and
       // rides a spring, so the lead never switches on or off in one frame
-      const sdT = a.s < a.cap ? a.rate * Math.min(1, (a.cap - a.s) / 0.03) : 0;
+      const sdT = a.pace ? a.pace : a.s < a.cap ? a.rate * Math.min(1, (a.cap - a.s) / 0.03) : 0; // (v188: a serve's clock before the strike is run from the toss - a.pace is its speed)
       Mo.sdS = spring(Mo.sdS || 0, Mo.sdV || 0, sdT, 30, dt); Mo.sdV = _spV;
       const sd = Math.max(0, Mo.sdS);
       Mo.leadA = sd > 0.01 ? Math.min(0.11, sd * (2 / 80)) : 0; Mo.altUsed = ALT_W; // (v184: the racket lag below samples with the same lead)
@@ -6789,9 +6889,14 @@ function syncAthlete0(h, Mo, dt) {
         if (u < 1) { const tb = Mo.tmpB || (Mo.tmpB = cloneSpec(st.readySpec)); sampleStroke(st, Mo.bf.kind, a.s, tb); lead(tb, Mo.bf.kind); lerpSpec(tb, T, u, T); } else Mo.bf = null;
       }
       ALT_W = 0;
+      // (v188) LOAD: the takeback's loading unwinds with the first part of the forward swing (gone by s 0.32)
+      if (Mo.loadE > 0) {
+        if (Mo.loadK === a.kind && a.s < 0.32) addLoad(T, a.kind, Mo.loadE * (1 - smooth(Math.max(0, Math.min(1, (a.s - 0.15) / 0.17)))));
+        else Mo.loadE = 0;
+      }
     }
   } else {
-    Mo.prepT = 0;
+    Mo.prepT = 0; Mo.loadE = 0;
     if (h.cheer > 0) {
       mood = 1; lerpSpec(MOODS.cheer, MOODS.cheer, 0, T);
       const big = h.cheerKind !== 'small', cel = CELEBS[st.key];
@@ -6848,7 +6953,9 @@ function syncAthlete0(h, Mo, dt) {
   if (swinging && (a.kind === 'fh' || a.kind === 'bh') && !mood) {
     const sgn = a.kind === 'fh' ? 1 : -1, s = a.prep ? 0 : a.s, one = a.kind === 'bh' && st.oneHand;
     // fuller unit turn and a loaded outside leg in the set-up
-    const setW = a.prep ? 1 : Math.max(0, 1 - s / 0.3);
+    // (v188: these unwind from where the forward swing really starts - the loop has the clock at 0.15 by then - not from 0:
+    //  at the switch the shoulders snapped back ~10 degrees and the knees came up in the crossfade's tenth of a second)
+    const setW = a.prep ? 1 : 1 - smooth(Math.max(0, Math.min(1, (s - 0.15) / 0.15)));
     T.sy -= sgn * 0.2 * setW; T.hy -= sgn * 0.15 * setW; T.cr += 0.05 * setW;
     // the coil keeps winding as the ball comes (shoulders turning further, knees loading, the back shoulder dipping)
     // instead of a statue in the set position; it unwinds into the swing (the forward swing starts from it)
@@ -6858,7 +6965,7 @@ function syncAthlete0(h, Mo, dt) {
       T.sy -= sgn * 0.14 * coil; T.hy -= sgn * 0.06 * coil; T.cr += 0.035 * coil; T.tl += sgn * 0.04 * coil;
     } else if (!a.prep && Mo.coil) {
       // (released through the first part of the forward swing, not dropped in one frame)
-      const r = Mo.coil * Math.max(0, 1 - s / 0.32); T.sy -= sgn * 0.14 * r; T.hy -= sgn * 0.06 * r; T.cr += 0.035 * r; T.tl += sgn * 0.04 * r;
+      const r = Mo.coil * (1 - smooth(Math.max(0, Math.min(1, (s - 0.15) / 0.17)))); T.sy -= sgn * 0.14 * r; T.hy -= sgn * 0.06 * r; T.cr += 0.035 * r; T.tl += sgn * 0.04 * r;
       if (s > 0.32) Mo.coil = 0;
     }
     if (!a.prep && s > 0.2 && s < 0.46) {
@@ -6884,14 +6991,14 @@ function syncAthlete0(h, Mo, dt) {
     }
     // shoulder line and weight: the hitting shoulder dips as the racket loops down and the weight loads onto
     // the back leg; through contact the weight moves forward and across and the shoulders tilt up into the finish
-    const loadW = a.prep ? 0.5 : s < 0.32 ? 0.5 + 0.5 * smooth(s / 0.32) : 1 - smooth(Math.min(1, (s - 0.32) / 0.12)); // (v184: eased - the linear ramps kinked at 0.32 and 0.44)
+    const loadW = a.prep ? 0.5 : s < 0.32 ? 0.5 + 0.5 * smooth(Math.max(0, s - 0.15) / 0.17) : 1 - smooth(Math.min(1, (s - 0.32) / 0.12)); // (v184: eased - the linear ramps kinked at 0.32 and 0.44) (v188: from 0.15)
     const finW = !a.prep && s > 0.42 ? smooth(Math.min(1, (s - 0.42) / 0.35)) : 0;
     T.tl += sgn * (0.1 * loadW - 0.12 * finW);
     T.pz += -0.04 * loadW + 0.07 * finW;
     T.px += sgn * (0.05 * loadW - 0.05 * finW);
     if (!a.prep && s < 0.62) {
       // the legs power the swing: the knees load as the racket drops into the slot, then drive up through the ball
-      const ld = Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.1) / 0.3))), 2), up = Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.36) / 0.26))), 2); // (v184: sin^2, level at both ends)
+      const ld = Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.15) / 0.25))), 2), up = Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, (s - 0.36) / 0.26))), 2); // (v184: sin^2, level at both ends)
       T.cr += 0.045 * ld - 0.04 * up;
     }
     if (!a.prep && s > 0.5) {
@@ -11390,12 +11497,12 @@ function netRemModel(ft, last, sk, tcB) {
     }
     if (tc < tF) {
       // (the forward swing: from where the takeback got to, round to meet the ball as it arrives)
-      const s0 = an.prep ? (oh ? Math.max(an.s, 0.25) : Math.min(0.15, Math.max(an.s, 0.15 * smooth(Math.max(0, Math.min(1, (0.75 - tF) / 0.5)))))) : an.s;
+      const s0 = an.prep ? (oh ? Math.max(an.s, 0.25) : Math.min(0.15, Math.max(an.s, loopS(Math.max(0, Math.min(1, (0.75 - tF) / 0.5)))))) : an.s;
       o.prep = false; o.fwd = true; o.cap = 0.455; o.s = Math.max(an.prep ? 0 : an.s, s0 + (cS - s0) * (1 - tc / tF));
       return o;
     }
     // (the takeback, travelling on round the back of the loop as the ball comes)
-    if (an.prep && !oh) { const u = Math.max(0, Math.min(1, (0.75 - tc) / 0.5)); o.s = Math.max(an.s, u * u * (3 - 2 * u) * 0.15); return o; }
+    if (an.prep && !oh) { const u = Math.max(0, Math.min(1, (0.75 - tc) / 0.5)); o.s = Math.max(an.s, loopS(u)); return o; }
     return null;
   }
   const A = P1.anim, dt = ft - sk.t;
